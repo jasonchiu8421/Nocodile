@@ -1,8 +1,8 @@
-import pandas as pd
 from PIL import Image
 import h5py
 import numpy as np
 import os
+from collections import defaultdict
     
 class DatasetCreator:
     def __init__(self, base_folder=None):
@@ -81,18 +81,25 @@ class DatasetLoader:
         if not filename.endswith('.h5'):
             filename = f"{base_name}.h5"
         
-        # Load images and labels from a saved HDF5 file
+        # Open the HDF5 file
         with h5py.File(filename, 'r') as h5f:
             # Load images and labels
-            self.images = np.array(h5f['images'])
-            self.labels = np.array(h5f['labels'])
+            self.images = h5f['images'][:]
+            self.labels = h5f['labels'][:]
 
-        # Create a dictionary with labels as keys and images as values
-        dataset = {label: [] for label in self.labels}
-        for image, label in zip(self.images, self.labels):
-            dataset[label].append(image)
+        # Create a dictionary to hold the images by label
+        label_dict = defaultdict(list)
 
-        return dataset
+        # Convert images to PIL format and categorize by label
+        for idx, img_array in enumerate(self.images):
+            # Convert the image array to a PIL image
+            pil_image = Image.fromarray(img_array.astype('uint8'))
+            # Get the label for the current image
+            label = self.labels[idx]
+            # Append the PIL image to the list for the corresponding label
+            label_dict[label].append(pil_image)
+        
+        return label_dict
 
     # Example usage
     # dataset_loader = DatasetLoader()
