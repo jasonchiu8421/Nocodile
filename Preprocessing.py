@@ -8,3 +8,6 @@ import pandas as pd
 # Grayscale Conversion
 # Splitting the Dataset
 # Label Encoding
+# Data Shuffling
+# Normalization
+# Batching
