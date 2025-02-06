@@ -1,3 +1,0 @@
-# Data Shuffling
-# Normalization
-# Batching
