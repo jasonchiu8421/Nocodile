@@ -95,11 +95,11 @@ class DatasetLoader:
             # Convert the image array to a PIL image
             pil_image = Image.fromarray(img_array.astype('uint8'))
             # Get the label for the current image
-            label = self.labels[idx]
+            label = self.labels[idx].decode('utf-8')
             # Append the PIL image to the list for the corresponding label
             label_dict[label].append(pil_image)
         
-        return label_dict
+        return dict(label_dict)
 
     # Example usage
     # dataset_loader = DatasetLoader()
