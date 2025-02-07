@@ -15,9 +15,13 @@ dataset_loader.print_first_image_per_label()
 
 # Train model1 from kaggle (assuming train.csv is in 'ai' directory)
 x = pretraining()
-x.load_csv()
+x.load_csv("train.csv")
 X_train, y_train = x.preprocessing()
 model1 = FlexibleCNN(X_train, y_train)
 model1.pretraining()
 model1.model1()
 model1.check_performance()
+
+# use the model
+X_test = 
+model1.run_model(X_test)
