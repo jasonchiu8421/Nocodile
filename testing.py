@@ -1,33 +1,23 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from tensorflow.keras.utils import to_categorical
+from ai/ModelTraining import pretraining, FlexibleCNN
+from ai/Dataset import DatasetCreator, DatasetLoader
 
-class testing:
-    def __init__(self):
-        self.train = None
-        self.test = None
+# load image data (suppose we have a folder called digits in this directory) and create dataset
+base_folder = 'digits'
+dataset_creator = DatasetCreator(base_folder)
+dataset_creator.load_data()
+filename = "digits_dataset"
+dataset_creator.save_dataset_h5(filename)
 
-    def load_csv(self):
-        self.train = pd.read_csv("train.csv")
+# load saved dataset and print first image per label
+dataset_loader = DatasetLoader()
+dataset = dataset_loader.load_saved_dataset_h5('digits_dataset')
+dataset_loader.print_first_image_per_label()
 
-    def preprocessing(self):
-        self.X_train = (self.train.iloc[:,1:].values).astype('float32') # all pixel values
-        self.y_train = self.train.iloc[:,0].values.astype('int32') # only labels i.e targets digits
-        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28)
-        print(self.X_train)
-        print(self.y_train)
-
-        for i in range(6, 9):
-            plt.subplot(330 + (i+1))
-            plt.imshow(self.X_train[i], cmap=plt.get_cmap('gray'))
-            plt.title(self.y_train[i])
-        
-        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28,1)
-        print(self.X_train.shape)
-        self.y_train = to_categorical(self.y_train)  # Converts the target to a one-hot encoded format
-        num_classes = self.y_train.shape[1]    # The number of unique classes
-        print(num_classes)
-
-        return self.X_train, self.y_train
-
+# Train model1 from kaggle (assuming train.csv is in 'ai' directory)
+x = pretraining()
+x.load_csv()
+X_train, y_train = x.preprocessing()
+model1 = FlexibleCNN(X_train, y_train)
+model1.pretraining()
+model1.model1()
+model1.check_performance()
