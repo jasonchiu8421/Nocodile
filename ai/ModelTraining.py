@@ -10,15 +10,15 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 class pretraining:
     def __init__(self):
-        self.train = None
-        self.test = None
+        self.dataset = None
 
     def load_csv(self, filename=None):
-        self.train = pd.read_csv(filename)
+        self.dataset = pd.read_csv(filename)
+        return self.dataset
 
     def preprocessing(self):
-        self.X_train = (self.train.iloc[:,1:].values).astype('float32') # all pixel values
-        self.y_train = self.train.iloc[:,0].values.astype('int32') # only labels i.e targets digits
+        self.X_train = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
+        self.y_train = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
         self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28)
         print(self.X_train)
         print(self.y_train)
