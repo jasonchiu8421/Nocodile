@@ -1,4 +1,4 @@
-from PIL import Image
+import cv2
 import h5py
 import numpy as np
 import os
@@ -32,8 +32,9 @@ class DatasetCreator:
         if self.images == []:  # Load images only once
             self._load_image_paths_and_labels()  # Load image paths and labels
             for img_path in self.image_paths:
-                image = Image.open(img_path)  # Load the image
-                self.images.append(image)
+                image = cv2.imread(img_path)  # Load the image using cv2
+                if image is not None:  # Check if the image was loaded successfully
+                    self.images.append(image)
             self.images = np.array(self.images)
 
         return self.images, self.labels
@@ -74,6 +75,7 @@ class DatasetLoader:
     def __init__(self):
         self.images = None
         self.labels = None
+        self.dataset = {}
 
     def load_saved_dataset_h5(self, filename):
         # Avoid subscript
@@ -92,14 +94,14 @@ class DatasetLoader:
 
         # Convert images to PIL format and categorize by label
         for idx, img_array in enumerate(self.images):
-            # Convert the image array to a PIL image
-            pil_image = Image.fromarray(img_array.astype('uint8'))
             # Get the label for the current image
             label = self.labels[idx].decode('utf-8')
             # Append the PIL image to the list for the corresponding label
-            label_dict[label].append(pil_image)
+            label_dict[label].append(img_array)
         
-        return dict(label_dict)
+        self.dataset = dict(label_dict)
+        
+        return self.dataset
 
     # Example usage
     # dataset_loader = DatasetLoader()
@@ -122,7 +124,7 @@ class DatasetLoader:
             label = label.decode('utf-8')
             print(f"First image of label '{label}':")
             img = self.dataset[label][0]
-            img.show()  # Show the image
+            cv2.imwrite('digits.jpg', img)
 
     # Example usage
     # dataset_loader = DatasetLoader()
