@@ -119,9 +119,9 @@ class DatasetLoader:
         # Print the first image for each unique label
         unique_labels = np.unique(self.labels)
         for label in unique_labels:
-            index = np.where(self.labels == label)[0][0]  # Get the index of the first occurrence
+            label = label.decode('utf-8')
             print(f"First image of label '{label}':")
-            img = Image.fromarray(self.images[index])  # Convert the array to an image
+            img = self.dataset[label][0]
             img.show()  # Show the image
 
     # Example usage
