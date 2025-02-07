@@ -23,5 +23,6 @@ model1.model1()
 model1.check_performance()
 
 # use the model
-X_test = 
+x = pretraining()
+X_test = x.load_csv("test.csv")
 model1.run_model(X_test)
