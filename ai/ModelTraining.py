@@ -8,6 +8,33 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
+class pretraining:
+    def __init__(self):
+        self.train = None
+        self.test = None
+
+    def load_csv(self, filename=None):
+        self.train = pd.read_csv(filename)
+
+    def preprocessing(self):
+        self.X_train = (self.train.iloc[:,1:].values).astype('float32') # all pixel values
+        self.y_train = self.train.iloc[:,0].values.astype('int32') # only labels i.e targets digits
+        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28)
+        print(self.X_train)
+        print(self.y_train)
+
+        for i in range(6, 9):
+            plt.subplot(330 + (i+1))
+            plt.imshow(self.X_train[i], cmap=plt.get_cmap('gray'))
+            plt.title(self.y_train[i])
+        
+        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28,1)
+        print(self.X_train.shape)
+        self.y_train = to_categorical(self.y_train)  # Converts the target to a one-hot encoded format
+        num_classes = self.y_train.shape[1]    # The number of unique classes
+        print(num_classes)
+
+        return self.X_train, self.y_train
 
 class FlexibleCNN:
     def __init__(self, X_train, y_train):
