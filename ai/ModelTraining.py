@@ -1,7 +1,3 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from tensorflow.keras.utils import to_categorical
 import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -12,33 +8,6 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-class pretraining:
-    def __init__(self):
-        self.train = None
-        self.test = None
-
-    def load_csv(self):
-        self.train = pd.read_csv("train.csv")
-
-    def preprocessing(self):
-        self.X_train = (self.train.iloc[:,1:].values).astype('float32') # all pixel values
-        self.y_train = self.train.iloc[:,0].values.astype('int32') # only labels i.e targets digits
-        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28)
-        print(self.X_train)
-        print(self.y_train)
-
-        for i in range(6, 9):
-            plt.subplot(330 + (i+1))
-            plt.imshow(self.X_train[i], cmap=plt.get_cmap('gray'))
-            plt.title(self.y_train[i])
-        
-        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28,1)
-        print(self.X_train.shape)
-        self.y_train = to_categorical(self.y_train)  # Converts the target to a one-hot encoded format
-        num_classes = self.y_train.shape[1]    # The number of unique classes
-        print(num_classes)
-
-        return self.X_train, self.y_train
 
 class FlexibleCNN:
     def __init__(self, X_train, y_train):
@@ -114,6 +83,8 @@ class FlexibleCNN:
             validation_steps=self.val_batches.n,
             verbose=1
         )
+        
+        return self.model
 
     def model2(self):
         
@@ -136,6 +107,8 @@ class FlexibleCNN:
             validation_steps=self.val_batches.n,
             verbose=1
         )
+        
+        return self.model
     
     def model3(self):
         self.model = Sequential([
@@ -163,6 +136,8 @@ class FlexibleCNN:
             validation_steps=self.val_batches.n,
             verbose=1
         )
+        
+        return self.model
 
     def model4(self):
         gen =ImageDataGenerator(rotation_range=8, width_shift_range=0.08, shear_range=0.3,
@@ -196,6 +171,8 @@ class FlexibleCNN:
             validation_steps=self.val_batches.n,
             verbose=1
         )
+        
+        return self.model
 
     def model5(self):
         self.model = Sequential([
@@ -228,6 +205,8 @@ class FlexibleCNN:
             validation_steps=self.val_batches.n,
             verbose=1
         )
+        
+        return self.model
     
     def model6(self):
         self.model = Sequential([
@@ -263,3 +242,11 @@ class FlexibleCNN:
             epochs=10,
             verbose=1
         )
+
+        return self.model
+
+    def run_model(self, X_test):
+        X_test = X_test.reshape(28, 28, 1).astype('float32')
+        predictions = self.model.predict(X_test, verbose=1)
+        predicted_class = np.argmax(predictions, axis=1)
+        return predicted_class
