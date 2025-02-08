@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Typography, Input, theme, Flex } from 'antd';
+import { Typography, Input, Flex } from 'antd';
 import { Node, NodeProps } from '@xyflow/react';
 import Block from '../Blocks';
 import NodeCard from '../Card';
@@ -20,7 +20,6 @@ function StorageNodeContent({
   data: StorageNodeData;
   disabled?: boolean;
 }) {
-  const { token } = theme.useToken();
   const [id, setId] = useState<string>('');
   const { getStorageValue } = useStorageNode();
   const storedValue = getStorageValue(id);
@@ -28,25 +27,20 @@ function StorageNodeContent({
   return (
     <NodeCard title="Storage">
       <Flex vertical gap="small">
-        <div style={{ padding: `0px ${token.paddingXS}px` }}>
-          <Input
-            placeholder="Enter ID"
-            value={id}
-            onChange={(e) => setId(e.target.value)}
-            disabled={disabled}
-            className="nodrag"
-          />
-        </div>
-
+        <Input
+          placeholder="Enter ID"
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          disabled={disabled}
+          className="nodrag"
+        />
         <Block target={data.dataTarget}>
           <Flex justify="space-between" align="center">
             <Text>Data</Text>
             {storedValue ? (
               <Text type="secondary">{JSON.stringify(storedValue)}</Text>
             ) : (
-              <Text type="secondary" italic>
-                No data
-              </Text>
+              <Text type="secondary">No data</Text>
             )}
           </Flex>
         </Block>

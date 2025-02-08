@@ -14,21 +14,37 @@ function Block({ target, source, children }: BlockProps) {
   return (
     <div style={{ position: 'relative' }}>
       {target && ( // Input
-        <Handle
-          key={target}
-          id={target}
-          type="target"
-          position={Position.Left}
-        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: -token.paddingXS,
+          }}
+        >
+          <Handle
+            key={target}
+            id={target}
+            type="target"
+            position={Position.Left}
+          />
+        </div>
       )}
-      <div style={{ padding: `0px ${token.paddingXS}px` }}>{children}</div>
+      {children}
       {source && ( // Output
-        <Handle
-          key={source}
-          id={source}
-          type="source"
-          position={Position.Right}
-        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            right: -token.paddingXS,
+          }}
+        >
+          <Handle
+            key={source}
+            id={source}
+            type="source"
+            position={Position.Right}
+          />
+        </div>
       )}
     </div>
   );

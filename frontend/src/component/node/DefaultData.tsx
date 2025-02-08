@@ -8,42 +8,36 @@ import { StorageNodeData } from './types/Storage';
 
 export default {
   placeholder: {
-    placeholderA: {
-      target: 'default-target-a',
-      source: 'default-source-a',
-      content: 'Placeholder default content A.',
-    },
-    placeholderB: {
-      target: 'default-target-b',
-      content: 'Placeholder default content B.',
-    },
-    placeholderC: {
-      source: 'default-source-c',
-      content: 'Placeholder default content C.',
-    },
+    aTarget: 'placeholder-aTarget',
+    aSource: 'placeholder-aSource',
+    aContent: 'placeholder-aContent',
+    bTarget: 'placeholder-bTarget',
+    bContent: 'placeholder-bContent',
+    cSource: 'placeholder-cSource',
+    cContent: 'placeholder-cContent',
   } as PlaceholderNodeData,
   imageIngestion: {
-    source: 'image-ingestion-source',
+    source: 'imageIngestion-source',
   } as ImageIngestionNodeData,
   imageAugmentation: {
-    parameterTarget: 'image-augmentation-parameter-target',
-    inputTarget: 'image-augmentation-input-target',
-    outputSource: 'image-augmentation-output-source',
+    parameterTarget: 'imageAugmentation-parameterTarget',
+    inputTarget: 'imageAugmentation-inputTarget',
+    outputSource: 'imageAugmentation-outputSource',
   } as ImageAugmentationNodeData,
   imageClassification: {
-    datasetTarget: 'image-classification-dataset-target',
-    accuracySource: 'image-classification-accuracy-source',
-    modelSource: 'image-classification-model-source',
+    datasetTarget: 'imageClassification-datasetTarget',
+    accuracySource: 'imageClassification-accuracySource',
+    modelSource: 'imageClassification-modelSource',
   } as ImageClassificationModelNodeData,
   storage: {
-    dataTarget: 'storage-data-target',
+    dataTarget: 'storage-dataTarget',
   } as StorageNodeData,
   datasetLoader: {
-    source: 'dataset-loader-source',
+    source: 'datasetLoader-source',
   } as DatasetLoaderNodeData,
   modelRunner: {
-    modelTarget: 'model-runner-model-target',
-    inputTarget: 'model-runner-input-target',
-    outputSource: 'model-runner-output-source',
+    modelTarget: 'modelRunner-modelTarget',
+    inputTarget: 'modelRunner-inputTarget',
+    outputSource: 'modelRunner-outputSource',
   } as ModelRunnerNodeData,
 } as { [key: string]: any };

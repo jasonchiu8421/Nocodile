@@ -4,10 +4,11 @@ import { Card, Flex, theme } from 'antd';
 interface NodeCardProps {
   title: string;
   cover?: React.ReactNode;
+  small?: boolean;
   children: React.ReactNode;
 }
 
-function NodeCard({ title, cover, children }: NodeCardProps) {
+function NodeCard({ title, cover, small = false, children }: NodeCardProps) {
   const { token } = theme.useToken();
 
   return (
@@ -30,13 +31,10 @@ function NodeCard({ title, cover, children }: NodeCardProps) {
         )
       }
       hoverable
-      styles={{ body: { padding: 0, maxWidth: 500 }, cover: { maxWidth: 500 } }}
+      style={{ minWidth: small ? 150 : 300 }}
+      styles={{ body: { padding: 0 }, cover: { maxWidth: 500 } }}
     >
-      <Flex
-        vertical
-        gap="small"
-        style={{ padding: `${token.paddingXS}px 0px` }}
-      >
+      <Flex vertical gap="small" style={{ padding: token.paddingXS }}>
         {children}
       </Flex>
     </Card>

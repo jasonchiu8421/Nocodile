@@ -28,7 +28,7 @@ function DatasetLoaderNodeContent({
   };
 
   return (
-    <NodeCard title="Dataset Loader">
+    <NodeCard title="Dataset Loader" small>
       <Block source={data.source}>
         <Flex gap="small" wrap align="center">
           <Upload

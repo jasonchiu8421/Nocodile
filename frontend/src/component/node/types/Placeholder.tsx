@@ -7,27 +7,28 @@ import NodeCard from '../Card';
 const { Text } = Typography;
 
 type PlaceholderNodeData = {
-  placeholderA: { target: string; source: string; content: string };
-  placeholderB: { target: string; content: string };
-  placeholderC: { source: string; content: string };
+  aTarget: string;
+  aSource: string;
+  aContent: string;
+  bTarget: string;
+  bContent: string;
+  cSource: string;
+  cContent: string;
 };
 
 type PlaceholderNodeType = Node<PlaceholderNodeData, 'placeholder'>;
 
 function PlaceholderNodeContent({ data }: { data: PlaceholderNodeData }) {
   return (
-    <NodeCard title="Placeholder">
-      <Block
-        target={data.placeholderA.target}
-        source={data.placeholderA.source}
-      >
-        <Text>{data.placeholderA.content}</Text>
+    <NodeCard title="Placeholder" small>
+      <Block target={data.aTarget} source={data.aSource}>
+        <Text>{data.aContent}</Text>
       </Block>
-      <Block target={data.placeholderB.target}>
-        <Text>{data.placeholderB.content}</Text>
+      <Block target={data.bTarget}>
+        <Text>{data.bContent}</Text>
       </Block>
-      <Block source={data.placeholderC.source}>
-        <Text>{data.placeholderC.content}</Text>
+      <Block source={data.cSource}>
+        <Text>{data.cContent}</Text>
       </Block>
     </NodeCard>
   );

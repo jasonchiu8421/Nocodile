@@ -82,14 +82,13 @@ function ImageAugmentationNodeContent({
           <div
             style={{
               height: 150,
-              minWidth: 200,
               background: token.colorBgContainer,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <Text type="secondary">Loading Images...</Text>
+            <Text type="secondary">No Image</Text>
           </div>
         )
       }

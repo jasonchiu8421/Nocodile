@@ -45,7 +45,9 @@ function DndNode({ type }: DndNodeProps) {
     datasetLoader: (
       <DatasetLoaderNodeContent data={defaultNodeData.datasetLoader} disabled />
     ),
-    modelRunner: <ModelRunnerNodeContent data={defaultNodeData.modelRunner} />,
+    modelRunner: (
+      <ModelRunnerNodeContent data={defaultNodeData.modelRunner} disabled />
+    ),
   };
 
   return (
