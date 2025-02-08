@@ -82,6 +82,7 @@ function ImageAugmentationNodeContent({
           <div
             style={{
               height: 150,
+              minWidth: 200,
               background: token.colorBgContainer,
               display: 'flex',
               alignItems: 'center',

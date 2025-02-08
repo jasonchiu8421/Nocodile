@@ -1,35 +1,82 @@
-interface Project {
+export interface Project {
   id: number;
   name: string;
-  thumbnail: string;
 }
 
-export const placeholderProjects: Project[] = [
+const placeholderProjects: Project[] = [
   {
     id: 1,
     name: 'Summer Vlog',
-    thumbnail: 'https://picsum.photos/800/600',
   },
   {
     id: 2,
     name: 'Product Review',
-    thumbnail: 'https://picsum.photos/800/600',
   },
   {
     id: 3,
     name: 'Travel Documentary',
-    thumbnail: 'https://picsum.photos/800/600',
   },
   {
     id: 4,
     name: 'Tutorial Series',
-    thumbnail: 'https://picsum.photos/800/600',
   },
   {
     id: 5,
     name: 'Funny Videos',
-    thumbnail: 'https://picsum.photos/800/600',
   },
 ];
 
-export default Project;
+// Utility function to simulate delay in API calls
+function simulateDelay<T>(data: T, delay: number = 500): Promise<T> {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(data), delay);
+  });
+}
+
+// Retrieve all projects
+export async function getProjects(): Promise<Project[]> {
+  return simulateDelay([...placeholderProjects]);
+}
+
+// Retrieve a single project by id
+export async function getProject(id: number): Promise<Project | undefined> {
+  const project = placeholderProjects.find((p) => p.id === id);
+  return simulateDelay(project);
+}
+
+// Create a new project
+export async function createProject(
+  projectData: Omit<Project, 'id'>,
+): Promise<Project> {
+  const newId =
+    placeholderProjects.length > 0
+      ? Math.max(...placeholderProjects.map((p) => p.id)) + 1
+      : 1;
+  const newProject: Project = { id: newId, ...projectData };
+  placeholderProjects.push(newProject);
+  return simulateDelay(newProject);
+}
+
+// Update an existing project
+export async function updateProject(
+  updatedProject: Project,
+): Promise<Project | null> {
+  const index = placeholderProjects.findIndex(
+    (p) => p.id === updatedProject.id,
+  );
+  if (index > -1) {
+    placeholderProjects[index] = updatedProject;
+    return simulateDelay(updatedProject);
+  }
+  return simulateDelay(null);
+}
+
+// Delete a project
+export async function deleteProject(id: number): Promise<boolean> {
+  const index = placeholderProjects.findIndex((p) => p.id === id);
+  if (index > -1) {
+    placeholderProjects.splice(index, 1);
+    return simulateDelay(true);
+  }
+  return simulateDelay(false);
+}
