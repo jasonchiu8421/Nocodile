@@ -1,9 +1,16 @@
 import pandas as pd
 from PIL import Image, ImageOps
 import cv2
+from Dataset import
 # dataset = {"label": list of RGB images}
 # RGB is in the form of an np.array
 # in the following code, an image is called data
+
+class Preprocessing:
+    def __init__(self, filename=None):
+        # filename is the file name of the dataset from current directory
+        dataset_loader = DatasetLoader()
+        self.dataset = dataset_loader.load_saved_dataset_h5(filename)
 
 # Noise removal/ Outlier removal
 
@@ -18,16 +25,19 @@ r_data = data.resize(size)
 r_data.show()
 
 # Grayscale Conversion
-from PIL import Image, ImageOps
-gr_data = ImageOps.grayscale(r_data) 
-gr_data.show()
+# from PIL import Image, ImageOps
+# gr_data = ImageOps.grayscale(r_data) 
+# gr_data.show()
 # OR: 
-import cv2
-# Use the cvtColor() function to grayscale the image
-gr_data = cv2.cvtColor(r_data, cv2.COLOR_BGR2GRAY)
-cv2.imshow('Grayscale Image', gr_data)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
+def grayscale(self):
+    # Use the cvtColor() function to grayscale the image
+    gr_data = cv2.cvtColor(r_data, cv2.COLOR_BGR2GRAY)
+    cv2.imshow('Grayscale Image', gr_data)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
 
 # Organising the dataset
 X=np.array()
