@@ -2,7 +2,6 @@ import cv2
 import h5py
 import numpy as np
 import os
-from collections import defaultdict
     
 class DatasetCreator:
     def __init__(self, base_folder=None):
@@ -44,40 +43,57 @@ class DatasetCreator:
     # dataset_creator = DatasetCreator(base_folder)
     # images, labels = dataset_creator.load_data()
 
-    def save_dataset_h5(self, file_path=None):
+    def save_dataset(self, file_path=None):
         # Create dataset filename if not specified
         if file_path is None or file_path.strip() == "":
             directory = os.path.dirname(self.base_folder)
             file_name = os.path.splitext(os.path.basename(self.base_folder))[0] + '_dataset.h5'
             file_path = os.path.join(directory, file_name)
+        
+        # Save dataset
+        datasetloader = DatasetLoader()
+        datasetloader.save_dataset(file_path)
+        return file_path
+    
+    # Example usage
+    # base_folder = 'digits'
+    # dataset_creator = DatasetCreator(base_folder)
+    # dataset_creator.load_data()
+    # name_of_saved_file = dataset_creator.save_dataset()
 
+class DatasetLoader:
+    def __init__(self, images=None, labels=None):
+        self.images = images
+        self.labels = labels
+        self.filename = None
+    
+    # Example usage
+    # dataset_loader = DatasetLoader(images, labels)
+    
+    def save_dataset(self, file_path):
         # Avoid subscript
         base_name = file_path.split('.')[0]
         if not file_path.endswith('.h5'):
-            file_path = f"{base_name}.h5"
+            self.filename = f"{base_name}.h5"
 
         # Save the dataset to an HDF5 file
         if self.images is None:  # Load images if not already loaded
             self.load_data()
 
-        with h5py.File(file_path, 'w') as h5f:
+        with h5py.File(self.filename, 'w') as h5f:
             # Save images and labels directly
             h5f.create_dataset('images', data=self.images, dtype='float32')
             h5f.create_dataset('labels', data=self.labels.astype('S'))
 
     # Example usage
-    # base_folder = 'digits'
-    # dataset_creator = DatasetCreator(base_folder)
+    # dataset_loader = DatasetLoader(images, labels)
     # filename = "digits_dataset"/ filename = "digits_dataset.h5"
-    # dataset_creator.save_dataset_h5(filename)
+    # dataset_creator.save_dataset(filename)
 
-class DatasetLoader:
-    def __init__(self):
-        self.images = None
-        self.labels = None
-        self.dataset = {}
+    def get_filename(self):
+        return self.filename
 
-    def load_saved_dataset_h5(self, filename):
+    def load_saved_dataset(self, filename):
         # Avoid subscript
         base_name = filename.split('.')[0]
         if not filename.endswith('.h5'):
@@ -88,24 +104,12 @@ class DatasetLoader:
             # Load images and labels
             self.images = h5f['images'][:]
             self.labels = h5f['labels'][:]
-
-        # Create a dictionary to hold the images by label
-        label_dict = defaultdict(list)
-
-        # Convert images to PIL format and categorize by label
-        for idx, img_array in enumerate(self.images):
-            # Get the label for the current image
-            label = self.labels[idx].decode('utf-8')
-            # Append the PIL image to the list for the corresponding label
-            label_dict[label].append(img_array)
         
-        self.dataset = dict(label_dict)
-        
-        return self.dataset
+        return self.images, self.labels
 
     # Example usage
     # dataset_loader = DatasetLoader()
-    # dataset = dataset_loader.load_saved_dataset_h5('digits_dataset.h5')
+    # images, labels = dataset_loader.load_saved_dataset('digits_dataset.h5')
 
     def print_shapes(self):
         # Print the shapes of images and labels
@@ -114,7 +118,7 @@ class DatasetLoader:
     
     # Example usage
     # dataset_loader = DatasetLoader()
-    # dataset_loader.load_saved_dataset_h5('digits_dataset.h5')
+    # dataset_loader.load_saved_dataset('digits_dataset.h5')
     # dataset_loader.print_shapes()
 
     def print_first_image_per_label(self):
@@ -128,5 +132,5 @@ class DatasetLoader:
 
     # Example usage
     # dataset_loader = DatasetLoader()
-    # dataset_loader.load_saved_dataset_h5('digits_dataset.h5')
+    # dataset_loader.load_saved_dataset('digits_dataset.h5')
     # dataset_loader.print_first_image_per_label()
