@@ -1,7 +1,7 @@
 import pandas as pd
 from PIL import Image, ImageOps
 import cv2
-from Dataset import
+from Dataset import DataLoader
 # dataset = {"label": list of RGB images}
 # RGB is in the form of an np.array
 # in the following code, an image is called data
@@ -10,7 +10,7 @@ class Preprocessing:
     def __init__(self, filename=None):
         # filename is the file name of the dataset from current directory
         dataset_loader = DatasetLoader()
-        self.dataset = dataset_loader.load_saved_dataset_h5(filename)
+        self.images, self.labels = dataset_loader.load_saved_dataset(filename)
 
 # Noise removal/ Outlier removal
 
@@ -19,24 +19,26 @@ class Preprocessing:
 
 
 # Image Resizing (allow Multi-Resolution Training)
-from PIL import Image 
-size = (28, 28) # for the trial workshop
-r_data = data.resize(size)
-r_data.show()
+def resize(self, width, height):
+    # Specify the new size as (width, height)
+    new_size = (width, height)
+    for i in range(images.shape[0]):
+        self.image[i] = cv2.resize(self.image[i], new_size)
+
+    # from PIL import Image 
+    # size = (28, 28) # for the trial workshop
+    # r_data = data.resize(size)
+    # r_data.show()
 
 # Grayscale Conversion
-# from PIL import Image, ImageOps
-# gr_data = ImageOps.grayscale(r_data) 
-# gr_data.show()
-# OR: 
-
-def grayscale(self):
+def convert_to_grayscale(self):
     # Use the cvtColor() function to grayscale the image
-    gr_data = cv2.cvtColor(r_data, cv2.COLOR_BGR2GRAY)
-    cv2.imshow('Grayscale Image', gr_data)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    for i in range(images.shape[0]):
+        self.image[i] = cv2.cvtColor(self.image[i], cv2.COLOR_BGR2GRAY)
 
+    # from PIL import Image, ImageOps
+    # gr_data = ImageOps.grayscale(r_data) 
+    # gr_data.show()
 
 def
 # Organising the dataset
