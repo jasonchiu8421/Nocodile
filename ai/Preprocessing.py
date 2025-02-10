@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 from PIL import Image, ImageOps
 import cv2
-from Dataset import DataLoader
+from Dataset import DatasetLoader
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+from sklearn.model_selection import KFold
 
 # dataset = {"label": list of RGB images}
 # RGB is in the form of an np.array
@@ -45,19 +46,25 @@ class Preprocessing:
         # gr_data.show()
     
     # Splitting the Dataset
-    def split_data(self, mode="train_test"):
-    X_train, X_temp, y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+    def split_data_train_test(self):
+        # train/test split
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+        return self.X_train, self.X_test, self.y_train, self.y_test
     
-    # train/val/test
-    from sklearn.model_selection import train_test_split
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+    def split_data_train_test_val(self):
+        # train/val/test split
+        self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+        self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+        return self.X_train, self.y_train, self.X_val, self.X_test, self.y_val, self.y_test
+    
     # k-fold CV
-    from sklearn.model_selection import KFold
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    for train_index, val_index in kf.split(X):
-        X_train, X_val = X[train_index], X[val_index]
-        y_train, y_val = y[train_index], y[val_index]
+    def split_data_kFold(self):
+        # not yet finished
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        for train_index, val_index in kf.split(self.X):
+            self.X_train, self.X_val = self.X[train_index], self.X[val_index]
+            self.y_train, self.y_val = self.y[train_index], self.y[val_index]
+        return kf
     
     # Label Encoding  # https://www.geeksforgeeks.org/ml-label-encoding-of-datasets-in-python/
     # Import label encoder 
@@ -70,8 +77,9 @@ class Preprocessing:
     # df['species'].unique() 
     
     # Data Shuffling
-    def shuffle_data(self):
-        X_shuffled, y_shuffled = shuffle(X, y, random_state=42) # where x and y are np.arrays
+    def shuffle_data(self, X, y):
+        X_shuffled, y_shuffled = shuffle(X, y, random_state=42)
+        return X_shuffled, y_shuffled
     
     # Normalization
     def _standardize(self, x):
@@ -80,3 +88,4 @@ class Preprocessing:
         return (x-mean_px)/std_px
     
     # Batching
+
