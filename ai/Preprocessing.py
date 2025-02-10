@@ -38,15 +38,21 @@ def grayscale(self):
     cv2.destroyAllWindows()
 
 
-
+def
 # Organising the dataset
-X=np.array()
-y=np.array()
-for i in list(data.keys()):
-    temp = np.array(data[i])
-    X = np.concatenate((X, temp), axis=0)
-    temp = np.full(data[i].count(i), i)
-    y = np.concatenate((y, temp), axis=0)
+total_images = sum(len(images) for images in dataset.values())
+labels = np.empty(total_images, dtype=object)
+images = np.empty((total_images, 32* 32 * 3))
+
+index = 0
+for label, img_list in dataset.items():
+    for image in img_list:
+        # Flatten the image
+        flattened_image = image.flatten()
+        # Assign to the numpy arrays
+        labels[index] = label
+        images[index] = flattened_image
+        index += 1
 
 # Splitting the Dataset
 # train/test
