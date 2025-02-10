@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+from sklearn.model_selection import KFold
 from tensorflow.keras.layers import Convolution2D, Lambda, Dense, Flatten, Dropout, BatchNormalization, Conv2D, MaxPooling2D
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Sequential
@@ -10,7 +11,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
 
-class pretraining:
+class Pretraining:
     def __init__(self):
         self.dataset = None
 
@@ -19,12 +20,11 @@ class pretraining:
         return self.dataset
 
     def preprocessing(self):
-        self.X_train = (self.dataset.iloc[:,1:].values).astype('float32')
-        self.y_train = self.dataset.iloc[:,0].values.astype('int32')
+        self.X_train = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
+        self.y_train = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
         self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28)
         self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28,1)
-        print(self.X_train.shape)
-        self.y_train = to_categorical(self.y_train)  # Converts the target to a one-hot encoded format
+        self.y_train = to_categorical(self.y_train)
         return self.X_train, self.y_train
 
 class FlexibleCNN:
@@ -51,6 +51,27 @@ class FlexibleCNN:
         
         self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
         self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=64)
+    
+        # Splitting the Dataset
+    def split_data_train_test(self):
+        # train/test split
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+        return self.X_train, self.X_test, self.y_train, self.y_test
+    
+    def split_data_train_test_val(self):
+        # train/val/test split
+        self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+        self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+        return self.X_train, self.y_train, self.X_val, self.X_test, self.y_val, self.y_test
+    
+    # k-fold CV
+    def split_data_kFold(self):
+        # not yet finished
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        for train_index, val_index in kf.split(self.X):
+            self.X_train, self.X_val = self.X[train_index], self.X[val_index]
+            self.y_train, self.y_val = self.y[train_index], self.y[val_index]
+        return kf
 
     def check_performance(self):
         history_dict = self.hist.history
@@ -87,8 +108,9 @@ class FlexibleCNN:
         self.model.add(Dense(10, activation='softmax'))
         print("input shape ",self.model.input_shape)
         print("output shape ",self.model.output_shape)
+        
         self.model.compile(
-            optimizer=RMSprop(learning_rate=0.001),  # Use `learning_rate` instead of `lr`
+            optimizer=RMSprop(learning_rate=0.001),
             loss='categorical_crossentropy',
             metrics=['accuracy']
         )
