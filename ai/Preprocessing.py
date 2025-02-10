@@ -22,19 +22,6 @@ import cv2
 gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 # Splitting the Dataset
-
-
-# Label Encoding  # https://www.geeksforgeeks.org/ml-label-encoding-of-datasets-in-python/
-# Import label encoder 
-from sklearn import preprocessing 
-# label_encoder object knows  
-# how to understand word labels. 
-label_encoder = preprocessing.LabelEncoder() 
-# Encode labels in column 'species'. 
-df['species']= label_encoder.fit_transform(df['species']) 
-df['species'].unique() 
-
-# Data Shuffling
 # train/test
 from sklearn.model_selection import train_test_split
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -48,6 +35,19 @@ kf = KFold(n_splits=5, shuffle=True, random_state=42)
 for train_index, val_index in kf.split(X):
     X_train, X_val = X[train_index], X[val_index]
     y_train, y_val = y[train_index], y[val_index]
+
+# Label Encoding  # https://www.geeksforgeeks.org/ml-label-encoding-of-datasets-in-python/
+# Import label encoder 
+from sklearn import preprocessing 
+# label_encoder object knows  
+# how to understand word labels. 
+label_encoder = preprocessing.LabelEncoder() 
+# Encode labels in column 'species'. 
+df['species']= label_encoder.fit_transform(df['species']) 
+df['species'].unique() 
+
+# Data Shuffling
+
 
 # Normalization
 
