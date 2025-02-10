@@ -47,8 +47,14 @@ df['species']= label_encoder.fit_transform(df['species'])
 df['species'].unique() 
 
 # Data Shuffling
-
+from sklearn.utils import shuffle
+import numpy as np
+X_shuffled, y_shuffled = shuffle(X, y, random_state=42) # where x and y are np.arrays
 
 # Normalization
+def _standardize(self, x):
+    mean_px = self.X_train.mean().astype(np.float32)
+    std_px = self.X_train.std().astype(np.float32)
+    return (x-mean_px)/std_px
 
 # Batching
