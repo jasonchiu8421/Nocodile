@@ -2,6 +2,8 @@ import pandas as pd
 from PIL import Image, ImageOps
 import cv2
 from Dataset import DataLoader
+from sklearn.model_selection import train_test_split
+
 # dataset = {"label": list of RGB images}
 # RGB is in the form of an np.array
 # in the following code, an image is called data
@@ -40,30 +42,14 @@ def convert_to_grayscale(self):
     # gr_data = ImageOps.grayscale(r_data) 
     # gr_data.show()
 
-def
-# Organising the dataset
-total_images = sum(len(images) for images in dataset.values())
-labels = np.empty(total_images, dtype=object)
-images = np.empty((total_images, 32* 32 * 3))
-
-index = 0
-for label, img_list in dataset.items():
-    for image in img_list:
-        # Flatten the image
-        flattened_image = image.flatten()
-        # Assign to the numpy arrays
-        labels[index] = label
-        images[index] = flattened_image
-        index += 1
-
 # Splitting the Dataset
-# train/test
-from sklearn.model_selection import train_test_split
-X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
-# train/val/test
-from sklearn.model_selection import train_test_split
-X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
-X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+def split_dataset(self):
+    X_train, X_temp, y_train, y_temp = train_test_split(self.images, self.labels, test_size=0.2, random_state=42)
+    # train/val/test
+    from sklearn.model_selection import train_test_split
+    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+
 # k-fold CV
 from sklearn.model_selection import KFold
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
