@@ -44,12 +44,12 @@ def convert_to_grayscale(self):
 
 # Splitting the Dataset
 def split_dataset(self):
-    X_train, X_temp, y_train, y_temp = train_test_split(self.images, self.labels, test_size=0.2, random_state=42)
-    # train/val/test
-    from sklearn.model_selection import train_test_split
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 
+X_train, X_temp, y_train, y_temp = train_test_split(self.images, self.labels, test_size=0.2, random_state=42)
+# train/val/test
+from sklearn.model_selection import train_test_split
+X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
+X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 # k-fold CV
 from sklearn.model_selection import KFold
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
