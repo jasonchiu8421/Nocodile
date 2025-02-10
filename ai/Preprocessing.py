@@ -1,5 +1,7 @@
 import pandas as pd
-# dataset = {"label": list of RGB}
+from PIL import Image, ImageOps
+import cv2
+# dataset = {"label": list of RGB images}
 # RGB is in the form of an np.array
 # in the following code, an image is called data
 
