@@ -1,25 +1,40 @@
 import pandas as pd
+# dataset = {"label": list of RGB}
+# RGB is in the form of an np.array
+# in the following code, an image is called data
 
 # Noise removal/ Outlier removal
 
 
 # Image Filtering/ Cropping
 
+
 # Image Resizing (allow Multi-Resolution Training)
 from PIL import Image 
 size = (28, 28) # for the trial workshop
-img = Image.open(r"test.png")
-r_img = img.resize(size)
-r_img.show()
+r_data = data.resize(size)
+r_data.show()
 
 # Grayscale Conversion
 from PIL import Image, ImageOps
-im2 = ImageOps.grayscale(im1) 
-im2.show()
+gr_data = ImageOps.grayscale(r_data) 
+gr_data.show()
 # OR: 
 import cv2
 # Use the cvtColor() function to grayscale the image
-gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+gr_data = cv2.cvtColor(r_data, cv2.COLOR_BGR2GRAY)
+cv2.imshow('Grayscale Image', gr_data)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+# Organising the dataset
+X=np.array()
+y=np.array()
+for i in list(data.keys()):
+    temp = np.array(data[i])
+    X = np.concatenate((X, temp), axis=0)
+    temp = np.full(data[i].count(i), i)
+    y = np.concatenate((y, temp), axis=0)
 
 # Splitting the Dataset
 # train/test
@@ -38,13 +53,13 @@ for train_index, val_index in kf.split(X):
 
 # Label Encoding  # https://www.geeksforgeeks.org/ml-label-encoding-of-datasets-in-python/
 # Import label encoder 
-from sklearn import preprocessing 
-# label_encoder object knows  
-# how to understand word labels. 
-label_encoder = preprocessing.LabelEncoder() 
-# Encode labels in column 'species'. 
-df['species']= label_encoder.fit_transform(df['species']) 
-df['species'].unique() 
+# from sklearn import preprocessing 
+# # label_encoder object knows  
+# # how to understand word labels. 
+# label_encoder = preprocessing.LabelEncoder() 
+# # Encode labels in column 'species'. 
+# df['species']= label_encoder.fit_transform(df['species']) 
+# df['species'].unique() 
 
 # Data Shuffling
 from sklearn.utils import shuffle
