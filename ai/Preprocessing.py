@@ -5,21 +5,36 @@ from Dataset import DatasetLoader
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
-# dataset = {"label": list of RGB images}
+# dataset = {"label": list of BGR images}
 # RGB is in the form of an np.array
 # in the following code, an image is called data
 
 class Preprocessing:
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, X=None, y=None):
+        self.X = X
+        self.y = y
         # filename is the file name of the dataset from current directory
-        dataset_loader = DatasetLoader()
-        self.X, self.y = dataset_loader.load_saved_dataset(filename)
+        if filename != None:
+            dataset_loader = DatasetLoader()
+            self.X, self.y = dataset_loader.load_saved_dataset(filename)
+        elif X == None:
+            raise ValueError("No filename input or image input found.")
+        
+    def get_X(self):
+        if self.X != None:
+            return self.X
+        else:
+            raise ValueError("No images found.")
+
+    def get_y(self):
+        if self.y != None:
+            return self.y
+        else:
+            raise ValueError("No labels found.")
 
     # Noise removal/ Outlier removal
     
-    
     # Image Filtering/ Cropping
-    
     
     # Image Resizing (allow Multi-Resolution Training)
     def resize(self, width, height):
