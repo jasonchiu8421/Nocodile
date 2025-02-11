@@ -51,7 +51,7 @@ class DatasetCreator:
             file_path = os.path.join(directory, file_name)
         
         # Save dataset
-        datasetloader = DatasetLoader()
+        datasetloader = DatasetLoader(self.images, self.labels)
         datasetloader.save_dataset(file_path)
         return file_path
     
@@ -75,10 +75,6 @@ class DatasetLoader:
         base_name = file_path.split('.')[0]
         if not file_path.endswith('.h5'):
             self.filename = f"{base_name}.h5"
-
-        # Save the dataset to an HDF5 file
-        if self.images is None:  # Load images if not already loaded
-            self.load_data()
 
         with h5py.File(self.filename, 'w') as h5f:
             # Save images and labels directly
@@ -124,11 +120,12 @@ class DatasetLoader:
     def print_first_image_per_label(self):
         # Print the first image for each unique label
         unique_labels = np.unique(self.labels)
-        for label in unique_labels:
-            label = label.decode('utf-8')
-            print(f"First image of label '{label}':")
-            img = self.dataset[label][0]
-            cv2.imwrite('digits.jpg', img)
+        for index, label in enumerate(self.labels):
+            if label not in self.labels:
+                label = label.decode('utf-8')
+                img = self.images[index]
+                print(f"First image of label '{label}':")
+                cv2.imwrite('digits.jpg', img)
 
     # Example usage
     # dataset_loader = DatasetLoader()
