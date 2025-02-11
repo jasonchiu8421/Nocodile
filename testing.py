@@ -1,4 +1,5 @@
 from ai/ModelTraining import LoadProcessedData, FlexibleCNN
+from ai/Preprocessing import Preprocessing
 from ai/Dataset import DatasetCreator, DatasetLoader
 from pandas import pd
 
@@ -11,13 +12,13 @@ dataset_creator.save_dataset(filename)
 
 # Load saved dataset, print shapes and first image per class
 dataset_loader = DatasetLoader()
-dataset = dataset_loader.load_saved_dataset('digits_dataset')
+dataset = dataset_loader.load_saved_dataset('digits_dataset.h5')
 dataset_loader.print_shapes()
 dataset_loader.print_first_image_per_label()
 
 # Save dataset
 dataset_loader = DatasetLoader(images, labels)
-dataset_loader.save_dataset('digits_dataset')
+dataset_loader.save_dataset('digits_dataset.h5')
 
 # Visualize the shapes of images and labels
 dataset_loader = DatasetLoader(images, labels)
@@ -26,6 +27,19 @@ dataset_loader.print_shapes()
 # Visualize the first image per class
 dataset_loader = DatasetLoader(images, labels)
 dataset_loader.print_first_image_per_label()
+
+# Preprocessing using saved dataset
+p = Preprocessing('digits_dataset.h5')
+images = p.resize(28, 28)
+images = p.convert_to_grayscale()
+images = p.standardize()
+images, labels = p.shuffle_data()
+images = p.get_X()
+labels = p.get_y()
+
+# Perform specific preprocessing operations
+p = Preprocessing(X=images, y=labels)
+images, labels = p.shuffle_data()
 
 # Train model (assuming train.csv is in 'ai' directory) using train/test approach
 x = LoadProcessedData()
