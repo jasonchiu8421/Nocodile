@@ -1,4 +1,4 @@
-from ai/ModelTraining import pretraining, FlexibleCNN
+from ai/ModelTraining import LoadProcessedData, FlexibleCNN
 from ai/Dataset import DatasetCreator, DatasetLoader
 from pandas import pd
 
