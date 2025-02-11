@@ -11,7 +11,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
 
-class Pretraining:
+class LoadProcessedData:
     def __init__(self):
         self.dataset = None
 
@@ -28,77 +28,154 @@ class Pretraining:
         return self.X_train, self.y_train
 
 class FlexibleCNN:
-    def __init__(self, X_train, y_train):
-        self.X_train = X_train
-        self.y_train = y_train
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
         self.model = None
         self.hist = None
         self.batches = None
         self.val_batches = None
 
     def _standardize(self, x):
-        mean_px = self.X_train.mean().astype(np.float32)
-        std_px = self.X_train.std().astype(np.float32)
+        mean_px = self.X.mean().astype(np.float32)
+        std_px = self.X.std().astype(np.float32)
         return (x-mean_px)/std_px
-        
-    def pretraining(self):
+    
+    def train_test_approach(self, model_name):
+        # train/test split
         seed = 43
         np.random.seed(seed)
-        self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(self.X_train, self.y_train, test_size=0.10, random_state=42)
-        
-        # Create an instance of ImageDataGenerator
-        gen = ImageDataGenerator()
-        
-        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-        self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=64)
-    
-        # Splitting the Dataset
-    def split_data_train_test(self):
-        # train/test split
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
-        return self.X_train, self.X_test, self.y_train, self.y_test
+        
+        # Create Data Generator
+        gen = ImageDataGenerator()
+        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
+        self.val_batches=gen.flow(self.X_test, self.y_test, batch_size=64)
+
+        # Define and train model
+        model_method = getattr(self, model_name, None)
+        if callable(model_method):
+            model_method()
+        else:
+            return f"No model found with the name: {model_name}"
+        
+        # Plot performance of the model
+        self._check_performance()
+
     
-    def split_data_train_test_val(self):
+    def train_test_val_approach(self, model_name):
         # train/val/test split
+        seed = 43
+        np.random.seed(seed)
         self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
         self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
-        return self.X_train, self.y_train, self.X_val, self.X_test, self.y_val, self.y_test
+        
+        # Create Data Generator
+        gen = ImageDataGenerator()
+        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
+        self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=64)
+
+        # Define and train model
+        model_method = getattr(self, model_name, None)
+        if callable(model_method):
+            model_method()
+        else:
+            return f"No model found with the name: {model_name}"
+        
+        # Plot performance of the model
+        self._check_performance()
+        test_generator = gen.flow(self.X_test, self.y_test, batch_size=64)
+        test_loss, test_accuracy = self.model.evaluate(test_generator)
+        print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
     
     # k-fold CV
-    def split_data_kFold(self):
+    def kFold_validation_approach(self, model_name, k=5):
         # not yet finished
-        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        kf = KFold(n_splits=k, shuffle=True, random_state=42)
+        
+        # Create Data Generator
+        gen = ImageDataGenerator()
+        model_histories = []
+            
         for train_index, val_index in kf.split(self.X):
             self.X_train, self.X_val = self.X[train_index], self.X[val_index]
             self.y_train, self.y_val = self.y[train_index], self.y[val_index]
-        return kf
+            
+            self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
+            self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=64)
 
-    def check_performance(self):
+            # Define and train model
+            model_method = getattr(self, model_name, None)
+            if callable(model_method):
+                model_method()
+                model_histories.append(self.hist)
+            else:
+                return f"No model found with the name: {model_name}"
+            
+            # Plot performance of the model
+            avg_loss = np.mean([history.history['loss'] for history in model_histories], axis=0)
+            avg_val_loss = np.mean([history.history['val_loss'] for history in model_histories], axis=0)
+            avg_accuracy = np.mean([history.history['accuracy'] for history in model_histories], axis=0)
+            avg_val_accuracy = np.mean([history.history['val_accuracy'] for history in model_histories], axis=0)
+            self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
+
+    def _check_performance(self):
         history_dict = self.hist.history
-        history_dict.keys()
-
         loss_values = history_dict['loss']
         val_loss_values = history_dict['val_loss']
-        epochs = range(1, len(loss_values) + 1)
-
-        # "bo" is for "blue dot"
-        plt.plot(epochs, loss_values, 'bo')
-        # "b+" is for "blue crosses"
-        plt.plot(epochs, val_loss_values, 'b+')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.savefig('loss_plot.png')
-        
-        plt.clf()   # clear figure
-
         acc_values = history_dict['accuracy']
         val_acc_values = history_dict['val_accuracy']
+        epochs = range(1, len(loss_values) + 1)
 
-        plt.plot(epochs, acc_values, 'bo')
-        plt.plot(epochs, val_acc_values, 'b+')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.savefig('accuracy_plot.png')
+        # Create subplots
+        fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+        # Plot loss
+        axs[0].plot(epochs, loss_values, 'bo', label='Training Loss')
+        axs[0].plot(epochs, val_loss_values, 'b+', label='Validation Loss')
+        axs[0].set_xlabel('Epochs')
+        axs[0].set_ylabel('Loss')
+        axs[0].set_title('Loss Over Epochs')
+        axs[0].legend()
+
+        # Plot accuracy
+        axs[1].plot(epochs, acc_values, 'bo', label='Training Accuracy')
+        axs[1].plot(epochs, val_acc_values, 'b+', label='Validation Accuracy')
+        axs[1].set_xlabel('Epochs')
+        axs[1].set_ylabel('Accuracy')
+        axs[1].set_title('Accuracy Over Epochs')
+        axs[1].legend()
+
+        # Save the figure
+        plt.tight_layout()
+        plt.savefig('performance_plot.png')
+        plt.close()
+    
+    def plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
+        epochs = range(1, len(avg_loss) + 1)
+
+        # Create subplots
+        fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+        # Plot loss
+        axs[0].plot(epochs, avg_loss, 'bo', label='Average Training Loss')
+        axs[0].plot(epochs, avg_val_loss, 'b+', label='Average Validation Loss')
+        axs[0].set_xlabel('Epochs')
+        axs[0].set_ylabel('Average Loss')
+        axs[0].set_title('Average Loss Over Epochs')
+        axs[0].legend()
+
+        # Plot accuracy
+        axs[1].plot(epochs, avg_acc, 'bo', label='Average Training Accuracy')
+        axs[1].plot(epochs, avg_val_acc, 'b+', label='Average Validation Accuracy')
+        axs[1].set_xlabel('Epochs')
+        axs[1].set_ylabel('Average Accuracy')
+        axs[1].set_title('Average Accuracy Over Epochs')
+        axs[1].legend()
+
+        # Save the figure
+        plt.tight_layout()
+        plt.savefig('performance_plot.png')
         plt.close()
 
     def model1(self):
@@ -266,16 +343,11 @@ class FlexibleCNN:
             BatchNormalization(),
             Dense(10, activation='softmax')
         ])
-        
+
         self.model.compile(Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
 
         self.model.optimizer.lr = 0.01
 
-        gen = ImageDataGenerator()
-
-        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-        self.val_batches = gen.flow(self.X_val, self.y_val, batch_size=64)
-        
         self.hist = self.model.fit(
             x=self.batches, 
             steps_per_epoch=self.batches.n, 
