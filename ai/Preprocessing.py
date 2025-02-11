@@ -1,9 +1,5 @@
-import numpy as np
-from PIL import Image, ImageOps
 import cv2
 from Dataset import DatasetLoader
-from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
 
 # dataset = {"label": list of BGR images}
 # RGB is in the form of an np.array
@@ -72,16 +68,11 @@ class Preprocessing:
     
     # Data Shuffling
     def shuffle_data(self):
+        from sklearn.utils import shuffle
         self.X, self.y = shuffle(self.X, self.y, random_state=42)
         return self.X, self.y
     
     # Normalization
-    def standardize(self):
-        mean_px = self.X.mean().astype(np.float32)
-        std_px = self.X.std().astype(np.float32)
-        self.X = (self.X-mean_px)/std_px
-        return self.X
-
     def normalise(self):
         import numpy as np
         from sklearn.preprocessing import MinMaxScaler
