@@ -9,7 +9,7 @@ class Preprocessing:
     def __init__(self, filename=None, X=None, y=None):
         self.X = X
         self.y = y
-        # filename is the file name of the dataset from current directory
+        # filename = file name of the dataset from current directory
         if filename != None:
             dataset_loader = DatasetLoader()
             self.X, self.y = dataset_loader.load_saved_dataset(filename)
