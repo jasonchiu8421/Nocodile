@@ -81,5 +81,15 @@ class Preprocessing:
         std_px = self.X.std().astype(np.float32)
         self.X = (self.X-mean_px)/std_px
         return self.X
+
+    def normalise(self):
+        import numpy as np
+        from sklearn.preprocessing import MinMaxScaler
+        # Initialize the scaler
+        scaler = MinMaxScaler()   
+        # Fit and transform the data
+        normalized_data = scaler.fit_transform(self.X)
+        return self.X
+
     
     # Batching
