@@ -28,7 +28,7 @@ class LoadProcessedData:
         return self.X_train, self.y_train
 
 class FlexibleCNN:
-    def __init__(self, X, y):
+    def __init__(self, X=None, y=None):
         self.X = X
         self.y = y
         self.model = None
@@ -260,7 +260,7 @@ class FlexibleCNN:
         gen =ImageDataGenerator(rotation_range=8, width_shift_range=0.08, shear_range=0.3,
                                height_shift_range=0.08, zoom_range=0.08)
         self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-        self.val_batches = gen.flow(self.X_val, self.y_val, batch_size=64)
+        self.val_batches = gen.flow(self.X_test, self.y_test, batch_size=64)
 
         self.model = Sequential([
             Lambda(self._standardize, input_shape=(28,28,1)),
@@ -324,41 +324,11 @@ class FlexibleCNN:
         )
         
         return self.model
-    
-    def model6(self):
-        self.model = Sequential([
-            Lambda(self._standardize, input_shape=(28, 28, 1)),
-            Convolution2D(32, (3, 3), activation='relu'),
-            BatchNormalization(axis=-1),
-            Convolution2D(32, (3, 3), activation='relu'),
-            MaxPooling2D(),
-            BatchNormalization(axis=-1),
-            Convolution2D(64, (3, 3), activation='relu'),
-            BatchNormalization(axis=-1),
-            Convolution2D(64, (3, 3), activation='relu'),
-            MaxPooling2D(),
-            Flatten(),
-            BatchNormalization(),
-            Dense(512, activation='relu'),
-            BatchNormalization(),
-            Dense(10, activation='softmax')
-        ])
 
-        self.model.compile(Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-
-        self.model.optimizer.lr = 0.01
-
-        self.hist = self.model.fit(
-            x=self.batches, 
-            steps_per_epoch=self.batches.n, 
-            epochs=10,
-            verbose=1
-        )
-
-        return self.model
-
-    def run_model(self, X_test):
+    def run_model(self, X_test, model=None):
+        if model == None:
+            model = self.model
         X_test = X_test.reshape(28, 28, 1).astype('float32')
-        predictions = self.model.predict(X_test, verbose=1)
+        predictions = model.predict(X_test, verbose=1)
         predicted_class = np.argmax(predictions, axis=1)
         return predicted_class
