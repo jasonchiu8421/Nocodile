@@ -256,6 +256,7 @@ class FlexibleCNN:
         
         return self.model
 
+    # With data augmentation
     def model4(self):
         gen =ImageDataGenerator(rotation_range=8, width_shift_range=0.08, shear_range=0.3,
                                height_shift_range=0.08, zoom_range=0.08)
