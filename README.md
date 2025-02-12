@@ -54,5 +54,5 @@ Basic usage instructions with examples:
 
 ## Contact
 If you have any enquiries, kindly contact us at:
-- Email: [jasonchiu031102@gmail.com](mailto:jasonchiu031102@gmail.com)
-- GitHub: [jasonchiu8421](https://github.com/jasonchiu8421)
+- Email: [nocodile.ai@gmail.com](mailto:nocodile.ai@gmail.com)
+- GitHub: [Nocodile-AI](https://github.com/Nocodile-AI)
