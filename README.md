@@ -1,9 +1,9 @@
-# Assemble
-Assemble is an innovative no-code platform designed to democratize access to artificial intelligence. While AI offers immense potential, the complexity of training models has traditionally limited its use to a select few with technical expertise. Our mission is to empower businesses and students alike to harness the power of AI without needing to learn coding.
+# Nocodile
+Nocodile is an innovative no-code platform designed to democratize access to artificial intelligence. While AI offers immense potential, the complexity of training models has traditionally limited its use to a select few with technical expertise. Our mission is to empower businesses and students alike to harness the power of AI without needing to learn coding.
 
-At the core of Assemble is a user-friendly interface where each component of the AI pipeline is represented as a node. Users can effortlessly piece these nodes together like playing puzzle, allowing them to create customized AI solutions tailored to their specific needs. This intuitive design not only simplifies the process but also retains the flexibility required for professional tasks.
+At the core of Nocodile is a user-friendly interface where each component of the AI pipeline is represented as a node. Users can effortlessly piece these nodes together like playing puzzle, allowing them to create customized AI solutions tailored to their specific needs. This intuitive design not only simplifies the process but also retains the flexibility required for professional tasks.
 
-Built using React and Bootstrap, Assemble combines a playful user experience with robust functionality, catering to everyone from beginners to seasoned professionals. Whether you're streamlining simple tasks or tackling more complex AI challenges, Assemble provides a seamless and enjoyable way to engage with artificial intelligence.
+Built using React and Bootstrap, Nocodile combines a playful user experience with robust functionality, catering to everyone from beginners to seasoned professionals. Whether you're streamlining simple tasks or tackling more complex AI challenges, Nocodile provides a seamless and enjoyable way to engage with artificial intelligence.
 
 ![Example of UI](./ui_example.jpg?raw=true)
 
