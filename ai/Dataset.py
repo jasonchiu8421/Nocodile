@@ -51,9 +51,12 @@ class DatasetCreator:
             file_path = os.path.join(directory, file_name)
         
         # Save dataset
-        datasetloader = DatasetLoader(self.images, self.labels)
-        datasetloader.save_dataset(file_path)
-        return file_path
+        if (self.images == None) or (self.labels == None):
+            raise ValueError("Images or Labels not loaded successfully.")
+        else:
+            datasetloader = DatasetLoader(self.images, self.labels)
+            datasetloader.save_dataset(file_path)
+            return file_path
     
     # Example usage
     # base_folder = 'digits'
