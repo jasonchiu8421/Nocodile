@@ -4,7 +4,7 @@ import numpy as np
 import os
     
 class DatasetCreator:
-    def __init__(self, base_folder=None):
+    def __init__(self, base_folder):
         self.base_folder = base_folder
         self.image_paths = []
         self.labels = []
@@ -79,10 +79,14 @@ class DatasetLoader:
         if not file_path.endswith('.h5'):
             self.filename = f"{base_name}.h5"
 
-        with h5py.File(self.filename, 'w') as h5f:
-            # Save images and labels directly
-            h5f.create_dataset('images', data=self.images, dtype='float32')
-            h5f.create_dataset('labels', data=self.labels.astype('S'))
+        if (self.images == None) or (self.labels == None):
+            raise ValueError("Images or Labels not loaded successfully.")
+        else:
+            with h5py.File(self.filename, 'w') as h5f:
+                # Save images and labels directly
+                h5f.create_dataset('images', data=self.images, dtype='float32')
+                h5f.create_dataset('labels', data=self.labels.astype('S'))
+                print(f"Dataset saved at {file_path}.")
 
     # Example usage
     # dataset_loader = DatasetLoader(images, labels)
