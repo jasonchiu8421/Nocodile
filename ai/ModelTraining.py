@@ -20,12 +20,12 @@ class LoadProcessedData:
         return self.dataset
 
     def preprocessing(self):
-        self.X_train = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
-        self.y_train = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
-        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28)
-        self.X_train = self.X_train.reshape(self.X_train.shape[0], 28, 28,1)
-        self.y_train = to_categorical(self.y_train)
-        return self.X_train, self.y_train
+        self.X = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
+        self.y = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
+        self.X = self.X.reshape(self.X.shape[0], 28, 28)
+        self.X = self.X.reshape(self.X.shape[0], 28, 28,1)
+        self.y = to_categorical(self.y)
+        return self.X, self.y
 
 class FlexibleCNN:
     def __init__(self, X=None, y=None):
