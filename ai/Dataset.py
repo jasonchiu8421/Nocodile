@@ -111,6 +111,7 @@ class DatasetLoader:
         # Print the shapes of images and labels
         print("Images Shape:", self.images.shape)
         print("Labels Shape:", self.labels.shape)
+        return self.images.shape, self.labels.shape
     
     # Example usage
     # dataset_loader = DatasetLoader()
@@ -119,12 +120,18 @@ class DatasetLoader:
 
     def print_first_image_per_label(self):
         # Print the first image for each unique label
+        label_list = []
+        image_list = []
         for index, label in enumerate(self.labels):
             if label not in self.labels:
                 label = label.decode('utf-8')
                 img = self.images[index]
+                label_list.append(label)
+                image_list.append(img)
                 print(f"First image of label '{label}':")
                 cv2.imwrite('digits.jpg', img)
+                return label_list, image_list
+                
 
     # Example usage
     # dataset_loader = DatasetLoader()
