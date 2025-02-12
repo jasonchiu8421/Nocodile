@@ -119,7 +119,6 @@ class DatasetLoader:
 
     def print_first_image_per_label(self):
         # Print the first image for each unique label
-        unique_labels = np.unique(self.labels)
         for index, label in enumerate(self.labels):
             if label not in self.labels:
                 label = label.decode('utf-8')
