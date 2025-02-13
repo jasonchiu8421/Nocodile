@@ -48,7 +48,8 @@ class FlexibleCNN:
         mean_px = self.X.mean().astype(np.float32)
         std_px = self.X.std().astype(np.float32)
         return (x-mean_px)/std_px
-    
+
+    # train/test
     def train_test_approach(self, model_name):
         # train/test split
         seed = 43
@@ -70,7 +71,7 @@ class FlexibleCNN:
         # Plot performance of the model
         self._check_performance()
 
-    
+    # train/test/val
     def train_test_val_approach(self, model_name):
         # train/val/test split
         seed = 43
