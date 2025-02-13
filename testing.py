@@ -34,17 +34,25 @@ images = p.resize(28, 28)
 images = p.convert_to_grayscale()
 images = p.standardize()
 images, labels = p.shuffle_data()
+images, labels = p.normalize
 images = p.get_X()
 labels = p.get_y()
 
-# Perform specific preprocessing operations
-p = Preprocessing(X=images, y=labels)
-images, labels = p.shuffle_data()
-
-# Train model (assuming train.csv is in 'ai' directory) using train/test approach
+# Load MNIST data  (assuming train.csv is in 'ai' directory) 
 x = LoadProcessedData()
 x.load_csv("train.csv")
-X, y = x.preprocessing()
+X, y = x.encode_label()
+
+# Load dataset data
+x = LoadProcessedData()
+x.load_data("digits_dataset.h5")
+X, y = x.encode_label()
+
+# Transfer X,y to Flexible CNN
+x = LoadProcessedData(X,y)
+X, y = x.encode_label()
+
+# Train model using train/test approach
 cnn = FlexibleCNN(X, y)
 model1 = cnn.train_test_approach('model1') # argument is the name of the model
   # This will split data, train model, and show performance of the model
