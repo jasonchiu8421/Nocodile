@@ -8,6 +8,21 @@ export const toolbox = {
   contents: [
     {
       kind: "category",
+      name: "Data",
+      categoryStyle: "logic_category",
+      contents: [
+        {
+          kind: "block",
+          type: "configDataset",
+        },
+        {
+          kind: "block",
+          type: "configDoodle",
+        },
+      ],
+    },
+    {
+      kind: "category",
       name: "Preprocessing",
       categoryStyle: "logic_category",
       contents: [
@@ -20,7 +35,27 @@ export const toolbox = {
           kind: "block",
           type: "addResize",
         },
+        {
+          kind: "block",
+          type: "addGrayscale",
+        },
+      ],
+    },
+    {
+      kind: "category",
+      name: "Model training",
+      categoryStyle: "logic_category",
+      contents: [
+        {
+          kind: "block",
+          type: "configModel",
+        },
+        {
+          kind: "block",
+          type: "showAccuracy",
+        },
       ],
     },
   ],
 };
+// how to config category style

@@ -11,7 +11,7 @@ body {
 
 pre,
 code {
-  overflow: auto;
+  white-space: pre-wrap;
 }
 
 #pageContainer {

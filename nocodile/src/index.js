@@ -10,7 +10,11 @@ import { save, load } from "./serialization";
 import { toolbox } from "./toolbox";
 import "./index.css";
 import "./blocks/ppBlocks";
+import "./blocks/dtBlocks";
+import "./blocks/mdBlocks";
 import "./generators/python";
+
+//hmm
 
 // Set up UI elements and inject Blockly
 const codeDiv = document.getElementById("generatedCode").firstChild;
@@ -21,7 +25,7 @@ const ws = Blockly.inject(blocklyDiv, {
     zoom: {
       controls: true,
       wheel: true,
-      startScale: 1.0,
+      startScale: 3,
       maxScale: 3,
       minScale: 0.3,
       scaleSpeed: 1.2,
