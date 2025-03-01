@@ -5,21 +5,30 @@
  */
 
 import * as Blockly from "blockly";
-import "./blocks/ppBlocks";
-import { forBlock } from "./generators/python";
 import { pythonGenerator } from "blockly/python";
 import { save, load } from "./serialization";
 import { toolbox } from "./toolbox";
 import "./index.css";
-
-// Register the blocks and generator with Blockly
-Object.assign(pythonGenerator.forBlock, forBlock);
+import "./blocks/ppBlocks";
+import "./generators/python";
 
 // Set up UI elements and inject Blockly
 const codeDiv = document.getElementById("generatedCode").firstChild;
 const outputDiv = document.getElementById("output");
 const blocklyDiv = document.getElementById("blocklyDiv");
-const ws = Blockly.inject(blocklyDiv, { toolbox });
+const ws = Blockly.inject(blocklyDiv, {
+  options: {
+    zoom: {
+      controls: true,
+      wheel: true,
+      startScale: 1.0,
+      maxScale: 3,
+      minScale: 0.3,
+      scaleSpeed: 1.2,
+    },
+  },
+  toolbox: toolbox,
+});
 
 // This function resets the code and output divs, shows the
 // generated code from the workspace, and evals the code.

@@ -13,11 +13,11 @@ import { Order } from "blockly/javascript";
 export const forBlock = Object.create(null);
 
 // PREPROCESSING BLOCKS
-pythonGenerator.forBlock["configPreprocessing"] = function () {
+pythonGenerator.forBlock["configPreprocessing"] = function (block, generator) {
   const statement_filters = generator.statementToCode(block, "filters");
 
   // TODO: Assemble python into the code variable.
-  const code = `print("config pp")`;
+  const code = "preprocessor.config = ";
   // TODO: Change Order.NONE to the correct operator precedence strength
   return [code, Order.NONE];
 };

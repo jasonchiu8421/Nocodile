@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as Blockly from 'blockly/core';
+import * as Blockly from "blockly/core";
 
-const storageKey = 'mainWorkspace';
+const storageKey = "mainWorkspace";
 
 /**
  * Saves the state of the workspace to browser's local storage.
@@ -27,6 +27,8 @@ export const load = function (workspace) {
 
   // Don't emit events during loading.
   Blockly.Events.disable();
+
+  // damn you perry the localstorage key called preprocessing
   Blockly.serialization.workspaces.load(JSON.parse(data), workspace, false);
   Blockly.Events.enable();
 };
