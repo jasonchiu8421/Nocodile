@@ -39,7 +39,7 @@ const runCode = () => {
 
   outputDiv.innerHTML = "";
 
-  eval(code);
+  //eval(code);
 };
 
 // Load the initial state from storage and run the code.

@@ -3,7 +3,7 @@ import { pythonGenerator, Order } from "blockly/python";
 
 const configPreprocessing = {
   init: function () {
-    this.appendDummyInput("Title").appendField("PPPPreprocessing");
+    this.appendDummyInput("Title").appendField("Preprocessing");
     this.appendDummyInput("label").appendField("Filters:");
     this.appendStatementInput("filters");
     this.setOutput(true, null);
@@ -13,7 +13,7 @@ const configPreprocessing = {
   },
 };
 Blockly.Blocks["configPreprocessing"] = configPreprocessing;
-/*
+
 const addResize = {
   init: function () {
     this.appendDummyInput("resizeSize")
@@ -40,4 +40,3 @@ const addResize = {
   },
 };
 Blockly.Blocks["addResize"] = addResize;
-*/

@@ -21,3 +21,16 @@ pythonGenerator.forBlock["configPreprocessing"] = function (block, generator) {
   // TODO: Change Order.NONE to the correct operator precedence strength
   return [code, Order.NONE];
 };
+
+pythonGenerator.forBlock["addResize"] = function (block, generator) {
+  const number_resizew = block.getFieldValue("resizeW");
+  const number_resizeh = block.getFieldValue("resizeH");
+
+  const dropdown_resizeoption = block.getFieldValue("resizeOption");
+
+  const checkbox_enabled = block.getFieldValue("enabled");
+
+  // TODO: Assemble python into the code variable.
+  const code = "...";
+  return code;
+};

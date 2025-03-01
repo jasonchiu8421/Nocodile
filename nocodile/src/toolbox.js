@@ -15,6 +15,11 @@ export const toolbox = {
           kind: "block",
           type: "configPreprocessing",
         },
+        { kind: "sep" },
+        {
+          kind: "block",
+          type: "addResize",
+        },
       ],
     },
   ],
