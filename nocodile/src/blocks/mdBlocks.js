@@ -1,5 +1,7 @@
+/**
+ * @description model blocks
+ */
 import * as Blockly from "blockly/core";
-import { pythonGenerator, Order } from "blockly/python";
 
 const configModel = {
   init: function () {

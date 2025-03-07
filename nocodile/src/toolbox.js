@@ -19,6 +19,10 @@ export const toolbox = {
           kind: "block",
           type: "configDoodle",
         },
+        {
+          kind: "block",
+          type: "fileInputTest",
+        },
       ],
     },
     {

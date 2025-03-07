@@ -37,6 +37,18 @@ pythonGenerator.forBlock["configDoodle"] = function (block, generator) {
   return [code, Order.NONE];
 };
 
+pythonGenerator.forBlock["fileInputTest"] = function (block, generator) {
+  const text_doodleimg = block.getFieldValue("doodleImg");
+
+  const text_pencilbtn = block.getFieldValue("pencilBtn");
+  const text_clearbtn = block.getFieldValue("clearBtn");
+
+  // TODO: Assemble python into the code variable.
+  const code = `data.add(type=doodle,data=${text_doodleimg}`;
+  // TODO: Change Order.NONE to the correct operator precedence strength
+  return [code, Order.NONE];
+};
+
 // PREPROCESSING BLOCKS
 pythonGenerator.forBlock["configPreprocessing"] = function (block, generator) {
   const statement_filters = generator.statementToCode(block, "filters");

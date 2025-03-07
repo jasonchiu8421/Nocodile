@@ -7,9 +7,11 @@ const configPreprocessing = {
     this.appendDummyInput("label").appendField("Filters:");
     this.appendStatementInput("filters");
     this.appendEndRowInput("NAME");
-    this.setOutput(true, null);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
     this.setTooltip("");
     this.setHelpUrl("");
+    //this.setOutput(true, null);
     this.setColour(135);
   },
 };
