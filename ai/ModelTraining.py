@@ -146,6 +146,7 @@ class FlexibleCNN:
         axs[0].set_ylabel('Loss')
         axs[0].set_title('Loss Over Epochs')
         axs[0].legend()
+        axs[0].set_ylim(0, 1)
 
         # Plot accuracy
         axs[1].plot(epochs, acc_values, 'bo', label='Training Accuracy')
@@ -154,6 +155,7 @@ class FlexibleCNN:
         axs[1].set_ylabel('Accuracy')
         axs[1].set_title('Accuracy Over Epochs')
         axs[1].legend()
+        axs[0].set_ylim(0, 1)
 
         # Save the figure
         plt.tight_layout()
@@ -213,7 +215,6 @@ class FlexibleCNN:
         return self.model
 
     def model2(self):
-        
         self.model = Sequential([
             Lambda(self._standardize, input_shape=(28,28,1)),
             Flatten(),
