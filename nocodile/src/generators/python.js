@@ -36,7 +36,7 @@ pythonGenerator.forBlock["configDoodle"] = function (block, generator) {
   // TODO: Change Order.NONE to the correct operator precedence strength
   return [code, Order.NONE];
 };
-
+/*
 pythonGenerator.forBlock["fileInputTest"] = function (block, generator) {
   const text_doodleimg = block.getFieldValue("doodleImg");
 
@@ -47,7 +47,7 @@ pythonGenerator.forBlock["fileInputTest"] = function (block, generator) {
   const code = `data.add(type=doodle,data=${text_doodleimg}`;
   // TODO: Change Order.NONE to the correct operator precedence strength
   return [code, Order.NONE];
-};
+};*/
 
 // PREPROCESSING BLOCKS
 pythonGenerator.forBlock["configPreprocessing"] = function (block, generator) {
@@ -60,8 +60,8 @@ pythonGenerator.forBlock["configPreprocessing"] = function (block, generator) {
   const code = `preprocessor.config = [${
     procedures.length > 1 ? "\n" : ""
   }${procedures.join(",\n")}${procedures.length > 1 ? "\n" : ""}]`;
-  // TODO: Change Order.NONE to the correct operator precedence strength
-  return [code, Order.NONE];
+  console.log("yayayayayay");
+  return code;
 };
 
 pythonGenerator.forBlock["addResize"] = function (block, generator) {
