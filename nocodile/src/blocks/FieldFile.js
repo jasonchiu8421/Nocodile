@@ -10,32 +10,32 @@
  */
 import * as Blockly from "blockly/core";
 
-export class FieldButton extends Blockly.Field {
+export class FieldFile extends Blockly.Field {
   constructor(value, validator) {
     super(value, validator);
-    this.CURSOR = "default";
-    this.EDITABLE = true;
+    this.CURSOR = "pointer";
     this.SERIALIZABLE = true;
+  }
+
+  initView() {
+    //console.log(this.fieldGroup_);
+    super.initView();
+    //console.log(this.textElement_);
+    this.textElement_.textContent = "Add photos...";
 
     this.fileInput = document.createElement("input");
     this.fileInput.type = "file";
     this.fileInput.accept = "image/*";
     this.fileInput.multiple = true;
-    //this.fileInput.style.display = "none"; // Hide input element?
+    this.fileInput.style.display = "none"; // Hide input element?
     this.fileInput.addEventListener("change", (e) => {
       this.onChange(e);
     });
 
-    console.log(this.fieldGroup_);
-
-    /*
-    // I don't know why removing this works...
     this.fieldGroup_.appendChild(this.fileInput);
 
-    this.textElement_ = document.createElement("button");
-    this.textElement_.textContent = "Select Files";
     this.textElement_.addEventListener("click", () => this.fileInput.click());
-    */
+    //this.fieldGroup_.appendChild(img);
   }
   dispose() {
     Blockly.WidgetDiv.hideIfOwner(this);
@@ -43,22 +43,19 @@ export class FieldButton extends Blockly.Field {
   }
 
   onChange(e) {
-    console.log("dildjdkjk");
     const files = e.target.files;
-    if (files) {
-      for (const file of files) {
-        const fr = new FileReader();
-        fr.onload = (e) => {
-          const img = document.createElement("img");
-          img.src = e.target.result;
-          img.width = 200;
-          this.fieldGroup_.appendChild(img);
-        };
-        fr.readAsDataURL(file);
-      }
-      this.setValue(files);
-      this.updateDisplay();
-      console.log("uploaded files:", files);
+    if (files.length > 0) {
+      const file = files[0];
+      const fr = new FileReader();
+      fr.onload = (e) => {
+        const imgSrc = e.target.result;
+        this.setValue(imgSrc);
+        this.updateDisplay();
+        if (this.sourceBlock_) {
+          this.sourceBlock_.onFileChange(imgSrc);
+        }
+      };
+      fr.readAsDataURL(file);
     }
   }
 
@@ -96,9 +93,8 @@ export class FieldButton extends Blockly.Field {
    * @private
    */
   showEditor_(opt_quietInput) {
-    // console.log("editor activated");
-    //Blockscad.currentInterestingBlock = this.sourceBlock_;
-    this.fileInput.click();
+    //console.log("Uhh", this.getValue());
+    //this.fileInput.click();
   }
 
   /**
@@ -111,7 +107,7 @@ export class FieldButton extends Blockly.Field {
     console.log("poof");
     var thisField = this;
     return function () {
-      var htmlInput = FieldButton.htmlInput_;
+      var htmlInput = FieldFile.htmlInput_;
       // Save the edit (if it validates).
       var text = htmlInput.value;
       if (thisField.sourceBlock_ && thisField.changeHandler_) {
@@ -130,7 +126,7 @@ export class FieldButton extends Blockly.Field {
       Blockly.unbindEvent_(htmlInput.onKeyUpWrapper_);
       Blockly.unbindEvent_(htmlInput.onKeyPressWrapper_);
       Blockly.unbindEvent_(htmlInput.onWorkspaceChangeWrapper_);*/
-      FieldButton.htmlInput_ = null;
+      FieldFile.htmlInput_ = null;
       // Delete the width property.
       Blockly.WidgetDiv.DIV.style.width = "auto";
     };

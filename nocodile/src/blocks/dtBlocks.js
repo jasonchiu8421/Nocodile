@@ -3,25 +3,43 @@
  */
 
 import * as Blockly from "blockly/core";
-import { FieldButton } from "./FieldButton.js";
-import { FieldFileInput } from "./FieldFileInput.js";
+import { FieldFile } from "./FieldFile.js";
+//import { FieldFileInput } from "./_FieldFileInput.js";
 
 const configDataset = {
   init: function () {
-    this.appendDummyInput("Title").appendField("Data");
+    this.appendDummyInput("Title").appendField("Dataset");
     this.appendDummyInput("datasetName").appendField(
       new Blockly.FieldTextInput("dataset name"),
       "dsName"
     );
-    this.appendDummyInput("NAME").appendField(
-      new Blockly.FieldTextInput("UPLOAD FILES HERE"),
-      "dsGroup"
+    this.appendDummyInput("datasetImgs").appendField(
+      new FieldFile("Browse files..."),
+      "dsFiles"
     );
+    this.imageField_ = this.appendDummyInput("datasetImgPrev").appendField(
+      new Blockly.FieldImage(
+        "https://gdcolon.com/assets/colon_fullbody_2.webp",
+        200,
+        200,
+        "uwu"
+      ),
+      "dsImgPrev"
+    );
+
+    console.log(this.imageField_);
+    //this.appendDummyInput().appendField(new Blockly.FieldImage(img));
     this.setInputsInline(false);
     this.setOutput(true, null);
-    this.setTooltip("What data does the model use to learn?");
+    this.setTooltip("Add training data here.");
     this.setHelpUrl("");
     this.setColour(45);
+  },
+
+  onFileChange: function (imgSrc) {
+    if (this.imageField_) {
+      this.imageField_.fieldRow[0].setValue(imgSrc);
+    }
   },
 };
 Blockly.common.defineBlocks({ configDataset: configDataset });
@@ -45,43 +63,22 @@ const configDoodle = {
 Blockly.Blocks["configDoodle"] = configDoodle;
 
 /*
-const fileInputTest = {
-  init: function () {
-    this.setColour(269); // Set block color
-    this.appendDummyInput("Title").appendField("Upload Files:");
-    //console.log("dlfjksf");
-    this.appendDummyInput("FILE_INPUT").appendField(
-      new FieldFileInput("Upload files: ")
-    );
-
-    this.setOutput(true, null);
-    this.setTooltip("Upload files yeeyeeyee");
-    this.setHelpUrl("http://www.example.com");
-  },
-};
-Blockly.Blocks["fileInputTest"] = fileInputTest;
-*/
-
 Blockly.Blocks["fileInputTest"] = {
   init: function () {
     this.setColour(89);
-    this.appendDummyInput().appendField("STL Import");
+    this.appendDummyInput().appendField("Import training images");
     this.appendDummyInput("").appendField(
       new Blockly.FieldLabel(""),
       "STL_FILENAME"
     );
     this.appendDummyInput("").appendField(
-      new FieldButton("Browse"),
+      new FieldFile("Browse"),
       "STL_BUTTON"
     );
-    this.appendDummyInput("C").appendField(
-      new Blockly.FieldLabel(""),
-      "STL_CONTENTS"
-    );
     this.setInputsInline(true);
-    this.setPreviousStatement(true);
+    this.setOutput(true);
     this.setTooltip("");
-    this.setWarningText("STL files are not saved with your blocks.");
     this.setHelpUrl("");
   },
 };
+*/
