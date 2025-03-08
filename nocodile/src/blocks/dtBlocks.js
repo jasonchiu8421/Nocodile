@@ -5,6 +5,11 @@
 import * as Blockly from "blockly/core";
 import { FieldFile } from "./FieldFile.js";
 //import { FieldFileInput } from "./_FieldFileInput.js";
+function svg2b64(svg) {
+  let s = new XMLSerializer().serializeToString(svg);
+  let encodedData = window.btoa(s);
+  return "data:image/svg+xml;base64," + encodedData;
+}
 
 const configDataset = {
   init: function () {
@@ -17,13 +22,13 @@ const configDataset = {
       new FieldFile("Browse files..."),
       "dsFiles"
     );
+
+    //scalable svg skeleton loader
+    /*
+    const skeleton = document.createElement("img");
+    skeleton.src = "imgSkeleton.svg"*/
     this.imageField_ = this.appendDummyInput("datasetImgPrev").appendField(
-      new Blockly.FieldImage(
-        "https://gdcolon.com/assets/colon_fullbody_2.webp",
-        200,
-        200,
-        "uwu"
-      ),
+      new Blockly.FieldImage("imgSkeleton.svg", 200, 200, "uwu"),
       "dsImgPrev"
     );
 

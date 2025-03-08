@@ -12,7 +12,15 @@ const config = {
   },
   // Enable webpack-dev-server to get hot refresh of the app.
   devServer: {
-    static: "./build",
+    static: [
+      {
+        directory: path.join(__dirname, "public"),
+      },
+      {
+        directory: path.join(__dirname, "dist"),
+      },
+    ],
+    open: true, // Automatically open the browser
   },
   module: {
     rules: [

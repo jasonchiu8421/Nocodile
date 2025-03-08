@@ -1,4 +1,5 @@
 # Assemble
+
 Assemble is an innovative no-code platform designed to democratize access to artificial intelligence. While AI offers immense potential, the complexity of training models has traditionally limited its use to a select few with technical expertise. Our mission is to empower businesses and students alike to harness the power of AI without needing to learn coding.
 
 At the core of Assemble is a user-friendly interface where each component of the AI pipeline is represented as a node. Users can effortlessly piece these nodes together like playing puzzle, allowing them to create customized AI solutions tailored to their specific needs. This intuitive design not only simplifies the process but also retains the flexibility required for professional tasks.
@@ -39,20 +40,24 @@ Instructions on how to install and set up the software:
    ```
 3. Install the required dependencies:
    ```bash
-   pip install -r requirements.txt
+   npm install
+   cd nocodile
+   npm i
    ```
 
 ## Usage
 
 Basic usage instructions with examples:
 
-1. Open the application:
+1. Start the app:
    ```bash
-   python main.py
+   npm start
    ```
 2. Follow the on-screen instructions to create your first AI model.
 
 ## Contact
+
 If you have any enquiries, kindly contact us at:
+
 - Email: [jasonchiu031102@gmail.com](mailto:jasonchiu031102@gmail.com)
 - GitHub: [jasonchiu8421](https://github.com/jasonchiu8421)
