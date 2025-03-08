@@ -107,6 +107,9 @@ class DatasetLoader:
             # Load images and labels
             self.images = h5f['images'][:]
             self.labels = h5f['labels'][:]
+
+        for i in range(len(self.labels)):
+            self.labels[i] = self.labels[i].decode('utf-8')
         
         return self.images, self.labels
 
@@ -138,7 +141,6 @@ class DatasetLoader:
             
             for index, label in enumerate(self.labels):
                 if label not in self.labels:
-                    label = label.decode('utf-8')
                     img = self.images[index]
                     label_list.append(label)
                     image_list.append(img)
