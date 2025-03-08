@@ -22,6 +22,7 @@ export class FieldFile extends Blockly.Field {
     super.initView();
     //console.log(this.textElement_);
     this.textElement_.textContent = "Add photos...";
+    this.setValue("files=None");
 
     this.fileInput = document.createElement("input");
     this.fileInput.type = "file";
@@ -43,17 +44,30 @@ export class FieldFile extends Blockly.Field {
   }
 
   onChange(e) {
-    const files = e.target.files;
+    const files = Array.from(e.target.files);
+    //console.log("dueueueu", files);
     if (files.length > 0) {
+      //show image preview
       const file = files[0];
       const fr = new FileReader();
       fr.onload = (e) => {
         const imgSrc = e.target.result;
-        this.setValue(imgSrc);
-        this.updateDisplay();
+        //console.log(file.name);
+        //console.log(imgSrc);
+
+        // show preview
         if (this.sourceBlock_) {
           this.sourceBlock_.onFileChange(imgSrc);
         }
+
+        // THIS VALUE GOES TO THE GENERATOR
+        let flist = [];
+        flist.push(`"${files[0].name}"`);
+        for (let i = 1, n = files.length; i < n; i++) {
+          flist.push(`"${files[i].name}"`);
+        }
+        this.setValue(`files = ${flist}`);
+        this.updateDisplay();
       };
       fr.readAsDataURL(file);
     }
@@ -62,8 +76,8 @@ export class FieldFile extends Blockly.Field {
   updateDisplay() {
     console.log("update");
     this.textElement_.textContent = this.getValue()
-      ? "Files Selected"
-      : "Select Files";
+      ? "Add more..."
+      : "Add photos...";
   }
 
   /**

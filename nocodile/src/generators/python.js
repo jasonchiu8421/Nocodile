@@ -17,10 +17,8 @@ pythonGenerator.forBlock["configDataset"] = function (block, generator) {
   const text_dsname = block.getFieldValue("dsName");
 
   const text_dsgroup = block.getFieldValue("dsGroup");
-
-  const files_dataset = block.getFieldValue("datasetImgs");
-  // TODO: change Order.ATOMIC to the correct operator precedence strength
-  //const value_name = generator.valueToCode(block, "NAME", Order.ATOMIC);
+  //console.log(block);
+  const files_dataset = block.getFieldValue("dsFiles");
 
   // TODO: Assemble python into the code variable.
   const code = `data.add(${text_dsgroup}, ${files_dataset})`;

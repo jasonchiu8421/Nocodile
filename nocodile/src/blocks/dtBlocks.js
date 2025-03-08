@@ -14,12 +14,12 @@ function svg2b64(svg) {
 const configDataset = {
   init: function () {
     this.appendDummyInput("Title").appendField("Dataset");
-    this.appendDummyInput("datasetName").appendField(
+    this.appendDummyInput().appendField(
       new Blockly.FieldTextInput("dataset name"),
       "dsName"
     );
-    this.appendDummyInput("datasetImgs").appendField(
-      new FieldFile("Browse files..."),
+    this.appendDummyInput().appendField(
+      new FieldFile("Add photos..."),
       "dsFiles"
     );
 
@@ -35,7 +35,7 @@ const configDataset = {
     console.log(this.imageField_);
     //this.appendDummyInput().appendField(new Blockly.FieldImage(img));
     this.setInputsInline(false);
-    this.setOutput(true, null);
+    this.setNextStatement(true, null);
     this.setTooltip("Add training data here.");
     this.setHelpUrl("");
     this.setColour(45);
