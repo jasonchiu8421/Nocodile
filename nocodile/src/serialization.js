@@ -6,7 +6,8 @@
 
 import * as Blockly from "blockly/core";
 
-const storageKey = "mainWorkspace";
+const storageKey = "customRWorkspace";
+//const storageKey = "mainWorkspace";
 
 /**
  * Saves the state of the workspace to browser's local storage.

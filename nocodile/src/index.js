@@ -8,13 +8,14 @@ import * as Blockly from "blockly";
 import { pythonGenerator } from "blockly/python";
 import { save, load } from "./serialization";
 import { toolbox } from "./toolbox";
+
+import "./render/customRenderer";
+
 import "./index.css";
 import "./blocks/ppBlocks";
 import "./blocks/dtBlocks";
 import "./blocks/mdBlocks";
 import "./generators/python";
-
-//hmm
 
 // Set up UI elements and inject Blockly
 const codeDiv = document.getElementById("generatedCode").firstChild;
@@ -32,6 +33,7 @@ const ws = Blockly.inject(blocklyDiv, {
     },
   },
   toolbox: toolbox,
+  renderer: "customRenderer",
 });
 
 // This function resets the code and output divs, shows the
