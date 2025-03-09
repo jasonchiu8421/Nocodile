@@ -13,7 +13,7 @@ from tensorflow.keras.utils import to_categorical
 from Dataset import DatasetLoader
 
 class LoadProcessedData:
-    def __init__(self):
+    def __init__(self, X=None, y=None):
         self.dataset = None
         self.X = None
         self.y = None
@@ -36,21 +36,31 @@ class LoadProcessedData:
         return self.X, self.y
 
 class FlexibleCNN:
-    def __init__(self, X=None, y=None):
+    def __init__(self, X=None, y=None, name="model1", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "number of neurons": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, method="train_test_val", kFold_k=5):
         self.X = X
         self.y = y
         self.model = None
         self.hist = None
         self.batches = None
         self.val_batches = None
+        self.name=name
+        self.layers=layers
+        self.optimizer=optimizer
+        self.loss=loss
+        self.metrics=metrics
+        self.lr=lr
+        self.epochs=epochs
+        self.batch_size=batch_size
+        self.method=method
+        self.kFold_k=kFold_k
 
     def _standardize(self, x):
         mean_px = self.X.mean().astype(np.float32)
         std_px = self.X.std().astype(np.float32)
         return (x-mean_px)/std_px
-
-    # train/test
-    def train_test_approach(self, model_name):
+    
+    # train/test approach
+    def train_test_approach(self):
         # train/test split
         seed = 43
         np.random.seed(seed)
@@ -58,21 +68,17 @@ class FlexibleCNN:
         
         # Create Data Generator
         gen = ImageDataGenerator()
-        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-        self.val_batches=gen.flow(self.X_test, self.y_test, batch_size=64)
+        self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
+        self.val_batches = gen.flow(self.X_test, self.y_test, batch_size=self.batch_size)
 
         # Define and train model
-        model_method = getattr(self, model_name, None)
-        if callable(model_method):
-            model_method()
-        else:
-            return f"No model found with the name: {model_name}"
+        self.custom_model()
         
         # Plot performance of the model
         self._check_performance()
 
     # train/test/val
-    def train_test_val_approach(self, model_name):
+    def train_test_val_approach(self):
         # train/val/test split
         seed = 43
         np.random.seed(seed)
@@ -81,45 +87,36 @@ class FlexibleCNN:
         
         # Create Data Generator
         gen = ImageDataGenerator()
-        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-        self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=64)
+        self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
+        self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
 
         # Define and train model
-        model_method = getattr(self, model_name, None)
-        if callable(model_method):
-            model_method()
-        else:
-            return f"No model found with the name: {model_name}"
+        self.custom_model()
         
         # Plot performance of the model
         self._check_performance()
-        test_generator = gen.flow(self.X_test, self.y_test, batch_size=64)
+        test_generator = gen.flow(self.X_test, self.y_test, batch_size=self.batch_size)
         test_loss, test_accuracy = self.model.evaluate(test_generator)
         print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
     
     # k-fold CV
-    def kFold_validation_approach(self, model_name, k=5):
+    def kFold_validation_approach(self):
         # not yet finished
-        kf = KFold(n_splits=k, shuffle=True, random_state=42)
+        kf = KFold(n_splits=self.kFOld_k, shuffle=True, random_state=42)
         
         # Create Data Generator
         gen = ImageDataGenerator()
         model_histories = []
-            
+        
         for train_index, val_index in kf.split(self.X):
             self.X_train, self.X_val = self.X[train_index], self.X[val_index]
             self.y_train, self.y_val = self.y[train_index], self.y[val_index]
             
-            self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-            self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=64)
+            self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
+            self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
 
             # Define and train model
-            model_method = getattr(self, model_name, None)
-            if callable(model_method):
-                model_method()
-                model_histories.append(self.hist)
-            else:
-                return f"No model found with the name: {model_name}"
+            self.custom_model()
             
             # Plot performance of the model
             avg_loss = np.mean([history.history['loss'] for history in model_histories], axis=0)
@@ -127,6 +124,27 @@ class FlexibleCNN:
             avg_accuracy = np.mean([history.history['accuracy'] for history in model_histories], axis=0)
             avg_val_accuracy = np.mean([history.history['val_accuracy'] for history in model_histories], axis=0)
             self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
+
+    def custom_model(self):
+        self.model= Sequential(Lambda(self._standardize, input_shape=self.X[0].shape))
+        for i in range(len(self.layers)):
+            self.model.add()
+        
+        self.model.compile(
+            optimizer=self.optimizer(learning_rate=self.lr),
+            loss=self.loss,
+            metrics=self.metrics
+        )
+        
+        self.hist = self.model.fit(
+            x=self.batches,
+            steps_per_epoch=self.batches.n,
+            epochs=self.epochs,
+            validation_data=self.val_batches,
+            validation_steps=self.val_batches.n,
+            verbose=1
+        )
+        return self.model
 
     def _check_performance(self):
         history_dict = self.hist.history
@@ -155,14 +173,14 @@ class FlexibleCNN:
         axs[1].set_ylabel('Accuracy')
         axs[1].set_title('Accuracy Over Epochs')
         axs[1].legend()
-        axs[0].set_ylim(0, 1)
+        axs[1].set_ylim(0, 1)
 
         # Save the figure
         plt.tight_layout()
         plt.savefig('performance_plot.png')
         plt.close()
     
-    def plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
+    def _plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
         epochs = range(1, len(avg_loss) + 1)
 
         # Create subplots
@@ -188,158 +206,3 @@ class FlexibleCNN:
         plt.tight_layout()
         plt.savefig('performance_plot.png')
         plt.close()
-
-    def model1(self):
-        self.model= Sequential()
-        self.model.add(Lambda(self._standardize,input_shape=(28,28,1)))
-        self.model.add(Flatten())
-        self.model.add(Dense(10, activation='softmax'))
-        print("input shape ",self.model.input_shape)
-        print("output shape ",self.model.output_shape)
-        
-        self.model.compile(
-            optimizer=RMSprop(learning_rate=0.001),
-            loss='categorical_crossentropy',
-            metrics=['accuracy']
-        )
-        
-        self.hist = self.model.fit(
-            x=self.batches,
-            steps_per_epoch=self.batches.n,
-            epochs=10,
-            validation_data=self.val_batches,
-            validation_steps=self.val_batches.n,
-            verbose=1
-        )
-        
-        return self.model
-
-    def model2(self):
-        self.model = Sequential([
-            Lambda(self._standardize, input_shape=(28,28,1)),
-            Flatten(),
-            Dense(512, activation='relu'),
-            Dense(10, activation='softmax')
-            ])
-            
-        self.model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['accuracy'])
-            
-        self.model.optimizer.lr=0.01
-
-        self.hist = self.model.fit(
-            x=self.batches,
-            steps_per_epoch=self.batches.n,
-            epochs=10,
-            validation_data=self.val_batches,
-            validation_steps=self.val_batches.n,
-            verbose=1
-        )
-        
-        return self.model
-    
-    def model3(self):
-        self.model = Sequential([
-            Lambda(self._standardize, input_shape=(28,28,1)),
-            Convolution2D(32,(3,3), activation='relu'),
-            Convolution2D(32,(3,3), activation='relu'),
-            MaxPooling2D(),
-            Convolution2D(64,(3,3), activation='relu'),
-            Convolution2D(64,(3,3), activation='relu'),
-            MaxPooling2D(),
-            Flatten(),
-            Dense(512, activation='relu'),
-            Dense(10, activation='softmax')
-            ])
-        
-        self.model.compile(Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-
-        self.model.optimizer.lr=0.01
-
-        self.hist = self.model.fit(
-            x=self.batches,
-            steps_per_epoch=self.batches.n,
-            epochs=10,
-            validation_data=self.val_batches,
-            validation_steps=self.val_batches.n,
-            verbose=1
-        )
-        
-        return self.model
-
-    # With data augmentation
-    def model4(self):
-        gen =ImageDataGenerator(rotation_range=8, width_shift_range=0.08, shear_range=0.3,
-                               height_shift_range=0.08, zoom_range=0.08)
-        self.batches = gen.flow(self.X_train, self.y_train, batch_size=64)
-        self.val_batches = gen.flow(self.X_test, self.y_test, batch_size=64)
-
-        self.model = Sequential([
-            Lambda(self._standardize, input_shape=(28,28,1)),
-            Convolution2D(32,(3,3), activation='relu'),
-            Convolution2D(32,(3,3), activation='relu'),
-            MaxPooling2D(),
-            Convolution2D(64,(3,3), activation='relu'),
-            Convolution2D(64,(3,3), activation='relu'),
-            MaxPooling2D(),
-            Flatten(),
-            Dense(512, activation='relu'),
-            Dense(10, activation='softmax')
-            ])
-        
-        self.model.compile(Adam(), loss='categorical_crossentropy',
-                    metrics=['accuracy'])
-        
-        self.model.optimizer.learning_rate = 0.001
-
-        self.hist = self.model.fit(
-            x=self.batches,
-            steps_per_epoch=self.batches.n,
-            epochs=10,
-            validation_data=self.val_batches,
-            validation_steps=self.val_batches.n,
-            verbose=1
-        )
-        
-        return self.model
-
-    def model5(self):
-        self.model = Sequential([
-            Lambda(self._standardize, input_shape=(28, 28, 1)),
-            Convolution2D(32, (3, 3), activation='relu'),
-            BatchNormalization(axis=-1),
-            Convolution2D(32, (3, 3), activation='relu'),
-            MaxPooling2D(),
-            BatchNormalization(axis=-1),
-            Convolution2D(64, (3, 3), activation='relu'),
-            BatchNormalization(axis=-1),
-            Convolution2D(64, (3, 3), activation='relu'),
-            MaxPooling2D(),
-            Flatten(),
-            BatchNormalization(),
-            Dense(512, activation='relu'),
-            BatchNormalization(),
-            Dense(10, activation='softmax')
-        ])
-        
-        self.model.compile(Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
-
-        self.model.optimizer.lr = 0.01
-
-        self.hist = self.model.fit(
-            x=self.batches,
-            steps_per_epoch=self.batches.n,
-            epochs=10,
-            validation_data=self.val_batches,
-            validation_steps=self.val_batches.n,
-            verbose=1
-        )
-        
-        return self.model
-
-    def run_model(self, X_test, model=None):
-        if model == None:
-            model = self.model
-        X_test = X_test.reshape(28, 28, 1).astype('float32')
-        predictions = model.predict(X_test, verbose=1)
-        predicted_class = np.argmax(predictions, axis=1)
-        return predicted_class
