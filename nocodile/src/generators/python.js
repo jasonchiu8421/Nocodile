@@ -60,7 +60,7 @@ pythonGenerator.forBlock["configPreprocessing"] = function (block, generator) {
   const code = `preprocessor.config = [${
     procedures.length > 1 ? "\n" : ""
   }${procedures.join(",\n")}${procedures.length > 1 ? "\n" : ""}]`;
-  console.log("yayayayayay");
+  //console.log("yayayayayay");
   return code;
 };
 

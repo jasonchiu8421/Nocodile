@@ -32,7 +32,7 @@ const configDataset = {
       "dsImgPrev"
     );
 
-    console.log(this.imageField_);
+    //console.log(this.imageField_);
     //this.appendDummyInput().appendField(new Blockly.FieldImage(img));
     this.setInputsInline(false);
     this.setNextStatement(true, null);
