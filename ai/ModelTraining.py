@@ -54,13 +54,16 @@ class FlexibleCNN:
         self.method=method
         self.kFold_k=kFold_k
 
+    def train_model(self):
+        if self.method==
+
     def _standardize(self, x):
         mean_px = self.X.mean().astype(np.float32)
         std_px = self.X.std().astype(np.float32)
         return (x-mean_px)/std_px
     
     # train/test approach
-    def train_test_approach(self):
+    def _train_test_approach(self):
         # train/test split
         seed = 43
         np.random.seed(seed)
@@ -72,13 +75,13 @@ class FlexibleCNN:
         self.val_batches = gen.flow(self.X_test, self.y_test, batch_size=self.batch_size)
 
         # Define and train model
-        self.custom_model()
+        self._custom_model()
         
         # Plot performance of the model
         self._check_performance()
 
     # train/test/val
-    def train_test_val_approach(self):
+    def _train_test_val_approach(self):
         # train/val/test split
         seed = 43
         np.random.seed(seed)
@@ -91,7 +94,7 @@ class FlexibleCNN:
         self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
 
         # Define and train model
-        self.custom_model()
+        self._custom_model()
         
         # Plot performance of the model
         self._check_performance()
@@ -100,7 +103,7 @@ class FlexibleCNN:
         print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
     
     # k-fold CV
-    def kFold_validation_approach(self):
+    def _kFold_validation_approach(self):
         # not yet finished
         kf = KFold(n_splits=self.kFOld_k, shuffle=True, random_state=42)
         
@@ -116,7 +119,7 @@ class FlexibleCNN:
             self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
 
             # Define and train model
-            self.custom_model()
+            self._custom_model()
             
             # Plot performance of the model
             avg_loss = np.mean([history.history['loss'] for history in model_histories], axis=0)
@@ -125,10 +128,10 @@ class FlexibleCNN:
             avg_val_accuracy = np.mean([history.history['val_accuracy'] for history in model_histories], axis=0)
             self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
 
-    def custom_model(self):
+    def _custom_model(self):
         self.model= Sequential(Lambda(self._standardize, input_shape=self.X[0].shape))
         for i in range(len(self.layers)):
-            self.model.add()
+            self._add_layer()
         
         self.model.compile(
             optimizer=self.optimizer(learning_rate=self.lr),
@@ -145,6 +148,9 @@ class FlexibleCNN:
             verbose=1
         )
         return self.model
+
+    def _add_model(self):
+        
 
     def _check_performance(self):
         history_dict = self.hist.history
