@@ -54,7 +54,7 @@ x.load_csv("train.csv") # skip if X and y exists already
 X, y = x.encode_label()
 
 # Train model (assuming train.csv is in 'ai' directory)
-cnn = CNN(X, y, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
+cnn = CNN(X, y, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
 model1= cnn.train_model()  # This will use the specified method to split data, train model, and show performance of the model
 
 # Find predictions using the model immediately after training assuming 'test.csv’ is in current directory
