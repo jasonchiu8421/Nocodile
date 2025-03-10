@@ -3,14 +3,13 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
-from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
+from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, Activation, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop, Adagrad, Adadelta, Nadam, Ftrl
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
-from Dataset import DatasetLoader
 
 class LoadProcessedData:
     def __init__(self, X=None, y=None):
@@ -26,16 +25,11 @@ class LoadProcessedData:
         self.X = self.X.reshape(self.X.shape[0], 28, 28,1)
         return self.X, self.y
 
-    def load_data(self, filename):
-        datasetloader = DatasetLoader()
-        self.X, self.y = datasetloader.load_saved_dataset(filename)
-        return self.X, self.y
-
     def encode_label(self):
         self.y = to_categorical(self.y)
         return self.X, self.y
 
-class FlexibleCNN:
+class CNN:
     def __init__(self, X=None, y=None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
         self.X = X
         self.y = y
@@ -135,16 +129,13 @@ class FlexibleCNN:
             self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
 
     def _custom_model(self):
-        self.model= Sequential(Lambda(self._standardize, input_shape=self.X[0].shape))
+        self.model= Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
         for layer in self.layers:
             self._add_layer(layer)
 
-        if self.optimizer in optimizers:
-            optimizer_class = optimizers[op]
-            self.model.compile(optimizer=optimizer_class(learning_rate=self.lr), 
-                        loss=self.loss,
-                        metrics=self.metrics
-                              )
+        self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
+            
+        self.model.optimizer.lr=self.lr
         
         self.hist = self.model.fit(
             x=self.batches,
@@ -154,6 +145,7 @@ class FlexibleCNN:
             validation_steps=self.val_batches.n,
             verbose=1
         )
+
         return self.model
 
     def _add_layer(self, layer):
@@ -168,6 +160,18 @@ class FlexibleCNN:
             self.model.add(Activation(layer["activation"]))
         elif layer["type"] == "Dropout":
             self.model.add(Dropout(layer["rate"]))
+        elif layer["type"] == "BatchNormalization":
+            self.model.add(BatchNormalization())
+        elif layer["type"] == "Conv2D":
+            self.model.add(Conv2D(layer["number of filters"], layer["kernel_size"], activation=layer.get("activation"), padding=layer.get("padding", "valid")))
+        elif layer["type"] == "MaxPooling2D":
+            self.model.add(MaxPooling2D(pool_size=layer["pool_size"]))
+        elif layer["type"] == "GlobalMaxPooling2D":
+            self.model.add(GlobalMaxPooling2D())
+        elif layer["type"] == "AveragePooling2D":
+            self.model.add(AveragePooling2D(pool_size=layer["pool_size"]))
+        elif layer["type"] == "GlobalAveragePooling2D":
+            self.model.add(GlobalAveragePooling2D())
 
     def _check_performance(self):
         history_dict = self.hist.history
