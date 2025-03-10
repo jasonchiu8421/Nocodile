@@ -2,11 +2,12 @@ from ai/ModelTraining import LoadProcessedData, FlexibleCNN
 from ai/Preprocessing import Preprocessing
 from ai/Dataset import DatasetCreator, DatasetLoader
 from pandas import pd
+from numpy import np
 
 # Load image data from directory (suppose we have a folder called digits in current directory)
 base_folder = 'digits'
 dataset_creator = DatasetCreator(base_folder)
-dataset_creator.load_data()
+images, labels = dataset_creator.load_data()
 filename = "digits_dataset"
 dataset_creator.save_dataset(filename)
 
