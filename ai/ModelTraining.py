@@ -156,7 +156,7 @@ class FlexibleCNN:
         )
         return self.model
 
-    def _add_model(self, layer):
+    def _add_layer(self, layer):
         if layer["type"] == "Flatten":
             self.model.add(Flatten())
         elif layer["type"] == "Dense":
