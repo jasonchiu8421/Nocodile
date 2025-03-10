@@ -36,7 +36,7 @@ class LoadProcessedData:
         return self.X, self.y
 
 class FlexibleCNN:
-    def __init__(self, X=None, y=None, name="model1", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "number of neurons": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, method="train_test_val", kFold_k=5):
+    def __init__(self, X=None, y=None, method="train_test_val", name="model1", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
         self.X = X
         self.y = y
         self.model = None
@@ -55,7 +55,14 @@ class FlexibleCNN:
         self.kFold_k=kFold_k
 
     def train_model(self):
-        if self.method==
+        if self.method=="train_test":
+            self._train_test_approach()
+        elif self.method=="train_test_val":
+            self._train_test_val_approach()
+        elif self.method=="kFold_val":
+            self._kFold_validation_approach()
+        else:
+            raise ValueError(f"Invalid method '{self.method}'. Expected one of: 'train_test', 'train_test_val', 'kFold_val'.")
 
     def _standardize(self, x):
         mean_px = self.X.mean().astype(np.float32)
@@ -130,8 +137,8 @@ class FlexibleCNN:
 
     def _custom_model(self):
         self.model= Sequential(Lambda(self._standardize, input_shape=self.X[0].shape))
-        for i in range(len(self.layers)):
-            self._add_layer()
+        for layer in self.layers:
+            self._add_layer(layer)
         
         self.model.compile(
             optimizer=self.optimizer(learning_rate=self.lr),
@@ -149,8 +156,18 @@ class FlexibleCNN:
         )
         return self.model
 
-    def _add_model(self):
-        
+    def _add_model(self, layer):
+        if layer["type"] == "Flatten":
+            self.model.add(Flatten())
+        elif layer["type"] == "Dense":
+            if "activation" in layer and layer["activation"] is not None:
+                self.model.add(Dense(layer["units"], activation=layer["activation"]))
+            else:
+                self.model.add(Dense(layer["units"]))
+        elif layer["type"] == "Activation":
+            self.model.add(Activation(layer["activation"]))
+        elif layer["type"] == "Dropout":
+            self.model.add(Dropout(layer["rate"]))
 
     def _check_performance(self):
         history_dict = self.hist.history
