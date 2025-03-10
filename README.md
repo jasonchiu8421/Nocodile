@@ -39,20 +39,23 @@ Instructions on how to install and set up the software:
    ```
 3. Install the required dependencies:
    ```bash
-   pip install -r requirements.txt
+   npm install
+   cd nocodile
+   npm i
    ```
 
 ## Usage
 
 Basic usage instructions with examples:
 
-1. Open the application:
+1. Start the app:
    ```bash
-   python main.py
+   npm start
    ```
 2. Follow the on-screen instructions to create your first AI model.
 
 ## Contact
+
 If you have any enquiries, kindly contact us at:
 - Email: [nocodile.ai@gmail.com](mailto:nocodile.ai@gmail.com)
 - GitHub: [Nocodile-AI](https://github.com/Nocodile-AI)
