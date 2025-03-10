@@ -3,10 +3,10 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
-from tensorflow.keras.layers import Convolution2D, Lambda, Dense, Flatten, Dropout, BatchNormalization, Conv2D, MaxPooling2D
+from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop, Adagrad, Adadelta, Nadam, Ftrl
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
