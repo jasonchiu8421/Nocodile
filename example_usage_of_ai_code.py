@@ -64,4 +64,4 @@ prediction = cnn.run_model(X_test)
 # Load model and find predictions
 X_test = pd.read_csv('test.csv')
 cnn = CNN(model=model1)
-prediction = cnn.run_model(X_test, model1) # model 1 is the model trained
+prediction = cnn.run_model(X_test)
