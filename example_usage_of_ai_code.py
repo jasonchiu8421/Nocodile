@@ -59,9 +59,11 @@ model1= cnn.train_model()  # This will use the specified method to split data, t
 
 # Find predictions using the model immediately after training assuming 'test.csv’ is in current directory
 X_test = pd.read_csv('test.csv')
+X_test = np.array(X_test)
 prediction = cnn.run_model(X_test)
 
 # Load model and find predictions
 X_test = pd.read_csv('test.csv')
+X_test = np.array(X_test)
 cnn = CNN(model=model1)  # assuming model1 is a tensorflow model
 prediction = cnn.run_model(X_test)
