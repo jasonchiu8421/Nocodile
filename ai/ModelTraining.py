@@ -36,14 +36,13 @@ class LoadProcessedData:
         return self.X, self.y
 
 class FlexibleCNN:
-    def __init__(self, X=None, y=None, method="train_test_val", name="model1", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
+    def __init__(self, X=None, y=None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
         self.X = X
         self.y = y
         self.model = None
         self.hist = None
         self.batches = None
         self.val_batches = None
-        self.name=name
         self.layers=layers
         self.optimizer=optimizer
         self.loss=loss
