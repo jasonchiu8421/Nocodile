@@ -16,6 +16,7 @@ import "./blocks/ppBlocks";
 import "./blocks/dtBlocks";
 import "./blocks/mdBlocks";
 import "./generators/python";
+import { train as train_api } from "./services/train";
 
 // Set up UI elements and inject Blockly
 const codeDiv = document.getElementById("generatedCode").firstChild;
@@ -43,7 +44,28 @@ const runCode = () => {
   const code = pythonGenerator.workspaceToCode(ws);
   codeDiv.innerText = code;
 
-  outputDiv.innerHTML = "";
+  const images = ws.getBlocksByType("configDataset").flatMap((block) => {
+    return JSON.parse(block.getFieldValue("dsFiles"));
+  }).reduce((acc, file) => {
+    acc[file.name] = file.url;
+    return acc;
+  }, {});
+  outputDiv.innerHTML = "<pre></pre><button>Train</button>";
+  const button = outputDiv.querySelector("button");
+  button.onclick = async function () {
+    try {
+      const response = await train_api(images, code);
+      console.log(response);
+    } catch (e) {
+      const pre = outputDiv.querySelector("pre");
+      pre.innerText = e;
+      return;
+    }
+
+    const pre = outputDiv.querySelector("pre");
+    pre.innerText = "Training successful!";
+  };
+  outputDiv.appendChild(button);
 
   //eval(code);
 };

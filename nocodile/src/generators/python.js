@@ -19,9 +19,10 @@ pythonGenerator.forBlock["configDataset"] = function (block, generator) {
   const text_dsgroup = block.getFieldValue("dsGroup");
   //console.log(block);
   const files_dataset = block.getFieldValue("dsFiles");
+  const files = JSON.parse(files_dataset);
 
   // TODO: Assemble python into the code variable.
-  const code = `data.add(${text_dsgroup}, ${files_dataset})`;
+  const code = `data.add(${text_dsgroup}, files = [${files.map((e) => `"${e.name.replace(/"/g, '\\"')}"`)}])`;
   return code;
 };
 

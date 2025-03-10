@@ -22,7 +22,7 @@ export class FieldFile extends Blockly.Field {
     super.initView();
     //console.log(this.textElement_);
     this.textElement_.textContent = "Add photos...";
-    this.setValue("files=None");
+    this.setValue("[]");
 
     this.fileInput = document.createElement("input");
     this.fileInput.type = "file";
@@ -47,29 +47,27 @@ export class FieldFile extends Blockly.Field {
     const files = Array.from(e.target.files);
     //console.log("dueueueu", files);
     if (files.length > 0) {
-      //show image preview
-      const file = files[0];
-      const fr = new FileReader();
-      fr.onload = (e) => {
-        const imgSrc = e.target.result;
-        //console.log(file.name);
-        //console.log(imgSrc);
+      for (let i = 0, n = files.length; i < n; i++) {
+        const fr = new FileReader();
+        fr.onload = (e) => {
+          const imgSrc = e.target.result;
 
-        // show preview
-        if (this.sourceBlock_) {
-          this.sourceBlock_.onFileChange(imgSrc);
-        }
+          // show preview
+          if (i == 0 && this.sourceBlock_) {
+            this.sourceBlock_.onFileChange(imgSrc);
+          }
 
-        // THIS VALUE GOES TO THE GENERATOR
-        let flist = [];
-        flist.push(`"${files[0].name}"`);
-        for (let i = 1, n = files.length; i < n; i++) {
-          flist.push(`"${files[i].name}"`);
-        }
-        this.setValue(`files = ${flist}`);
-        this.updateDisplay();
-      };
-      fr.readAsDataURL(file);
+          // THIS VALUE GOES TO THE GENERATOR AND BACKEND
+          let flist = JSON.parse(this.getValue() || '[]')
+          flist.push({
+            name: files[i].name,
+            url: imgSrc
+          });
+          this.setValue(JSON.stringify(flist));
+          this.updateDisplay();
+        };
+        fr.readAsDataURL(files[i]);
+      }
     }
   }
 
