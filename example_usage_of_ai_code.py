@@ -52,25 +52,12 @@ X, y = x.encode_label()
 x = LoadProcessedData(X,y)
 X, y = x.encode_label()
 
-# Train model using train/test approach
-cnn = FlexibleCNN(X, y)
-model1 = cnn.train_test_approach('model1') # argument is the name of the model
-  # This will split data, train model, and show performance of the model
-
-# Train model (assuming train.csv is in 'ai' directory) using train/test/val approach
+# Train model (assuming train.csv is in 'ai' directory)
 x = LoadProcessedData()
 x.load_csv("train.csv")
 X, y = x.encode_label()
-cnn = FlexibleCNN(X, y, method="train_test_val", name="model1", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
+cnn = CNN(X, y, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
 model1= cnn.train_model() # argument is the name of the model
-  # This will use the specified method to split data, train model, and show performance of the model
-
-# Train model (assuming train.csv is in 'ai' directory) using k fold validation method
-x = LoadProcessedData()
-x.load_csv("train.csv")
-X, y = x.preprocessing()
-cnn = FlexibleCNN(X, y, method="train_test_val", name="model1", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
-model1 = cnn.train_model()
   # This will use the specified method to split data, train model, and show performance of the model
 
 # Find prediction using the model (immediately after training) assuming 'test.csv’ is in current directory
@@ -79,5 +66,5 @@ prediction = cnn.run_model(X_test)
 
 # Find prediction using the model (at any time)
 X_test = pd.read_csv('test.csv')
-cnn = FlexibleCNN()
+cnn = CNN()
 prediction = cnn.run_model(X_test, model1) # model 1 is the model trained
