@@ -48,17 +48,14 @@ x = LoadProcessedData()
 x.load_data("digits_dataset.h5")
 X, y = x.encode_label()
 
-# Transfer X,y to Flexible CNN
-x = LoadProcessedData(X,y)
+# Load data assuming 'train.csv' is in current directory
+x = LoadProcessedData()
+x.load_csv("train.csv") # skip if X and y exists already
 X, y = x.encode_label()
 
 # Train model (assuming train.csv is in 'ai' directory)
-x = LoadProcessedData()
-x.load_csv("train.csv")
-X, y = x.encode_label()
 cnn = CNN(X, y, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
-model1= cnn.train_model() # argument is the name of the model
-  # This will use the specified method to split data, train model, and show performance of the model
+model1= cnn.train_model()  # This will use the specified method to split data, train model, and show performance of the model
 
 # Find prediction using the model (immediately after training) assuming 'test.csv’ is in current directory
 X_test = pd.read_csv('test.csv')
