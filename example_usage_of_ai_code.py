@@ -57,11 +57,11 @@ X, y = x.encode_label()
 cnn = CNN(X, y, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "number of neurons": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64)
 model1= cnn.train_model()  # This will use the specified method to split data, train model, and show performance of the model
 
-# Find prediction using the model (immediately after training) assuming 'test.csv’ is in current directory
+# Find predictions using the model immediately after training assuming 'test.csv’ is in current directory
 X_test = pd.read_csv('test.csv')
 prediction = cnn.run_model(X_test)
 
-# Find prediction using the model (at any time)
+# Load model and find predictions
 X_test = pd.read_csv('test.csv')
-cnn = CNN()
+cnn = CNN(model=model1)
 prediction = cnn.run_model(X_test, model1) # model 1 is the model trained
