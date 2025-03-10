@@ -138,12 +138,13 @@ class FlexibleCNN:
         self.model= Sequential(Lambda(self._standardize, input_shape=self.X[0].shape))
         for layer in self.layers:
             self._add_layer(layer)
-        
-        self.model.compile(
-            optimizer=self.optimizer(learning_rate=self.lr),
-            loss=self.loss,
-            metrics=self.metrics
-        )
+
+        if self.optimizer in optimizers:
+            optimizer_class = optimizers[op]
+            self.model.compile(optimizer=optimizer_class(learning_rate=self.lr), 
+                        loss=self.loss,
+                        metrics=self.metrics
+                              )
         
         self.hist = self.model.fit(
             x=self.batches,
