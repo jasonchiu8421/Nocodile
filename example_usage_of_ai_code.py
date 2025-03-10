@@ -63,5 +63,5 @@ prediction = cnn.run_model(X_test)
 
 # Load model and find predictions
 X_test = pd.read_csv('test.csv')
-cnn = CNN(model=model1)
+cnn = CNN(model=model1)  # assuming model1 is a tensorflow model
 prediction = cnn.run_model(X_test)
