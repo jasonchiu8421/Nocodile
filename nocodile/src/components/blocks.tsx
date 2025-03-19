@@ -187,9 +187,12 @@ export function BlocksView({ blocks, onMove }: BlocksViewProps) {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <div className="absolute w-100000 h-100000 bg-[radial-gradient(#d5d7db_1px,transparent_1px)] [background-size:16px_16px]" style={{
-         transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
-      }} />
+      <div
+        className="absolute w-100000 h-100000 bg-[radial-gradient(#d5d7db_1px,transparent_1px)] [background-size:16px_16px]"
+        style={{
+          transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
+        }}
+      />
       <DroppableCanvas>
         <div
           className="absolute"
@@ -205,7 +208,6 @@ export function BlocksView({ blocks, onMove }: BlocksViewProps) {
                 style={{
                   left: block.position.x,
                   top: block.position.y,
-                  transform: `translate(-50%, -50%)`,
                 }}
               >
                 <DraggableBlock block={block}>{block.element}</DraggableBlock>

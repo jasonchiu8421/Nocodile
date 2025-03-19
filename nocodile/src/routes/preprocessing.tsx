@@ -1,194 +1,22 @@
-import { BlocksView, BlockViewItem } from "@/components/blocks"
 import { BlockDrawer } from "@/components/blocks_drawer"
+import { DndLayout } from "@/components/dnd_layout"
 import allBlocks from "@/components/preprocessing_blocks"
-import { RouteBreadcrumb } from "@/components/routes_breadcrumb"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-} from "@dnd-kit/core"
-import { useCallback, useState } from "react"
-
-type BlockInstance = {
-  id: string
-  type: string
-  data: any
-  position: { x: number; y: number }
-}
 
 export default function Preprocessing() {
-  const [blocks, setBlocks] = useState<BlockInstance[]>([])
-  const [nextBlockId, setNextBlockId] = useState(1)
-  const [activeDragItem, setActiveDragItem] = useState<string | null>(null)
-  const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
-
-  // Track drag start coordinates
-  const [dragStartCoordinates, setDragStartCoordinates] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-
-  // Handle drag start
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    if (event.active.data.current?.type === "block") {
-      setActiveDragItem(event.active.data.current.blockType)
-
-      if (
-        "clientX" in event.activatorEvent &&
-        "clientY" in event.activatorEvent
-      ) {
-        const { clientX, clientY, target } =
-          event.activatorEvent as PointerEvent
-
-        if (target instanceof HTMLElement) {
-          const rect = target.getBoundingClientRect()
-          const offsetX = clientX - rect.left - rect.width / 2
-          const offsetY = clientY - rect.top - rect.height / 2
-
-          setDragStartCoordinates({ x: offsetX, y: offsetY })
-        }
-      }
-    }
-  }, [])
-
-  // Handle drag end from DndContext
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event
-
-      setActiveDragItem(null)
-
-      // Only process if we have a valid drop target and active item
-      if (over?.id === "canvas") {
-        // Get the position from the event
-        // We need to calculate this based on the canvas position
-        const canvasElement = document.getElementById("canvas-container")
-        if (!canvasElement) return
-
-        let block = null as BlockInstance | null
-
-        if (active.data.current?.type === "block") {
-          if (active.data.current?.origin === "canvas") {
-            block = {
-              id: active.data.current.blockId,
-              type: active.data.current.blockType,
-              data: active.data.current.blockData,
-              position: {
-                x: active.data.current.blockPosition.x + event.delta.x,
-                y: active.data.current.blockPosition.y + event.delta.y,
-              },
-            }
-            setBlocks(
-              blocks.filter((b) => b.id !== active.data.current?.blockId)
-            )
-          } else if (active.data.current?.origin === "drawer") {
-            const rect = canvasElement.getBoundingClientRect()
-            const clientX =
-              ("clientX" in event.activatorEvent
-                ? (event.activatorEvent as MouseEvent).clientX
-                : 0) +
-              event.delta.x -
-              rect.left
-            const clientY =
-              ("clientY" in event.activatorEvent
-                ? (event.activatorEvent as MouseEvent).clientY
-                : 0) +
-              event.delta.y -
-              rect.top
-
-            const dragOffset = dragStartCoordinates || { x: 0, y: 0 }
-
-            block = {
-              id: `block-${nextBlockId}`,
-              type: active.data.current.blockType,
-              data: allBlocks[active.data.current.blockType].createNew(),
-              position: {
-                x: clientX - viewPosition.x - dragOffset.x,
-                y: clientY - viewPosition.y - dragOffset.y,
-              },
-            }
-            setNextBlockId(nextBlockId + 1)
-          }
-        }
-
-        if (!block) return
-
-        // Get block info from registry
-        const blockInfo = allBlocks[block.type]
-        if (!blockInfo) {
-          console.error(`Block type ${block.type} not found in registry`)
-          return
-        }
-
-        setBlocks((prev) => [...prev, block])
-      }
-
-      // Reset drag start coordinates
-      setDragStartCoordinates(null)
-    },
-    [blocks, nextBlockId, viewPosition, dragStartCoordinates]
+  // Sidebar content with blocks drawer
+  const sidebarContent = (
+    <div className="flex flex-col h-full">
+      <h2 className="text-lg font-semibold mb-4">Blocks</h2>
+      <BlockDrawer blockRegistry={allBlocks} className="flex-1" />
+    </div>
   )
 
-  // Convert blocks to the format expected by BlocksView
-  const blockViewItems = blocks
-    .map((block) => {
-      const blockElement = allBlocks[block.type]?.block(block.data, block.id)
-      if (!blockElement) return null
-
-      return {
-        id: block.id,
-        type: block.type,
-        data: block.data,
-        position: block.position,
-        element: blockElement,
-      }
-    })
-    .filter(Boolean) as BlockViewItem[]
-
   return (
-    <SidebarProvider>
-      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <Sidebar>
-          <SidebarContent>
-            <div className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Blocks</h2>
-              <BlockDrawer blockRegistry={allBlocks} />
-            </div>
-          </SidebarContent>
-        </Sidebar>
-        <SidebarInset>
-          <RouteBreadcrumb title="Data Preprocessing" />
-          <div className="flex-1 p-4 space-y-4">
-            <p>
-              Drag and drop blocks from the left panel to create your data
-              preprocessing pipeline.
-            </p>
-
-            <div
-              id="canvas-container"
-              className="h-[calc(100vh-180px)] border border-gray-200 rounded-md overflow-hidden"
-            >
-              <BlocksView blocks={blockViewItems} onMove={setViewPosition} />
-            </div>
-          </div>
-        </SidebarInset>
-
-        {/* Drag Overlay */}
-        <DragOverlay>
-          {activeDragItem &&
-            allBlocks[activeDragItem]?.block(
-              allBlocks[activeDragItem].createNew(),
-              "drag-overlay"
-            )}
-        </DragOverlay>
-      </DndContext>
-    </SidebarProvider>
+    <DndLayout
+      title="Data Preprocessing"
+      description="Drag and drop blocks from the left panel to create your data preprocessing pipeline."
+      sidebarContent={sidebarContent}
+      blockRegistry={allBlocks}
+    />
   )
 }

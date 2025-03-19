@@ -1,14 +1,34 @@
+import { cn } from "@/lib/utils"
+import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { BlockRegistry } from "./blocks"
 import { Card } from "./ui/card"
-import { useDraggable } from "@dnd-kit/core"
+import { Separator } from "./ui/separator"
 
 type BlockDrawerProps = {
   blockRegistry: BlockRegistry
+  className?: string
 }
 
-export function BlockDrawer({ blockRegistry }: BlockDrawerProps) {
+export function BlockDrawer({ blockRegistry, className }: BlockDrawerProps) {
+  const { setNodeRef } = useDroppable({
+    id: "blocks-drawer",
+  })
+
   return (
-    <div className="space-y-3">
+    <div ref={setNodeRef} className={cn("space-y-3", className)}>
+      {/* Trash zone for deleting blocks */}
+      <div className="text-sm space-y-1">
+        <div className="font-medium">
+          Drag and drop blocks to create your data preprocessing pipeline.
+        </div>
+        <div className="text-muted-foreground heading-none">
+          Drop blocks on this panel to delete them.
+        </div>
+      </div>
+
+      <Separator className="my-3" />
+
+      {/* Block items */}
       {Object.entries(blockRegistry).map(([blockType, blockInfo]) => (
         <DraggableDrawerItem
           key={blockType}
@@ -43,6 +63,7 @@ export function DraggableDrawerItem({
 
   return (
     <div
+      id={`draggable/drawer/${id}`}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
