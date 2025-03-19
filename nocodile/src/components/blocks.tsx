@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card"
-import { useDraggable, useDroppable } from "@dnd-kit/core"
+import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import React, { ReactNode, useEffect, useRef, useState } from "react"
 
@@ -38,6 +38,7 @@ export type BlockViewItem = {
   data: any
   position: { x: number; y: number }
   element: React.ReactNode
+  visible: boolean
 }
 
 type BlocksViewProps = {
@@ -55,11 +56,11 @@ export const Block = ({
   children,
 }: BlockProps) => {
   return (
-    <div className="relative">
+    <div id={`draggable/block/${id}`} className="relative">
       {/* Input connector (hole) */}
       {input && (
         <div
-          className="absolute left-0 top-1/2 -translate-x-4 -translate-y-1/2 flex items-center"
+          className="absolute left-0 top-4 -translate-x-4 flex items-center"
           data-connector-id={`${id}-input`}
           data-connector-type="input"
         >
@@ -70,7 +71,7 @@ export const Block = ({
       )}
 
       {/* Block body */}
-      <Card className={`${color} p-4 min-w-64 shadow-md`}>
+      <Card className={`${color} p-4 min-w-64 shadow-md min-h-16`}>
         <div className="flex items-center gap-2 font-medium">
           {icon}
           <span className="whitespace-nowrap">{title}</span>
@@ -81,12 +82,12 @@ export const Block = ({
       {/* Output connector (nob) */}
       {output && (
         <div
-          className="absolute right-0 top-1/2 translate-x-4 -translate-y-1/2 flex items-center"
+          className="absolute right-0 top-4 translate-x-4 flex items-center"
           data-connector-id={`${id}-output`}
           data-connector-type="output"
         >
           <div className="w-4 h-8 bg-green-100 border-2 border-green-500 rounded-r-md flex items-center justify-center">
-            <div className="w-2 h-4 bg-green-500 rounded-full" />
+            <div className="w-2 h-4 bg-green-100 rounded-full border border-green-500" />
           </div>
         </div>
       )}
@@ -146,6 +147,7 @@ export function DroppableCanvas({ children }: { children: React.ReactNode }) {
 }
 
 export function BlocksView({ blocks, onMove }: BlocksViewProps) {
+  const dndContext = useDndContext()
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -153,7 +155,7 @@ export function BlocksView({ blocks, onMove }: BlocksViewProps) {
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Only start panning if not clicking on a block
-    if ((e.target as HTMLElement).closest(".block-item")) {
+    if ((e.target as HTMLElement).closest(".block-item") || dndContext.active) {
       return
     }
 
@@ -206,6 +208,7 @@ export function BlocksView({ blocks, onMove }: BlocksViewProps) {
                 key={block.id}
                 className="absolute block-item"
                 style={{
+                  display: block.visible ? "block" : "none",
                   left: block.position.x,
                   top: block.position.y,
                 }}
