@@ -9,7 +9,7 @@ export type BlockType<T> = {
   title: string
   icon: React.ReactNode
   createNew: () => T
-  block: (data: T, id: string) => React.ReactElement
+  block: (data: T, id: string, dragHandleProps?: any) => React.ReactElement
 }
 
 export interface BlockRegistry {
@@ -29,6 +29,7 @@ type BlockProps = {
   input?: BlockInputOutput
   output?: BlockInputOutput
   children?: ReactNode
+  dragHandleProps?: any
   onConnect?: (sourceId: string, targetId: string) => void
 }
 
@@ -37,7 +38,7 @@ export type BlockViewItem = {
   type: string
   data: any
   position: { x: number; y: number }
-  element: React.ReactNode
+  element: (props: any) => React.ReactNode
   visible: boolean
 }
 
@@ -54,9 +55,10 @@ export const Block = ({
   input,
   output,
   children,
+  dragHandleProps,
 }: BlockProps) => {
   return (
-    <div id={`draggable/block/${id}`} className="relative">
+    <div id={`draggable/block/${id}`} className="relative cursor-auto">
       {/* Input connector (hole) */}
       {input && (
         <div
@@ -71,8 +73,8 @@ export const Block = ({
       )}
 
       {/* Block body */}
-      <Card className={`${color} p-4 min-w-64 shadow-md min-h-16`}>
-        <div className="flex items-center gap-2 font-medium">
+      <Card className={`${color} p-5 min-w-64 shadow-md min-h-16`}>
+        <div className="flex items-center gap-2 font-medium -m-5 p-5 pb-3 !cursor-move" {...dragHandleProps}>
           {icon}
           <span className="whitespace-nowrap">{title}</span>
         </div>
@@ -101,7 +103,7 @@ export function DraggableBlock({
   children,
 }: {
   block: BlockViewItem
-  children: React.ReactNode
+  children: (dragHandleProps: any) => React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: block.id,
@@ -125,11 +127,9 @@ export function DraggableBlock({
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
       className="cursor-move"
     >
-      {children}
+      {children({...listeners, ...attributes})}
     </div>
   )
 }
@@ -213,7 +213,7 @@ export function BlocksView({ blocks, onMove }: BlocksViewProps) {
                   top: block.position.y,
                 }}
               >
-                <DraggableBlock block={block}>{block.element}</DraggableBlock>
+                <DraggableBlock block={block} children={props => block.element({...props})}/>
               </div>
             ))}
           </div>

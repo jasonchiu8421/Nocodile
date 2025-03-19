@@ -28,6 +28,8 @@ type DndLayoutProps = {
   description?: string
   sidebarContent: ReactNode
   blockRegistry: BlockRegistry
+  blocks: BlockInstance[]
+  setBlocks: (blocks: BlockInstance[]) => void
 }
 
 type ActiveDragItem = {
@@ -49,8 +51,9 @@ export function DndLayout({
   description,
   sidebarContent,
   blockRegistry,
+  blocks,
+  setBlocks,
 }: DndLayoutProps) {
-  const [blocks, setBlocks] = useState<BlockInstance[]>([])
   const [nextBlockId, setNextBlockId] = useState(1)
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
     null
@@ -63,6 +66,8 @@ export function DndLayout({
 
     if (event.active.data.current?.type === "block") {
       if (event.active.data.current?.origin === "drawer") {
+        let dragStartCoordinates: { x: number; y: number } | null = null
+
         if (
           "clientX" in event.activatorEvent &&
           "clientY" in event.activatorEvent
@@ -78,30 +83,20 @@ export function DndLayout({
           const offsetX = clientX - rect.left
           const offsetY = clientY - rect.top
 
-          setActiveDragItem({
-            id: null,
-            type: "block",
-            blockType: event.active.data.current.blockType,
-            origin: event.active.data.current.origin,
-            originalPosition: null,
-            currentPosition: null,
-            position: null,
-            bounds: null,
-            dragStartCoordinates: { x: offsetX, y: offsetY },
-          })
-        } else {
-          setActiveDragItem({
-            id: null,
-            type: "block",
-            blockType: event.active.data.current.blockType,
-            origin: event.active.data.current.origin,
-            originalPosition: null,
-            currentPosition: null,
-            position: null,
-            bounds: null,
-            dragStartCoordinates: null,
-          })
+          dragStartCoordinates = { x: offsetX, y: offsetY }
         }
+
+        setActiveDragItem({
+          id: null,
+          type: "block",
+          blockType: event.active.data.current.blockType,
+          origin: event.active.data.current.origin,
+          originalPosition: null,
+          currentPosition: null,
+          position: null,
+          bounds: null,
+          dragStartCoordinates,
+        })
       } else if (event.active.data.current?.origin === "canvas") {
         const element = document.getElementById(
           `draggable/block/${event.active.id}`
@@ -236,7 +231,7 @@ export function DndLayout({
   // Handle drag end from DndContext
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const { active, over, collisions, activatorEvent } = event
+      const { active, over, activatorEvent } = event
 
       const canvasElement = document.getElementById("canvas-container")
       if (!canvasElement) return
@@ -245,16 +240,6 @@ export function DndLayout({
         return
       const { clientX, clientY } = activatorEvent as MouseEvent
       const rect = canvasElement.getBoundingClientRect()
-
-      console.log(
-        "Drag end:",
-        active,
-        collisions,
-        over,
-        clientX + event.delta.x,
-        clientY + event.delta.y,
-        rect
-      )
 
       // Handle deletion when dropped on the blocks drawer
       if (
@@ -280,8 +265,16 @@ export function DndLayout({
               type: active.data.current.blockType,
               data: active.data.current.blockData,
               position: {
-                x: (activeDragItem?.currentPosition?.x ?? 0) - rect.x - viewPosition.x - 1,
-                y: (activeDragItem?.currentPosition?.y ?? 0) - rect.y - viewPosition.y - 1,
+                x:
+                  (activeDragItem?.currentPosition?.x ?? 0) -
+                  rect.x -
+                  viewPosition.x -
+                  1,
+                y:
+                  (activeDragItem?.currentPosition?.y ?? 0) -
+                  rect.y -
+                  viewPosition.y -
+                  1,
               },
             }
             setBlocks([
@@ -323,7 +316,8 @@ export function DndLayout({
     .map((block) => {
       const blockElement = blockRegistry[block.type]?.block(
         block.data,
-        block.id
+        block.id,
+        null
       )
       if (!blockElement) return null
 
@@ -332,7 +326,8 @@ export function DndLayout({
         type: block.type,
         data: block.data,
         position: block.position,
-        element: blockElement,
+        element: (props: any) =>
+          blockRegistry[block.type]?.block(block.data, block.id, props),
         visible: block.id !== activeDragItem?.id,
       }
     })
