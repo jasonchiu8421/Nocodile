@@ -19,6 +19,17 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch.nn.functional as F
 import h5py
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
+from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, Activation, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop, Adagrad, Adadelta, Nadam, Ftrl
+from tensorflow.keras import backend as K
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.utils import to_categorical
+import tensorflow as tf
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -108,10 +119,6 @@ class DatasetCreator:
         self.image_paths = []
         self.labels = []
         self.images = []
-    
-    # Example usage
-    # base_folder = 'digits'
-    # dataset_creator = DatasetCreator(base_folder)
 
     def _load_image_paths_and_labels(self):
         # Load image paths and labels from the specified folder structure
@@ -137,11 +144,6 @@ class DatasetCreator:
 
         return self.images, self.labels
 
-    # Example usage
-    # base_folder = 'digits'
-    # dataset_creator = DatasetCreator(base_folder)
-    # images, labels = dataset_creator.load_data()
-
     def save_dataset(self, file_path=None):
         # Create dataset filename if not specified
         if file_path is None or file_path.strip() == "":
@@ -156,12 +158,6 @@ class DatasetCreator:
             datasetloader = Dataset(self.images, self.labels)
             datasetloader.save_dataset(file_path)
             return file_path
-    
-    # Example usage
-    # base_folder = 'digits'
-    # dataset_creator = DatasetCreator(base_folder)
-    # dataset_creator.load_data()
-    # name_of_saved_file = dataset_creator.save_dataset()
 
 class Dataset:
     def __init__(self, images=None, labels=None):
@@ -169,14 +165,12 @@ class Dataset:
         self.labels = labels
         self.filename = None
     
-    # Example usage
-    # dataset_loader = DatasetLoader(images, labels)
-    
     def save_dataset(self, file_path, images=None, labels=None):
         if images==None:
             images = self.images
         if labels==None:
             labels = self.labels
+        
         # Avoid subscript
         base_name = file_path.split('.')[0]
         if not file_path.endswith('.h5'):
@@ -191,15 +185,19 @@ class Dataset:
                 h5f.create_dataset('labels', data=labels.astype('S'))
                 print(f"Dataset saved at {file_path}.")
 
-    # Example usage
-    # dataset_loader = DatasetLoader(images, labels)
-    # filename = "digits_dataset"/ filename = "digits_dataset.h5"
-    # dataset_creator.save_dataset(filename)
+    def _load_csv(self, filename):
+        self.dataset = pd.read_csv(filename)
+        self.images = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
+        self.labels = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
+        return self.images, self.labels
 
     def get_filename(self):
         return self.filename
 
     def load_saved_dataset(self, filename):
+        if filename.endswith('.csv'):
+            return self._load_csv(filename)
+
         # Avoid subscript
         base_name = filename.split('.')[0]
         if not filename.endswith('.h5'):
@@ -216,10 +214,6 @@ class Dataset:
         
         return self.images, self.labels
 
-    # Example usage
-    # dataset_loader = DatasetLoader()
-    # images, labels = dataset_loader.load_saved_dataset('digits_dataset.h5')
-
     def print_shapes(self):
         if (self.images.any() == None) or (self.labels.any() == None):
             raise ValueError("Images or Labels not loaded successfully.")
@@ -228,11 +222,6 @@ class Dataset:
             print("Images Shape:", self.images.shape)
             print("Labels Shape:", self.labels.shape)
             return self.images.shape, self.labels.shape
-    
-    # Example usage
-    # dataset_loader = DatasetLoader()
-    # dataset_loader.load_saved_dataset('digits_dataset.h5')
-    # dataset_loader.print_shapes()
 
     def find_random_image_per_class(self):
         if (self.images.any() == None) or (self.labels.any() == None):
@@ -262,11 +251,6 @@ class Dataset:
 
         return label_list, image_list
 
-    # Example usage
-    # dataset = Dataset()
-    # dataset.load_saved_dataset('digits_dataset.h5')
-    # dataset.find_random_image_per_class()
-
 class Preprocessing:
     def __init__(self, filename=None, X=None, y=None):
         self.X = X
@@ -291,8 +275,12 @@ class Preprocessing:
             raise ValueError("No labels found.")
 
     # Noise removal/ Outlier removal
+    def noise_removal(self, alpha):
+        raise NotImplementedError
     
     # Image Filtering/ Cropping
+    def crop(self, size):
+        raise NotImplementedError
     
     # Image Resizing (allow Multi-Resolution Training)
     def resize(self, width, height):
@@ -332,6 +320,231 @@ class Preprocessing:
         dataset = Dataset(self.X, self.y)
         images, labels = dataset.find_random_image_per_class()
         dataset.save_dataset(filename, images, labels)
+
+class CNN:
+    def __init__(self, X=None, y=None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
+        self.X = X
+        self.y = y
+        self.model = None
+        self.hist = None
+        self.batches = None
+        self.val_batches = None
+        self.layers=layers
+        self.optimizer=optimizer
+        self.loss=loss
+        self.metrics=metrics
+        self.lr=lr
+        self.epochs=epochs
+        self.batch_size=batch_size
+        self.method=method
+        self.kFold_k=kFold_k
+
+    def train_model(self):
+        self.y = to_categorical(self.y)
+        if self.method=="train_test":
+            self._train_test_approach()
+        elif self.method=="train_test_val":
+            self._train_test_val_approach()
+        elif self.method=="kFold_val":
+            self._kFold_validation_approach()
+        else:
+            raise ValueError(f"Invalid method '{self.method}'. Expected one of: 'train_test', 'train_test_val', 'kFold_val'.")
+
+    def _standardize(self, x):
+        mean_px = self.X.mean().astype(np.float32)
+        std_px = self.X.std().astype(np.float32)
+        return (x-mean_px)/std_px
+    
+    # train/test approach
+    def _train_test_approach(self):
+        # train/test split
+        seed = 43
+        np.random.seed(seed)
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+        
+        # Create Data Generator
+        gen = ImageDataGenerator()
+        self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
+        self.val_batches = gen.flow(self.X_test, self.y_test, batch_size=self.batch_size)
+
+        # Define and train model
+        self._custom_model()
+        
+        # Plot performance of the model
+        self._check_performance()
+
+    # train/test/val
+    def _train_test_val_approach(self):
+        # train/val/test split
+        seed = 43
+        np.random.seed(seed)
+        self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+        self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+        
+        # Create Data Generator
+        gen = ImageDataGenerator()
+        self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
+        self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
+
+        # Define and train model
+        self._custom_model()
+        
+        # Plot performance of the model
+        self._check_performance()
+        test_generator = gen.flow(self.X_test, self.y_test, batch_size=self.batch_size)
+        test_loss, test_accuracy = self.model.evaluate(test_generator)
+        print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
+    
+    # k-fold CV
+    def _kFold_validation_approach(self):
+        # not yet finished
+        kf = KFold(n_splits=self.kFOld_k, shuffle=True, random_state=42)
+        
+        # Create Data Generator
+        gen = ImageDataGenerator()
+        model_histories = []
+        
+        for train_index, val_index in kf.split(self.X):
+            self.X_train, self.X_val = self.X[train_index], self.X[val_index]
+            self.y_train, self.y_val = self.y[train_index], self.y[val_index]
+            
+            self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
+            self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
+
+            # Define and train model
+            self._custom_model()
+            
+            # Plot performance of the model
+            avg_loss = np.mean([history.history['loss'] for history in model_histories], axis=0)
+            avg_val_loss = np.mean([history.history['val_loss'] for history in model_histories], axis=0)
+            avg_accuracy = np.mean([history.history['accuracy'] for history in model_histories], axis=0)
+            avg_val_accuracy = np.mean([history.history['val_accuracy'] for history in model_histories], axis=0)
+            self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
+
+    def _custom_model(self):
+        self.model= Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
+        for layer in self.layers:
+            self._add_layer(layer)
+
+        self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
+            
+        self.model.optimizer.lr=self.lr
+        
+        self.hist = self.model.fit(
+            x=self.batches,
+            steps_per_epoch=self.batches.n,
+            epochs=self.epochs,
+            validation_data=self.val_batches,
+            validation_steps=self.val_batches.n,
+            verbose=1
+        )
+
+        return self.model
+
+    def _add_layer(self, layer):
+        if layer["type"] == "Flatten":
+            self.model.add(Flatten())
+        elif layer["type"] == "Dense":
+            if "activation" in layer and layer["activation"] is not None:
+                self.model.add(Dense(layer["units"], activation=layer["activation"]))
+            else:
+                self.model.add(Dense(layer["units"]))
+        elif layer["type"] == "Activation":
+            self.model.add(Activation(layer["activation"]))
+        elif layer["type"] == "Dropout":
+            self.model.add(Dropout(layer["rate"]))
+        elif layer["type"] == "BatchNormalization":
+            self.model.add(BatchNormalization())
+        elif layer["type"] == "Conv2D":
+            self.model.add(Conv2D(layer["number of filters"], layer["kernel_size"], activation=layer.get("activation"), padding=layer.get("padding", "valid")))
+        elif layer["type"] == "MaxPooling2D":
+            self.model.add(MaxPooling2D(pool_size=layer["pool_size"]))
+        elif layer["type"] == "GlobalMaxPooling2D":
+            self.model.add(GlobalMaxPooling2D())
+        elif layer["type"] == "AveragePooling2D":
+            self.model.add(AveragePooling2D(pool_size=layer["pool_size"]))
+        elif layer["type"] == "GlobalAveragePooling2D":
+            self.model.add(GlobalAveragePooling2D())
+
+    def _check_performance(self):
+        history_dict = self.hist.history
+        loss_values = history_dict['loss']
+        val_loss_values = history_dict['val_loss']
+        acc_values = history_dict['accuracy']
+        val_acc_values = history_dict['val_accuracy']
+        epochs = range(1, len(loss_values) + 1)
+
+        # Create a figure for loss
+        plt.figure(figsize=(6, 5))
+        plt.plot(epochs, loss_values, 'bo', label='Training Loss')
+        plt.plot(epochs, val_loss_values, 'b+', label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Loss Over Epochs')
+        plt.legend()
+        plt.ylim(0, 1)
+
+        # Save the loss figure
+        plt.tight_layout()
+        plt.savefig('loss_plot.png')
+        plt.close()
+
+        # Create a figure for accuracy
+        plt.figure(figsize=(6, 5))
+        plt.plot(epochs, acc_values, 'bo', label='Training Accuracy')
+        plt.plot(epochs, val_acc_values, 'b+', label='Validation Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.title('Accuracy Over Epochs')
+        plt.legend()
+        plt.ylim(0, 1)
+
+        # Save the accuracy figure
+        plt.tight_layout()
+        plt.savefig('accuracy_plot.png')
+        plt.close()
+    
+    def _plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
+        epochs = range(1, len(avg_loss) + 1)
+
+        # Create a figure for loss
+        plt.figure(figsize=(6, 5))
+        plt.plot(epochs, avg_loss, 'bo', label='Training Loss')
+        plt.plot(epochs, avg_val_loss, 'b+', label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Loss Over Epochs')
+        plt.legend()
+        plt.ylim(0, 1)
+
+        # Save the loss figure
+        plt.tight_layout()
+        plt.savefig('loss_plot.png')
+        plt.close()
+
+        # Create a figure for accuracy
+        plt.figure(figsize=(6, 5))
+        plt.plot(epochs, avg_acc, 'bo', label='Training Accuracy')
+        plt.plot(epochs, avg_val_acc, 'b+', label='Validation Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.title('Accuracy Over Epochs')
+        plt.legend()
+        plt.ylim(0, 1)
+
+        # Save the accuracy figure
+        plt.tight_layout()
+        plt.savefig('accuracy_plot.png')
+        plt.close()
+
+    def load_model(self, filename):
+        self.model = tf.keras.models.load_model(filename)
+      
+    def run_model(self, X_test):
+        X_test = X_test.reshape(len(X_test), 28, 28, 1).astype('float32')
+        predictions = self.model.predict(X_test, verbose=1)
+        predicted_class = np.argmax(predictions, axis=1)
+        return predicted_class
 
 def save_images_to_folder(image_dict: Dict[str, str]) -> List[str]:
     """
@@ -441,7 +654,7 @@ def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
 
     return output_paths
 
-def train_model(images: List[str], labels: List[int], training_options: Dict[str, any]) -> Dict:
+def train_model(filename: str, training_options: Dict[str, any]):
     """
     训练CNN模型
     
@@ -454,117 +667,27 @@ def train_model(images: List[str], labels: List[int], training_options: Dict[str
         - optimizer: 优化器类型 ("sgd", "adam", "adagrad")
         - batch_size: 批次大小
     """
-    # 数据预处理转换
-    transform = transforms.Compose([
-        transforms.Grayscale(),  # 转换为灰度图
-        transforms.Resize((28, 28)),  # MNIST标准大小
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))  # 标准化
-    ])
     
-    # 加载数据
-    images_data = []
-    for img_path in images:
-        img = Image.open(img_path)
-        img_tensor = transform(img)
-        images_data.append(img_tensor)
-    
-    # 转换为张量
-    images_tensor = torch.stack(images_data)
-    labels_tensor = torch.tensor(labels, dtype=torch.long)
-    
-    # 创建数据集和数据加载器
-    dataset = TensorDataset(images_tensor, labels_tensor)
-    dataloader = DataLoader(
-        dataset, 
-        batch_size=training_options.get("batch_size", 32),
-        shuffle=True
-    )
-    
-    # 创建模型
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = DigitCNN().to(device)
-    
-    # 损失函数
-    criterion = nn.CrossEntropyLoss()
-    
-    # 选择优化器
-    lr = training_options.get("learning_rate", 0.001)
-    optimizer_name = training_options.get("optimizer", "adam").lower()
-    
-    if optimizer_name == "sgd":
-        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-    elif optimizer_name == "adam":
-        optimizer = optim.Adam(model.parameters(), lr=lr)
-    elif optimizer_name == "adagrad":
-        optimizer = optim.Adagrad(model.parameters(), lr=lr)
-    else:
-        raise ValueError(f"不支持的优化器类型: {optimizer_name}")
-    
-    # 训练过程
-    epochs = training_options.get("epochs", 10)
-    accuracies = []
-    losses = []
-    
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        
-        for inputs, targets in dataloader:
-            inputs, targets = inputs.to(device), targets.to(device)
-            
-            # 梯度清零
-            optimizer.zero_grad()
-            
-            # 前向传播
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            
-            # 反向传播和优化
-            loss.backward()
-            optimizer.step()
-            
-            # 统计
-            running_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += targets.size(0)
-            correct += (predicted == targets).sum().item()
-        
-        # 计算epoch的准确率和损失
-        epoch_accuracy = 100 * correct / total
-        epoch_loss = running_loss / len(dataloader)
-        
-        accuracies.append(epoch_accuracy)
-        losses.append(epoch_loss)
-        
-        logger.info(f'Epoch {epoch+1}/{epochs}: '
-                   f'Loss = {epoch_loss:.4f}, '
-                   f'Accuracy = {epoch_accuracy:.2f}%')
+    # load data
+    dataset = Dataset()
+    X, y = dataset.load_saved_dataset(filename)
+
+    # train model
+    cnn = CNN(X, y, training_options)
+    model = cnn.train_model()
     
     # 保存模型
-    model_path = f"model_digits_{uuid.uuid4().hex[:8]}.pth"
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'epochs': epochs,
-        'final_accuracy': accuracies[-1]
-    }, model_path)
+    model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
+    model.save(model_path)
     
-    return {
-        "status": "success",
-        "model_path": model_path,
-        "accuracies": accuracies,
-        "losses": losses,
-        "final_accuracy": accuracies[-1],
-        "training_options": {
-            "learning_rate": lr,
-            "optimizer": optimizer_name,
-            "epochs": epochs,
-            "batch_size": training_options.get("batch_size", 32)
-        }
-    }
+    return model_path
+
+def predict(model_path: str, test_path: str):
+    cnn = CNN()
+    cnn.load_model(model_path)
+    X_test = pd.read_csv(test_path)
+    X_test = np.array(X_test)
+    cnn.run_model(X_test)
 
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
