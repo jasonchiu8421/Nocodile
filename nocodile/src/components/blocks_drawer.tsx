@@ -1,15 +1,32 @@
 import { cn } from "@/lib/utils"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
-import { BlockRegistry } from "./blocks"
+import { BlockRegistry, BlockType } from "./blocks"
+import { BlockInstance } from "./dnd_layout"
 import { Card } from "./ui/card"
 import { Separator } from "./ui/separator"
 
 type BlockDrawerProps = {
   blockRegistry: BlockRegistry
+  inactiveBlocks: string[]
   className?: string
 }
 
-export function BlockDrawer({ blockRegistry, className }: BlockDrawerProps) {
+export function calculateInactiveBlocks(
+  blockRegistry: BlockRegistry,
+  blocks: BlockInstance[]
+): string[] {
+  return Object.keys(blockRegistry).filter((blockType) => {
+    const blockInfo = blockRegistry[blockType]
+    const blockCount = blocks.filter((b) => b.type === blockType).length
+    return blockInfo.limit && blockCount >= blockInfo.limit
+  })
+}
+
+export function BlockDrawer({
+  blockRegistry,
+  inactiveBlocks,
+  className,
+}: BlockDrawerProps) {
   const { setNodeRef } = useDroppable({
     id: "blocks-drawer",
   })
@@ -29,25 +46,46 @@ export function BlockDrawer({ blockRegistry, className }: BlockDrawerProps) {
       <Separator className="my-3" />
 
       {/* Block items */}
-      {Object.entries(blockRegistry).map(([blockType, blockInfo]) => (
-        <DraggableDrawerItem
-          key={blockType}
-          id={`drawer-${blockType}`}
-          blockType={blockType}
-        >
-          <Card className="p-3 hover:shadow-md transition-shadow">
-            <div className="flex items-center">
-              <div className="mr-2">{blockInfo.icon}</div>
-              <div className="font-medium">{blockInfo.title}</div>
-            </div>
-          </Card>
-        </DraggableDrawerItem>
-      ))}
+      {Object.entries(blockRegistry).map(([blockType, blockInfo]) =>
+        inactiveBlocks.includes(blockType) ? (
+          <DrawerItem key={blockType} blockInfo={blockInfo} active={false} />
+        ) : (
+          <DraggableDrawerItem
+            key={blockType}
+            id={`drawer-${blockType}`}
+            blockType={blockType}
+          >
+            <DrawerItem blockInfo={blockInfo} active={true} />
+          </DraggableDrawerItem>
+        )
+      )}
     </div>
   )
 }
 
-export function DraggableDrawerItem({
+function DrawerItem({
+  blockInfo,
+  active,
+}: {
+  blockInfo: BlockType<any>
+  active: boolean
+}) {
+  return (
+    <Card
+      className={cn(
+        "p-3 hover:shadow-md transition-shadow",
+        !active && "opacity-50 cursor-not-allowed"
+      )}
+    >
+      <div className="flex items-center">
+        <div className="mr-2">{blockInfo.icon}</div>
+        <div className="font-medium">{blockInfo.title}</div>
+      </div>
+    </Card>
+  )
+}
+
+function DraggableDrawerItem({
   id,
   blockType,
   children,

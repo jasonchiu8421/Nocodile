@@ -14,9 +14,9 @@ import {
   DragStartEvent,
   Modifier,
 } from "@dnd-kit/core"
+import { Coordinates } from "@dnd-kit/core/dist/types"
 import { ReactNode, useCallback, useState } from "react"
 import { BlocksView } from "./canvas"
-import { Coordinates } from "@dnd-kit/core/dist/types"
 
 export type BlockInstance = {
   id: string
@@ -45,10 +45,10 @@ type ActiveDragItem = {
   position:
     | ((delta: { x: number; y: number }) => { x: number; y: number })
     | null
+  previewTranslate: { x: number; y: number } | null
   inputSnapTo: string | null
   outputSnapTo: string | null
   bounds: { width: number; height: number } | null
-  dragStartCoordinates: { x: number; y: number } | null
 }
 
 export function DndLayout({
@@ -124,9 +124,11 @@ export function DndLayout({
         // Get connector data
         const connectorType = element.getAttribute("data-connector-type")
         const connectorId = element.getAttribute("data-connector-id")
+        const connectorFilled = element.getAttribute("data-connector-filled")
 
-        // Skip if no connector type or ID
-        if (!connectorType || !connectorId) continue
+        // Skip if no connector type or ID or if the connector is already filled
+        if (!connectorType || !connectorId || connectorFilled === "true")
+          continue
 
         // Skip if this connector belongs to the active block
         const connectorBlockId = connectorId.substring(
@@ -184,92 +186,100 @@ export function DndLayout({
   )
 
   // Handle drag start
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveDragItem(null)
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      setActiveDragItem(null)
 
-    if (event.active.data.current?.type === "block") {
-      if (event.active.data.current?.origin === "drawer") {
-        let dragStartCoordinates: { x: number; y: number } | null = null
-        let position: null | ((delta: Coordinates) => Coordinates) = null
+      if (event.active.data.current?.type === "block") {
+        if (event.active.data.current?.origin === "drawer") {
+          let position: null | ((delta: Coordinates) => Coordinates) = null
+          let previewTranslate: { x: number; y: number } | null = null
 
-        if (
-          "clientX" in event.activatorEvent &&
-          "clientY" in event.activatorEvent
-        ) {
-          const { clientX, clientY } = event.activatorEvent as PointerEvent
+          if (
+            "clientX" in event.activatorEvent &&
+            "clientY" in event.activatorEvent
+          ) {
+            const { clientX, clientY } = event.activatorEvent as PointerEvent
 
+            const element = document.getElementById(
+              `draggable/drawer/${event.active.id}`
+            )
+            if (!element) return
+
+            const rect = element.getBoundingClientRect()
+            const offsetX = clientX - rect.left
+            const offsetY = clientY - rect.top
+
+            position = (delta: Coordinates) => ({
+              x: clientX + delta.x - offsetX,
+              y: clientY + delta.y - offsetY,
+            })
+            previewTranslate = { x: -rect.left, y: -rect.top }
+          }
+
+          setActiveDragItem({
+            id: null,
+            type: "block",
+            blockType: event.active.data.current.blockType,
+            origin: event.active.data.current.origin,
+            currentPosition: position ? position({ x: 0, y: 0 }) : null,
+            position,
+            previewTranslate,
+            inputSnapTo: null,
+            outputSnapTo: null,
+            bounds: { width: 200, height: 0 },
+          })
+        } else if (event.active.data.current?.origin === "canvas") {
           const element = document.getElementById(
-            `draggable/drawer/${event.active.id}`
+            `draggable/block/${event.active.id}`
           )
           if (!element) return
 
           const rect = element.getBoundingClientRect()
-          const offsetX = clientX - rect.left
-          const offsetY = clientY - rect.top
 
-          dragStartCoordinates = { x: offsetX, y: offsetY }
-
-          position = (delta: Coordinates) => ({
-            x: clientX + delta.x - (dragStartCoordinates?.x || 0),
-            y: clientY + delta.y - (dragStartCoordinates?.y || 0),
+          setActiveDragItem({
+            id: event.active.data.current.blockId,
+            type: "block",
+            blockType: event.active.data.current.blockType,
+            origin: event.active.data.current.origin,
+            currentPosition: { x: rect.left, y: rect.top },
+            position: (delta) => ({
+              x: rect.left + delta.x,
+              y: rect.top + delta.y,
+            }),
+            previewTranslate: null,
+            inputSnapTo: null,
+            outputSnapTo: null,
+            bounds: { width: rect.width, height: rect.height },
           })
-        }
 
-        setActiveDragItem({
-          id: null,
-          type: "block",
-          blockType: event.active.data.current.blockType,
-          origin: event.active.data.current.origin,
-          currentPosition: position ? position({ x: 0, y: 0 }) : null,
-          position,
-          inputSnapTo: null,
-          outputSnapTo: null,
-          bounds: { width: 200, height: 0 },
-          dragStartCoordinates,
-        })
-      } else if (event.active.data.current?.origin === "canvas") {
-        const element = document.getElementById(
-          `draggable/block/${event.active.id}`
-        )
-        if (!element) return
-
-        const rect = element.getBoundingClientRect()
-
-        setActiveDragItem({
-          id: event.active.data.current.blockId,
-          type: "block",
-          blockType: event.active.data.current.blockType,
-          origin: event.active.data.current.origin,
-          currentPosition: { x: rect.left, y: rect.top },
-          position: (delta) => ({
-            x: rect.left + delta.x,
-            y: rect.top + delta.y,
-          }),
-          inputSnapTo: null,
-          outputSnapTo: null,
-          bounds: { width: rect.width, height: rect.height },
-          dragStartCoordinates: null,
-        })
-
-        setBlocks(
-          blocks.map((block) => {
-            if (block.id === event.active.data.current?.blockId) {
+          setBlocks(
+            blocks.map((block) => {
+              if (block.id === event.active.data.current?.blockId) {
+                return {
+                  ...block,
+                  input: null,
+                  output: null,
+                }
+              }
               return {
                 ...block,
-                input: null,
-                output: null,
+                input:
+                  block.input === event.active.data.current?.blockId
+                    ? null
+                    : block.input,
+                output:
+                  block.output === event.active.data.current?.blockId
+                    ? null
+                    : block.output,
               }
-            }
-            return {
-              ...block,
-              input: block.input === event.active.data.current?.blockId ? null : block.input,
-              output: block.output === event.active.data.current?.blockId ? null : block.output,
-            }
-          })
-        )
+            })
+          )
+        }
       }
-    }
-  }, [blocks])
+    },
+    [blocks]
+  )
 
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
@@ -338,44 +348,35 @@ export function DndLayout({
         clientY + event.delta.y <= rect.bottom
       ) {
         if (active.data.current?.type === "block") {
+          const position = {
+            x:
+              (activeDragItem?.currentPosition?.x ?? 0) -
+              rect.x -
+              viewPosition.x -
+              3,
+            y:
+              (activeDragItem?.currentPosition?.y ?? 0) -
+              rect.y -
+              viewPosition.y -
+              3,
+          }
+
           if (active.data.current?.origin === "canvas") {
             addBlock({
               id: active.data.current.blockId,
               type: active.data.current.blockType,
               data: active.data.current.blockData,
-              position: {
-                x:
-                  (activeDragItem?.currentPosition?.x ?? 0) -
-                  rect.x -
-                  viewPosition.x -
-                  3,
-                y:
-                  (activeDragItem?.currentPosition?.y ?? 0) -
-                  rect.y -
-                  viewPosition.y -
-                  3,
-              },
+              position,
               input: activeDragItem?.inputSnapTo ?? null,
               output: activeDragItem?.outputSnapTo ?? null,
             })
           } else if (active.data.current?.origin === "drawer") {
-            const offsetClientX = clientX + event.delta.x - rect.left
-            const offsetClientY = clientY + event.delta.y - rect.top
-
-            const dragOffset = activeDragItem?.dragStartCoordinates || {
-              x: 0,
-              y: 0,
-            }
-
             setNextBlockId(nextBlockId + 1)
             addBlock({
               id: `block-${nextBlockId}`,
               type: active.data.current.blockType,
               data: blockRegistry[active.data.current.blockType].createNew(),
-              position: {
-                x: offsetClientX - viewPosition.x - dragOffset.x,
-                y: offsetClientY - viewPosition.y - dragOffset.y,
-              },
+              position,
               input: activeDragItem?.inputSnapTo ?? null,
               output: activeDragItem?.outputSnapTo ?? null,
             })
@@ -445,7 +446,11 @@ export function DndLayout({
               id="canvas-container"
               className="flex-1 border border-gray-200 rounded-md overflow-hidden"
             >
-              <BlocksView blockRegistry={blockRegistry} blocks={blockViewItems} onMove={setViewPosition} />
+              <BlocksView
+                blockRegistry={blockRegistry}
+                blocks={blockViewItems}
+                onMove={setViewPosition}
+              />
             </div>
           </div>
         </SidebarInset>
@@ -457,8 +462,8 @@ export function DndLayout({
               style={{
                 width: `${activeDragItem.bounds?.width}px`,
                 height: `${activeDragItem.bounds?.height}px`,
-                transform: "none",
                 pointerEvents: "none",
+                transform: `translate(${activeDragItem.previewTranslate?.x}px, ${activeDragItem.previewTranslate?.y}px)`,
                 zIndex: 1000,
               }}
             >

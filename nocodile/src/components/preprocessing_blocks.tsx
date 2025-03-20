@@ -9,6 +9,7 @@ const ImportDataBlock: BlockType<{
   hasOutput: true,
   title: "Import Data",
   icon: <Database className="w-5 h-5" />,
+  limit: 1,
   createNew: () => ({ file: null }),
   block(data, id, dragHandleProps) {
     return (
@@ -54,6 +55,7 @@ const ResizeFilterBlock: BlockType<{
   hasOutput: true,
   title: "Resize Filter",
   icon: <Image className="w-5 h-5" />,
+  limit: 1,
   createNew: () => ({ width: 256, height: 256 }),
   block(data, id, dragHandleProps) {
     return (
@@ -101,6 +103,7 @@ const GrayscaleFilterBlock: BlockType<{}> = {
   hasOutput: true,
   title: "Grayscale Filter",
   icon: <Image className="w-5 h-5" />,
+  limit: 1,
   createNew: () => ({}),
   block(_, id, dragHandleProps) {
     return (
@@ -119,6 +122,7 @@ const NormalizeFilterBlock: BlockType<{}> = {
   hasOutput: true,
   title: "Normalize Filter",
   icon: <Image className="w-5 h-5" />,
+  limit: 1,
   createNew: () => ({}),
   block(_, id, dragHandleProps) {
     return (
@@ -137,6 +141,7 @@ const ShufflingFilterBlock: BlockType<{}> = {
   hasOutput: true,
   title: "Shuffling Filter",
   icon: <Image className="w-5 h-5" />,
+  limit: 1,
   createNew: () => ({}),
   block(_, id, dragHandleProps) {
     return (
@@ -154,6 +159,7 @@ const SubmitBlock: BlockType<{}> = {
   hasInput: true,
   title: "Submit",
   icon: <Check className="w-5 h-5" />,
+  limit: 1,
   createNew: () => ({}),
   block(_, id, dragHandleProps) {
     return (

@@ -171,7 +171,7 @@ export function BlocksView({ blockRegistry, blocks, onMove }: BlocksViewProps) {
           }px`,
           transform: `translate(${position.x}px, ${position.y}px)`,
           background:
-            "linear-gradient(to right, rgba(0,255,100,0.2) 0%, rgba(0,255,100,0) 1%, rgba(0,255,100,0) 99%, rgba(0,255,100,0.2) 100%), linear-gradient(to bottom, rgba(0,255,100,0.2) 0%, rgba(0,255,100,0) 1%, rgba(0,255,100,0) 99%, rgba(0,255,100,0.2) 100%)",
+            "linear-gradient(to right, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 0.5%, rgba(0,0,0,0) 99.5%, rgba(0,0,0,0.3) 100%), linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 0.5%, rgba(0,0,0,0) 99.5%, rgba(0,0,0,0.3) 100%)",
         }}
       />
 

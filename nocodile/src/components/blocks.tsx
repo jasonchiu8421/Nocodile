@@ -1,13 +1,14 @@
 import { Card } from "@/components/ui/card"
+import { ChevronRight } from "lucide-react"
 import React, { ReactNode } from "react"
 import { BlockInstance } from "./dnd_layout"
-import { ChevronRight } from "lucide-react"
 
 export type BlockType<T> = {
   hasInput?: boolean
   hasOutput?: boolean
   title: string
   icon: React.ReactNode
+  limit?: number
   createNew: () => T
   block: (data: T, id: string, dragHandleProps?: any) => React.ReactElement
 }
@@ -48,6 +49,7 @@ export const BlockIO = ({
           className="absolute left-0 top-4 -translate-x-4 flex items-center"
           data-connector-id={`${id}/input`}
           data-connector-type="input"
+          data-connector-filled={block?.input !== null}
         >
           <div className="w-4 h-8 bg-blue-100 border-2 border-blue-500 rounded-l-md flex items-center justify-center">
             <div className="w-2 h-4 bg-blue-100 rounded-full border border-blue-500" />
@@ -62,6 +64,7 @@ export const BlockIO = ({
           className="absolute right-0 top-4 translate-x-4 flex items-center"
           data-connector-id={`${id}/output`}
           data-connector-type="output"
+          data-connector-filled={block?.output !== null}
         >
           <div className="w-4 h-8 bg-green-100 border-2 border-green-500 rounded-r-md flex items-center justify-center">
             <div className="w-2 h-4 bg-green-100 rounded-full border border-green-500" />
@@ -70,9 +73,12 @@ export const BlockIO = ({
       )}
 
       {type.hasOutput && (
-        <div className="absolute right-0 top-4 translate-x-4 flex items-center transition-opacity z-10" style={{ opacity: block?.output ? 1 : 0 }}>
+        <div
+          className="absolute right-0 top-4 translate-x-4 flex items-center transition-opacity z-10"
+          style={{ opacity: block?.output ? 1 : 0 }}
+        >
           <div className="w-4 h-8 bg-gray-300 border-2 border-gray-500 flex items-center justify-center">
-            <ChevronRight className="size-4 text-gray-600 stroke-3"/>
+            <ChevronRight className="size-4 text-gray-600 stroke-3" />
           </div>
         </div>
       )}
