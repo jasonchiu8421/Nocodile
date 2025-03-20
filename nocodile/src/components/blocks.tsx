@@ -42,7 +42,7 @@ export const BlockIO = ({
   id: string
   type: BlockType<any>
   block?: BlockInstance
-  previewConnections: { input: boolean; output: boolean } | null
+  previewConnections?: { input: boolean; output: boolean }
   children?: ReactNode
 }) => {
   return (
