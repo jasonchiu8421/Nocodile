@@ -1,4 +1,4 @@
-import { BlockIO, BlockRegistry, BlockViewItem } from "@/components/blocks"
+import { BlockIO, BlockRegistry, BlockViewItem, Block } from "@/components/blocks"
 import { RouteBreadcrumb } from "@/components/routes_breadcrumb"
 import {
   Sidebar,
@@ -15,7 +15,7 @@ import {
   Modifier,
 } from "@dnd-kit/core"
 import { Coordinates } from "@dnd-kit/core/dist/types"
-import { ReactNode, useCallback, useState } from "react"
+import { ReactNode, useCallback, useState, useEffect } from "react"
 import { BlocksView } from "./canvas"
 import { SaveButton, SaveFunction } from "./save_alerts"
 
@@ -68,6 +68,73 @@ export function DndLayout({
   )
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
 
+  // Initialize start and end blocks if they don't exist
+  useEffect(() => {
+    if (!blocks.some((b) => b.type === "start") || !blocks.some((b) => b.type === "end")) {
+      const newBlocks = [...blocks];
+      if (!blocks.some((b) => b.type === "start")) {
+        newBlocks.push({
+          id: `block-${nextBlockId}-start`,
+          type: "start",
+          data: {},
+          position: { x: 100, y: 100 },
+          input: null,
+          output: null,
+        });
+        setNextBlockId(nextBlockId + 1);
+      }
+      if (!blocks.some((b) => b.type === "end")) {
+        newBlocks.push({
+          id: `block-${nextBlockId}-end`,
+          type: "end",
+          data: {},
+          position: { x: 500, y: 100 },
+          input: null,
+          output: null,
+        });
+        setNextBlockId(nextBlockId + 1);
+      }
+      setBlocks(newBlocks);
+    }
+  }, [blocks, nextBlockId]);
+
+  // Extend block registry with start and end blocks
+  const extendedBlockRegistry: BlockRegistry = {
+    ...blockRegistry,
+    start: {
+      hasOutput: true,
+      hasInput: false,
+      title: 'Start',
+      icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
+      createNew: () => ({}),
+      block: (_: any, id: string, dragHandleProps?: any) => (
+        <Block
+          id={id}
+          title="Start"
+          color="bg-green-50"
+          icon={<div className="w-4 h-4 rounded-full bg-green-500" />}
+          dragHandleProps={dragHandleProps}
+        />
+      ),
+    },
+    end: {
+      hasInput: true,
+      hasOutput: false,
+      title: 'End',
+      icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
+      createNew: () => ({}),
+      block: (_: any, id: string, dragHandleProps?: any) => (
+        <Block
+          id={id}
+          title="End"
+          color="bg-red-50"
+          icon={<div className="w-4 h-4 rounded-full bg-red-500" />}
+          dragHandleProps={dragHandleProps}
+        />
+      ),
+    },
+  };
+
   const handleSnapping = useCallback<
     (
       active: DragStartEvent["active"],
@@ -75,74 +142,74 @@ export function DndLayout({
     ) => ActiveDragItem | null
   >(
     (active, delta) => {
-      let item: ActiveDragItem | null = activeDragItem
-      if (!item) return null
+      let item: ActiveDragItem | null = activeDragItem;
+      if (!item) return null;
 
       item = {
         ...item,
         currentPosition: item.position?.(delta) ?? null,
         inputSnapTo: null,
         outputSnapTo: null,
-      }
+      };
 
       // Get the active block's ID
-      const activeBlockId = active.data.current?.blockId
+      const activeBlockId = active.data.current?.blockId;
       if (!activeBlockId && active.data.current?.origin !== "drawer") {
-        return item
+        return item;
       }
 
-      const canvasElement = document.getElementById("canvas-container")
-      if (!canvasElement) return item
+      const canvasElement = document.getElementById("canvas-container");
+      if (!canvasElement) return item;
 
       // Define snap distance threshold (in pixels)
-      const snapThreshold = 20
+      const snapThreshold = 20;
 
       // Find all connectors except those belonging to the active block
-      const connectors = document.querySelectorAll("[data-connector-id]")
+      const connectors = document.querySelectorAll("[data-connector-id]");
 
       const selfConnectorPosition = {
         x: item.position?.(delta)?.x || 0,
         y: item.position?.(delta)?.y || 0,
-      }
+      };
 
-      const inputConnectorPosition = blockRegistry[item.blockType].hasInput
+      const inputConnectorPosition = extendedBlockRegistry[item.blockType].hasInput
         ? {
             x: selfConnectorPosition.x - 16 + 8,
             y: selfConnectorPosition.y + 16 + 16,
           }
-        : null
-      const outputConnectorPosition = blockRegistry[item.blockType].hasOutput
+        : null;
+      const outputConnectorPosition = extendedBlockRegistry[item.blockType].hasOutput
         ? {
             x: selfConnectorPosition.x + (item.bounds?.width || 0) + 8,
             y: selfConnectorPosition.y + 16 + 16,
           }
-        : null
+        : null;
 
-      console.log("try drop", selfConnectorPosition, connectors)
+      console.log("try drop", selfConnectorPosition, connectors);
 
       for (const element of connectors) {
         // Skip if not an HTMLElement
-        if (!(element instanceof HTMLElement)) continue
+        if (!(element instanceof HTMLElement)) continue;
 
         // Get connector data
-        const connectorType = element.getAttribute("data-connector-type")
-        const connectorId = element.getAttribute("data-connector-id")
-        const connectorFilled = element.getAttribute("data-connector-filled")
+        const connectorType = element.getAttribute("data-connector-type");
+        const connectorId = element.getAttribute("data-connector-id");
+        const connectorFilled = element.getAttribute("data-connector-filled");
 
         // Skip if no connector type or ID or if the connector is already filled
         if (!connectorType || !connectorId || connectorFilled === "true")
-          continue
+          continue;
 
         // Skip if this connector belongs to the active block
         const connectorBlockId = connectorId.substring(
           0,
           connectorId.lastIndexOf("/")
-        )
-        if (connectorBlockId === activeBlockId) continue
+        );
+        if (connectorBlockId === activeBlockId) continue;
 
-        console.log("considering", connectorBlockId)
+        console.log("considering", connectorBlockId);
 
-        const rect = element.getBoundingClientRect()
+        const rect = element.getBoundingClientRect();
 
         if (connectorType === "input" && outputConnectorPosition) {
           const distance = Math.sqrt(
@@ -151,7 +218,7 @@ export function DndLayout({
                 outputConnectorPosition.y - (rect.y + rect.height / 2),
                 2
               )
-          )
+          );
 
           if (distance < snapThreshold) {
             return {
@@ -161,16 +228,16 @@ export function DndLayout({
                 y: rect.y - 16,
               },
               outputSnapTo: connectorBlockId,
-            } as ActiveDragItem
+            } as ActiveDragItem;
           }
         } else if (connectorType === "output" && inputConnectorPosition) {
           const distance = Math.sqrt(
             Math.pow(inputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
               Math.pow(inputConnectorPosition.y - (rect.y + rect.height / 2), 2)
-          )
+          );
 
           if (distance < snapThreshold) {
-            console.log("pog")
+            console.log("pog");
             return {
               ...activeDragItem,
               currentPosition: {
@@ -178,46 +245,49 @@ export function DndLayout({
                 y: rect.y - 16,
               },
               inputSnapTo: connectorBlockId,
-            } as ActiveDragItem
+            } as ActiveDragItem;
           }
         }
       }
 
-      return item
+      return item;
     },
     [activeDragItem]
-  )
+  );
 
   // Handle drag start
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      setActiveDragItem(null)
+      const { active } = event
+      const { blockId, origin } = active.data.current ?? {}
+
+      setActiveDragItem(null);
 
       if (event.active.data.current?.type === "block") {
         if (event.active.data.current?.origin === "drawer") {
-          let position: null | ((delta: Coordinates) => Coordinates) = null
-          let previewTranslate: { x: number; y: number } | null = null
+          let position: null | ((delta: Coordinates) => Coordinates) = null;
+          let previewTranslate: { x: number; y: number } | null = null;
 
           if (
             "clientX" in event.activatorEvent &&
             "clientY" in event.activatorEvent
           ) {
-            const { clientX, clientY } = event.activatorEvent as PointerEvent
+            const { clientX, clientY } = event.activatorEvent as PointerEvent;
 
             const element = document.getElementById(
               `draggable/drawer/${event.active.id}`
-            )
-            if (!element) return
+            );
+            if (!element) return;
 
-            const rect = element.getBoundingClientRect()
-            const offsetX = clientX - rect.left
-            const offsetY = clientY - rect.top
+            const rect = element.getBoundingClientRect();
+            const offsetX = clientX - rect.left;
+            const offsetY = clientY - rect.top;
 
             position = (delta: Coordinates) => ({
               x: clientX + delta.x - offsetX,
               y: clientY + delta.y - offsetY,
-            })
-            previewTranslate = { x: -rect.left, y: -rect.top }
+            });
+            previewTranslate = { x: -rect.left, y: -rect.top };
           }
 
           setActiveDragItem({
@@ -231,14 +301,14 @@ export function DndLayout({
             inputSnapTo: null,
             outputSnapTo: null,
             bounds: { width: 200, height: 0 },
-          })
+          });
         } else if (event.active.data.current?.origin === "canvas") {
           const element = document.getElementById(
             `draggable/block/${event.active.id}`
-          )
-          if (!element) return
+          );
+          if (!element) return;
 
-          const rect = element.getBoundingClientRect()
+          const rect = element.getBoundingClientRect();
 
           setActiveDragItem({
             id: event.active.data.current.blockId,
@@ -254,7 +324,7 @@ export function DndLayout({
             inputSnapTo: null,
             outputSnapTo: null,
             bounds: { width: rect.width, height: rect.height },
-          })
+          });
 
           setBlocks(
             blocks.map((block) => {
@@ -263,7 +333,7 @@ export function DndLayout({
                   ...block,
                   input: null,
                   output: null,
-                }
+                };
               }
               return {
                 ...block,
@@ -275,21 +345,21 @@ export function DndLayout({
                   block.output === event.active.data.current?.blockId
                     ? null
                     : block.output,
-              }
+              };
             })
-          )
+          );
         }
       }
     },
     [blocks]
-  )
+  );
 
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
-      setActiveDragItem(handleSnapping(event.active, event.delta))
+      setActiveDragItem(handleSnapping(event.active, event.delta));
     },
     [handleSnapping]
-  )
+  );
 
   const addBlock = (block: BlockInstance) => {
     setBlocks([
@@ -301,46 +371,47 @@ export function DndLayout({
               ...b,
               input: b.input === block.id ? null : b.input,
               output: block.id,
-            }
+            };
           } else if (b.id === block.output) {
             return {
               ...b,
               input: block.id,
               output: b.output === block.id ? null : b.output,
-            }
+            };
           }
 
           return {
             ...b,
             input: b.input === block.id ? null : b.input,
             output: b.output === block.id ? null : b.output,
-          }
+          };
         }),
       block,
-    ])
-  }
+    ]);
+  };
 
   // Handle drag end from DndContext
   const handleDrop = useCallback(
     (event: DragEndEvent, activeDragItem: ActiveDragItem | null) => {
       const { active, over, activatorEvent } = event
 
-      const canvasElement = document.getElementById("canvas-container")
-      if (!canvasElement) return
+      const canvasElement = document.getElementById("canvas-container");
+      if (!canvasElement) return;
 
       if (!("clientX" in activatorEvent) || !("clientY" in activatorEvent))
-        return
-      const { clientX, clientY } = activatorEvent as MouseEvent
-      const rect = canvasElement.getBoundingClientRect()
+        return;
+      const { clientX, clientY } = activatorEvent as MouseEvent;
+      const rect = canvasElement.getBoundingClientRect();
 
       // Handle deletion when dropped on the blocks drawer
       if (
         over?.id === "blocks-drawer" &&
+        active.data.current?.type === "block" &&
         active.data.current?.origin === "canvas"
       ) {
-        // Remove the block from the blocks array
-        setBlocks(blocks.filter((b) => b.id !== active.data.current?.blockId))
-        return
+        const blockId = active.data.current?.blockId;
+        setBlocks(blocks.filter((b) => b.id !== blockId));
+        return;
       }
 
       // Only process if we have a valid drop target and active item
@@ -362,7 +433,7 @@ export function DndLayout({
               rect.y -
               viewPosition.y -
               3,
-          }
+          };
 
           if (active.data.current?.origin === "canvas") {
             addBlock({
@@ -372,50 +443,50 @@ export function DndLayout({
               position,
               input: activeDragItem?.inputSnapTo ?? null,
               output: activeDragItem?.outputSnapTo ?? null,
-            })
+            });
           } else if (active.data.current?.origin === "drawer") {
-            setNextBlockId(nextBlockId + 1)
+            setNextBlockId(nextBlockId + 1);
             addBlock({
               id: `block-${nextBlockId}`,
               type: active.data.current.blockType,
-              data: blockRegistry[active.data.current.blockType].createNew(),
+              data: extendedBlockRegistry[active.data.current.blockType].createNew(),
               position,
               input: activeDragItem?.inputSnapTo ?? null,
               output: activeDragItem?.outputSnapTo ?? null,
-            })
+            });
           }
         }
       }
 
       // Reset drag start coordinates
-      setActiveDragItem(null)
+      setActiveDragItem(null);
     },
-    [blocks, nextBlockId, viewPosition, blockRegistry]
-  )
+    [blocks, nextBlockId, viewPosition, extendedBlockRegistry]
+  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      handleDrop(event, handleSnapping(event.active, event.delta))
+      handleDrop(event, handleSnapping(event.active, event.delta));
     },
     [handleDrop, handleSnapping]
-  )
+  );
 
   // Convert blocks to the format expected by BlocksView
   const blockViewItems = blocks
     .map((block) => {
-      const blockElement = blockRegistry[block.type]?.block(
+      const blockElement = extendedBlockRegistry[block.type]?.block(
         block.data,
         block.id,
         null
-      )
-      if (!blockElement) return null
+      );
+      if (!blockElement) return null;
 
       return {
         ...block,
         visible: block.id !== activeDragItem?.id,
-      }
+      };
     })
-    .filter(Boolean) as BlockViewItem[]
+    .filter(Boolean) as BlockViewItem[];
 
   const snapToPosition: Modifier = (args) => {
     return activeDragItem?.currentPosition
@@ -425,8 +496,8 @@ export function DndLayout({
           scaleX: 1,
           scaleY: 1,
         }
-      : args.transform
-  }
+      : args.transform;
+  };
 
   return (
     <SidebarProvider>
@@ -443,7 +514,7 @@ export function DndLayout({
         <SidebarInset>
           <RouteBreadcrumb title={title}>
             <SaveButton
-              blockRegistry={blockRegistry}
+              blockRegistry={extendedBlockRegistry}
               blocks={blocks}
               save={save}
             />
@@ -456,7 +527,7 @@ export function DndLayout({
               className="flex-1 border border-gray-200 rounded-md overflow-hidden"
             >
               <BlocksView
-                blockRegistry={blockRegistry}
+                blockRegistry={extendedBlockRegistry}
                 blocks={blockViewItems}
                 onMove={setViewPosition}
               />
@@ -466,7 +537,7 @@ export function DndLayout({
 
         {/* Drag Overlay */}
         <DragOverlay dropAnimation={null} modifiers={[snapToPosition]}>
-          {activeDragItem && blockRegistry[activeDragItem.blockType] && (
+          {activeDragItem && extendedBlockRegistry[activeDragItem.blockType] && (
             <div
               style={{
                 width: `${activeDragItem.bounds?.width}px`,
@@ -478,11 +549,14 @@ export function DndLayout({
             >
               <BlockIO
                 id="drag-overlay"
-                type={blockRegistry[activeDragItem.blockType]}
-                previewConnections={{ input: activeDragItem.inputSnapTo !== null, output: activeDragItem.outputSnapTo !== null }}
+                type={extendedBlockRegistry[activeDragItem.blockType]}
+                previewConnections={{
+                  input: activeDragItem.inputSnapTo !== null,
+                  output: activeDragItem.outputSnapTo !== null,
+                }}
               >
-                {blockRegistry[activeDragItem.blockType].block(
-                  blockRegistry[activeDragItem.blockType].createNew(),
+                {extendedBlockRegistry[activeDragItem.blockType].block(
+                  extendedBlockRegistry[activeDragItem.blockType].createNew(),
                   "drag-overlay"
                 )}
               </BlockIO>
@@ -491,5 +565,5 @@ export function DndLayout({
         </DragOverlay>
       </DndContext>
     </SidebarProvider>
-  )
+  );
 }

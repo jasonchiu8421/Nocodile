@@ -7,6 +7,7 @@ const ImportDataBlock: BlockType<{
   file: File | null
 }> = {
   hasOutput: true,
+  hasInput: true,
   title: "Import Data",
   icon: <Database className="w-5 h-5" />,
   limit: 1,
@@ -31,6 +32,10 @@ const ImportDataBlock: BlockType<{
               const file = e.target.files?.[0]
               if (file) {
                 // Handle file selection logic here
+                /*
+with open("imageToSave.png", "wb") as fh:
+    fh.write(img_data.decode('base64'))
+    */
                 console.log("File selected:", file)
               }
             }}
@@ -180,7 +185,7 @@ const allBlocks: BlockRegistry = {
   grayscale: GrayscaleFilterBlock,
   normalize: NormalizeFilterBlock,
   shuffling: ShufflingFilterBlock,
-  submit: SubmitBlock,
+  //submit: SubmitBlock,
 }
 
 export default allBlocks
