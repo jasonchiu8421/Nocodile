@@ -4,15 +4,18 @@ import {
 } from "@/components/blocks_drawer"
 import { BlockInstance, DndLayout } from "@/components/dnd_layout"
 import allBlocks from "@/components/preprocessing_blocks"
+import { SaveFunction, splitChain } from "@/components/save_alerts"
+import { Toaster } from "@/components/ui/sonner"
+import { useBlocksStore } from "@/store"
 import { useEffect, useState } from "react"
 
 export default function Preprocessing() {
-  const [blocks, setBlocks] = useState<BlockInstance[]>([])
+  const { blocks: storedBlocks } = useBlocksStore()
+  const [blocks, setBlocks] = useState<BlockInstance[]>(storedBlocks ?? [])
   const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([])
 
   useEffect(() => {
     setInactiveBlocks(calculateInactiveBlocks(allBlocks, blocks))
-    console.log(JSON.stringify(inactiveBlocks))
   }, [blocks])
 
   const sidebarContent = (
@@ -26,17 +29,40 @@ export default function Preprocessing() {
     </div>
   )
 
+  const saveFunc = SaveFunction.requireChainCount(1).then(
+    SaveFunction.create((_, blocks) => {
+      const chain = splitChain(blocks)
+      if (chain[0][0].type !== "import") {
+        return {
+          type: "error",
+          message: "The first block must be an import block!",
+        }
+      } else if (chain[0][chain[0].length - 1].type !== "submit") {
+        return {
+          type: "error",
+          message: "The last block must be a submit block!",
+        }
+      }
+
+      return { type: "success" }
+    })
+  )
+
   useEffect(() => {
     console.log(JSON.stringify(blocks))
   }, [blocks])
 
   return (
-    <DndLayout
-      title="Data Preprocessing"
-      sidebarContent={sidebarContent}
-      blockRegistry={allBlocks}
-      blocks={blocks}
-      setBlocks={setBlocks}
-    />
+    <>
+      <DndLayout
+        title="Data Preprocessing"
+        sidebarContent={sidebarContent}
+        blockRegistry={allBlocks}
+        blocks={blocks}
+        setBlocks={setBlocks}
+        save={saveFunc}
+      />
+      <Toaster />
+    </>
   )
 }

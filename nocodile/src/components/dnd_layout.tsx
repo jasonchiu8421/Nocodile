@@ -17,6 +17,7 @@ import {
 import { Coordinates } from "@dnd-kit/core/dist/types"
 import { ReactNode, useCallback, useState } from "react"
 import { BlocksView } from "./canvas"
+import { SaveButton, SaveFunction } from "./save_alerts"
 
 export type BlockInstance = {
   id: string
@@ -34,6 +35,7 @@ type DndLayoutProps = {
   blockRegistry: BlockRegistry
   blocks: BlockInstance[]
   setBlocks: (blocks: BlockInstance[]) => void
+  save: SaveFunction
 }
 
 type ActiveDragItem = {
@@ -58,6 +60,7 @@ export function DndLayout({
   blockRegistry,
   blocks,
   setBlocks,
+  save,
 }: DndLayoutProps) {
   const [nextBlockId, setNextBlockId] = useState(1)
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
@@ -438,7 +441,13 @@ export function DndLayout({
           </SidebarContent>
         </Sidebar>
         <SidebarInset>
-          <RouteBreadcrumb title={title} />
+          <RouteBreadcrumb title={title}>
+            <SaveButton
+              blockRegistry={blockRegistry}
+              blocks={blocks}
+              save={save}
+            />
+          </RouteBreadcrumb>
           <div className="flex-1 p-4 space-y-4 flex">
             {description && <p>{description}</p>}
 
@@ -470,6 +479,7 @@ export function DndLayout({
               <BlockIO
                 id="drag-overlay"
                 type={blockRegistry[activeDragItem.blockType]}
+                previewConnections={{ input: activeDragItem.inputSnapTo !== null, output: activeDragItem.outputSnapTo !== null }}
               >
                 {blockRegistry[activeDragItem.blockType].block(
                   blockRegistry[activeDragItem.blockType].createNew(),

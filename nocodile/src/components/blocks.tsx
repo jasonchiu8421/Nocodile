@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import { ChevronRight } from "lucide-react"
 import React, { ReactNode } from "react"
 import { BlockInstance } from "./dnd_layout"
@@ -35,11 +36,13 @@ export const BlockIO = ({
   id,
   type,
   block,
+  previewConnections,
   children,
 }: {
   id: string
   type: BlockType<any>
   block?: BlockInstance
+  previewConnections: { input: boolean; output: boolean } | null
   children?: ReactNode
 }) => {
   return (
@@ -52,7 +55,9 @@ export const BlockIO = ({
           data-connector-filled={block?.input !== null}
         >
           <div className="w-4 h-8 bg-blue-100 border-2 border-blue-500 rounded-l-md flex items-center justify-center">
-            <div className="w-2 h-4 bg-blue-100 rounded-full border border-blue-500" />
+            <div className={cn("w-2 h-4 bg-blue-100 rounded-full transition-colors duration-100",
+              previewConnections?.input ? "bg-blue-500" : "border border-blue-500"
+            )} />
           </div>
         </div>
       )}
@@ -67,7 +72,9 @@ export const BlockIO = ({
           data-connector-filled={block?.output !== null}
         >
           <div className="w-4 h-8 bg-green-100 border-2 border-green-500 rounded-r-md flex items-center justify-center">
-            <div className="w-2 h-4 bg-green-100 rounded-full border border-green-500" />
+            <div className={cn("w-2 h-4 bg-green-100 rounded-full transition-colors duration-100",
+              previewConnections?.output ? "bg-green-500" : "border border-green-500"
+            )} />
           </div>
         </div>
       )}

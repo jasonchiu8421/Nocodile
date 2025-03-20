@@ -1,20 +1,23 @@
+import { ReactNode } from "react"
+import { Link } from "react-router"
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-  BreadcrumbLink,
 } from "./ui/breadcrumb"
-import { Link } from "react-router"
 
 export function RouteBreadcrumb({
   title,
+  children,
 }: {
   title: string
+  children?: ReactNode
 }) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 justify-between">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem className="hidden md:block">
@@ -28,6 +31,7 @@ export function RouteBreadcrumb({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+      {children}
     </header>
   )
 }
