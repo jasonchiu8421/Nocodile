@@ -20,7 +20,6 @@ export default function Preprocessing() {
   return (
     <DndLayout
       title="Data Preprocessing"
-      description="Drag and drop blocks from the left panel to create your data preprocessing pipeline."
       sidebarContent={sidebarContent}
       blockRegistry={allBlocks}
       blocks={blocks}

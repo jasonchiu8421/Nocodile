@@ -1,4 +1,4 @@
-import { Database, Image } from "lucide-react"
+import { Check, Database, Image } from "lucide-react"
 import { Block, BlockRegistry, BlockType } from "./blocks"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
@@ -16,7 +16,6 @@ const ImportDataBlock: BlockType<{
         id={id}
         title="Import Data"
         icon={<Database className="w-5 h-5" />}
-        output={{ id: `${id}-output`, type: "data" }}
         dragHandleProps={dragHandleProps}
       >
         <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center space-y-3">
@@ -47,7 +46,7 @@ const ImportDataBlock: BlockType<{
   },
 }
 
-const ResizeFilter: BlockType<{
+const ResizeFilterBlock: BlockType<{
   width: number
   height: number
 }> = {
@@ -62,8 +61,6 @@ const ResizeFilter: BlockType<{
         id={id}
         title="Resize Filter"
         icon={<Image className="w-5 h-5" />}
-        input={{ id: `${id}-input`, type: "data" }}
-        output={{ id: `${id}-output`, type: "data" }}
         dragHandleProps={dragHandleProps}
       >
         <div className="grid grid-cols-2 gap-2">
@@ -99,7 +96,7 @@ const ResizeFilter: BlockType<{
   },
 }
 
-const GrayscaleFilter: BlockType<{}> = {
+const GrayscaleFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
   title: "Grayscale Filter",
@@ -111,15 +108,13 @@ const GrayscaleFilter: BlockType<{}> = {
         id={id}
         title="Grayscale Filter"
         icon={<Image className="w-5 h-5" />}
-        input={{ id: `${id}-input`, type: "data" }}
-        output={{ id: `${id}-output`, type: "data" }}
         dragHandleProps={dragHandleProps}
       />
     )
   },
 }
 
-const NormalizeFilter: BlockType<{}> = {
+const NormalizeFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
   title: "Normalize Filter",
@@ -131,15 +126,13 @@ const NormalizeFilter: BlockType<{}> = {
         id={id}
         title="Normalize Filter"
         icon={<Image className="w-5 h-5" />}
-        input={{ id: `${id}-input`, type: "data" }}
-        output={{ id: `${id}-output`, type: "data" }}
         dragHandleProps={dragHandleProps}
       />
     )
   },
 }
 
-const ShufflingFilter: BlockType<{}> = {
+const ShufflingFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
   title: "Shuffling Filter",
@@ -151,8 +144,23 @@ const ShufflingFilter: BlockType<{}> = {
         id={id}
         title="Shuffling Filter"
         icon={<Image className="w-5 h-5" />}
-        input={{ id: `${id}-input`, type: "data" }}
-        output={{ id: `${id}-output`, type: "data" }}
+        dragHandleProps={dragHandleProps}
+      />
+    )
+  },
+}
+
+const SubmitBlock: BlockType<{}> = {
+  hasInput: true,
+  title: "Submit",
+  icon: <Check className="w-5 h-5" />,
+  createNew: () => ({}),
+  block(_, id, dragHandleProps) {
+    return (
+      <Block
+        id={id}
+        title="Submit"
+        icon={<Check className="w-5 h-5" />}
         dragHandleProps={dragHandleProps}
       />
     )
@@ -162,10 +170,11 @@ const ShufflingFilter: BlockType<{}> = {
 // Block registry
 const allBlocks: BlockRegistry = {
   import: ImportDataBlock,
-  resize: ResizeFilter,
-  grayscale: GrayscaleFilter,
-  normalize: NormalizeFilter,
-  shuffling: ShufflingFilter,
+  resize: ResizeFilterBlock,
+  grayscale: GrayscaleFilterBlock,
+  normalize: NormalizeFilterBlock,
+  shuffling: ShufflingFilterBlock,
+  submit: SubmitBlock,
 }
 
 export default allBlocks

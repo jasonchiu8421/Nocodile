@@ -1,4 +1,4 @@
-import { BlockRegistry, BlocksView, BlockViewItem } from "@/components/blocks"
+import { BlockIO, BlockRegistry, BlockViewItem } from "@/components/blocks"
 import { RouteBreadcrumb } from "@/components/routes_breadcrumb"
 import {
   Sidebar,
@@ -15,12 +15,16 @@ import {
   Modifier,
 } from "@dnd-kit/core"
 import { ReactNode, useCallback, useState } from "react"
+import { BlocksView } from "./canvas"
+import { Coordinates } from "@dnd-kit/core/dist/types"
 
 export type BlockInstance = {
   id: string
   type: string
   data: any
   position: { x: number; y: number }
+  input: string | null
+  output: string | null
 }
 
 type DndLayoutProps = {
@@ -37,11 +41,12 @@ type ActiveDragItem = {
   type: string
   blockType: string
   origin: "drawer" | "canvas"
-  originalPosition: { x: number; y: number } | null
   currentPosition: { x: number; y: number } | null
   position:
     | ((delta: { x: number; y: number }) => { x: number; y: number })
     | null
+  inputSnapTo: string | null
+  outputSnapTo: string | null
   bounds: { width: number; height: number } | null
   dragStartCoordinates: { x: number; y: number } | null
 }
@@ -60,6 +65,124 @@ export function DndLayout({
   )
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
 
+  const handleSnapping = useCallback<
+    (
+      active: DragStartEvent["active"],
+      delta: Coordinates
+    ) => ActiveDragItem | null
+  >(
+    (active, delta) => {
+      let item: ActiveDragItem | null = activeDragItem
+      if (!item) return null
+
+      item = {
+        ...item,
+        currentPosition: item.position?.(delta) ?? null,
+        inputSnapTo: null,
+        outputSnapTo: null,
+      }
+
+      // Get the active block's ID
+      const activeBlockId = active.data.current?.blockId
+      if (!activeBlockId && active.data.current?.origin !== "drawer") {
+        return item
+      }
+
+      const canvasElement = document.getElementById("canvas-container")
+      if (!canvasElement) return item
+
+      // Define snap distance threshold (in pixels)
+      const snapThreshold = 20
+
+      // Find all connectors except those belonging to the active block
+      const connectors = document.querySelectorAll("[data-connector-id]")
+
+      const selfConnectorPosition = {
+        x: item.position?.(delta)?.x || 0,
+        y: item.position?.(delta)?.y || 0,
+      }
+
+      const inputConnectorPosition = blockRegistry[item.blockType].hasInput
+        ? {
+            x: selfConnectorPosition.x - 16 + 8,
+            y: selfConnectorPosition.y + 16 + 16,
+          }
+        : null
+      const outputConnectorPosition = blockRegistry[item.blockType].hasOutput
+        ? {
+            x: selfConnectorPosition.x + (item.bounds?.width || 0) + 8,
+            y: selfConnectorPosition.y + 16 + 16,
+          }
+        : null
+
+      console.log("try drop", selfConnectorPosition, connectors)
+
+      for (const element of connectors) {
+        // Skip if not an HTMLElement
+        if (!(element instanceof HTMLElement)) continue
+
+        // Get connector data
+        const connectorType = element.getAttribute("data-connector-type")
+        const connectorId = element.getAttribute("data-connector-id")
+
+        // Skip if no connector type or ID
+        if (!connectorType || !connectorId) continue
+
+        // Skip if this connector belongs to the active block
+        const connectorBlockId = connectorId.substring(
+          0,
+          connectorId.lastIndexOf("/")
+        )
+        if (connectorBlockId === activeBlockId) continue
+
+        console.log("considering", connectorBlockId)
+
+        const rect = element.getBoundingClientRect()
+
+        if (connectorType === "input" && outputConnectorPosition) {
+          const distance = Math.sqrt(
+            Math.pow(outputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
+              Math.pow(
+                outputConnectorPosition.y - (rect.y + rect.height / 2),
+                2
+              )
+          )
+
+          if (distance < snapThreshold) {
+            return {
+              ...item,
+              currentPosition: {
+                x: rect.x - (item.bounds?.width || 0),
+                y: rect.y - 16,
+              },
+              outputSnapTo: connectorBlockId,
+            } as ActiveDragItem
+          }
+        } else if (connectorType === "output" && inputConnectorPosition) {
+          const distance = Math.sqrt(
+            Math.pow(inputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
+              Math.pow(inputConnectorPosition.y - (rect.y + rect.height / 2), 2)
+          )
+
+          if (distance < snapThreshold) {
+            console.log("pog")
+            return {
+              ...activeDragItem,
+              currentPosition: {
+                x: rect.x + 16,
+                y: rect.y - 16,
+              },
+              inputSnapTo: connectorBlockId,
+            } as ActiveDragItem
+          }
+        }
+      }
+
+      return item
+    },
+    [activeDragItem]
+  )
+
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragItem(null)
@@ -67,6 +190,7 @@ export function DndLayout({
     if (event.active.data.current?.type === "block") {
       if (event.active.data.current?.origin === "drawer") {
         let dragStartCoordinates: { x: number; y: number } | null = null
+        let position: null | ((delta: Coordinates) => Coordinates) = null
 
         if (
           "clientX" in event.activatorEvent &&
@@ -84,6 +208,11 @@ export function DndLayout({
           const offsetY = clientY - rect.top
 
           dragStartCoordinates = { x: offsetX, y: offsetY }
+
+          position = (delta: Coordinates) => ({
+            x: clientX + delta.x - (dragStartCoordinates?.x || 0),
+            y: clientY + delta.y - (dragStartCoordinates?.y || 0),
+          })
         }
 
         setActiveDragItem({
@@ -91,10 +220,11 @@ export function DndLayout({
           type: "block",
           blockType: event.active.data.current.blockType,
           origin: event.active.data.current.origin,
-          originalPosition: null,
-          currentPosition: null,
-          position: null,
-          bounds: null,
+          currentPosition: position ? position({ x: 0, y: 0 }) : null,
+          position,
+          inputSnapTo: null,
+          outputSnapTo: null,
+          bounds: { width: 200, height: 0 },
           dragStartCoordinates,
         })
       } else if (event.active.data.current?.origin === "canvas") {
@@ -110,127 +240,76 @@ export function DndLayout({
           type: "block",
           blockType: event.active.data.current.blockType,
           origin: event.active.data.current.origin,
-          originalPosition: { x: rect.left, y: rect.top },
           currentPosition: { x: rect.left, y: rect.top },
           position: (delta) => ({
             x: rect.left + delta.x,
             y: rect.top + delta.y,
           }),
+          inputSnapTo: null,
+          outputSnapTo: null,
           bounds: { width: rect.width, height: rect.height },
           dragStartCoordinates: null,
         })
+
+        setBlocks(
+          blocks.map((block) => {
+            if (block.id === event.active.data.current?.blockId) {
+              return {
+                ...block,
+                input: null,
+                output: null,
+              }
+            }
+            return {
+              ...block,
+              input: block.input === event.active.data.current?.blockId ? null : block.input,
+              output: block.output === event.active.data.current?.blockId ? null : block.output,
+            }
+          })
+        )
       }
     }
-  }, [])
+  }, [blocks])
 
-  // Handle drag move for snapping
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
-      if (!activeDragItem) return
-
-      setActiveDragItem({
-        ...activeDragItem,
-        currentPosition: activeDragItem.position?.(event.delta) ?? null,
-      })
-
-      // Get the active block's ID
-      const activeBlockId = event.active.data.current?.blockId
-      if (!activeBlockId && event.active.data.current?.origin !== "drawer") {
-        return
-      }
-
-      const canvasElement = document.getElementById("canvas-container")
-      if (!canvasElement) return
-
-      // Define snap distance threshold (in pixels)
-      const snapThreshold = 20
-      let closestDistance = snapThreshold
-
-      // Find all connectors except those belonging to the active block
-      const connectors = document.querySelectorAll("[data-connector-id]")
-
-      const selfConnectorPosition = {
-        x: activeDragItem.position?.(event.delta)?.x || 0,
-        y: activeDragItem.position?.(event.delta)?.y || 0,
-      }
-
-      const inputConnectorPosition = blockRegistry[activeDragItem.blockType]
-        .hasInput
-        ? {
-            x: selfConnectorPosition.x - 16 + 8,
-            y: selfConnectorPosition.y + 16 + 16,
-          }
-        : null
-      const outputConnectorPosition = blockRegistry[activeDragItem.blockType]
-        .hasOutput
-        ? {
-            x:
-              selfConnectorPosition.x + (activeDragItem.bounds?.width || 0) + 8,
-            y: selfConnectorPosition.y + 16 + 16,
-          }
-        : null
-
-      for (const element of connectors) {
-        // Skip if not an HTMLElement
-        if (!(element instanceof HTMLElement)) continue
-
-        // Get connector data
-        const connectorType = element.getAttribute("data-connector-type")
-        const connectorId = element.getAttribute("data-connector-id")
-
-        // Skip if no connector type or ID
-        if (!connectorType || !connectorId) continue
-
-        // Skip if this connector belongs to the active block
-        const connectorBlockId = connectorId.split("-")[0]
-        if (connectorBlockId === activeBlockId) continue
-
-        const rect = element.getBoundingClientRect()
-
-        if (connectorType === "input" && outputConnectorPosition) {
-          const distance = Math.sqrt(
-            Math.pow(outputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
-              Math.pow(
-                outputConnectorPosition.y - (rect.y + rect.height / 2),
-                2
-              )
-          )
-
-          if (distance < closestDistance) {
-            setActiveDragItem({
-              ...activeDragItem,
-              currentPosition: {
-                x: rect.x - (activeDragItem.bounds?.width || 0),
-                y: rect.y - 16,
-              },
-            })
-            return
-          }
-        } else if (connectorType === "output" && inputConnectorPosition) {
-          const distance = Math.sqrt(
-            Math.pow(inputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
-              Math.pow(inputConnectorPosition.y - (rect.y + rect.height / 2), 2)
-          )
-
-          if (distance < closestDistance) {
-            setActiveDragItem({
-              ...activeDragItem,
-              currentPosition: {
-                x: rect.x + 16,
-                y: rect.y - 16,
-              },
-            })
-            return
-          }
-        }
-      }
+      setActiveDragItem(handleSnapping(event.active, event.delta))
     },
-    [activeDragItem]
+    [handleSnapping]
   )
 
+  const addBlock = (block: BlockInstance) => {
+    setBlocks([
+      ...blocks
+        .filter((b) => b.id !== block.id)
+        .map((b) => {
+          if (b.id === block.input) {
+            return {
+              ...b,
+              input: b.input === block.id ? null : b.input,
+              output: block.id,
+            }
+          } else if (b.id === block.output) {
+            return {
+              ...b,
+              input: block.id,
+              output: b.output === block.id ? null : b.output,
+            }
+          }
+
+          return {
+            ...b,
+            input: b.input === block.id ? null : b.input,
+            output: b.output === block.id ? null : b.output,
+          }
+        }),
+      block,
+    ])
+  }
+
   // Handle drag end from DndContext
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
+  const handleDrop = useCallback(
+    (event: DragEndEvent, activeDragItem: ActiveDragItem | null) => {
       const { active, over, activatorEvent } = event
 
       const canvasElement = document.getElementById("canvas-container")
@@ -260,7 +339,7 @@ export function DndLayout({
       ) {
         if (active.data.current?.type === "block") {
           if (active.data.current?.origin === "canvas") {
-            const block = {
+            addBlock({
               id: active.data.current.blockId,
               type: active.data.current.blockType,
               data: active.data.current.blockData,
@@ -269,18 +348,16 @@ export function DndLayout({
                   (activeDragItem?.currentPosition?.x ?? 0) -
                   rect.x -
                   viewPosition.x -
-                  1,
+                  3,
                 y:
                   (activeDragItem?.currentPosition?.y ?? 0) -
                   rect.y -
                   viewPosition.y -
-                  1,
+                  3,
               },
-            }
-            setBlocks([
-              ...blocks.filter((b) => b.id !== active.data.current?.blockId),
-              block,
-            ])
+              input: activeDragItem?.inputSnapTo ?? null,
+              output: activeDragItem?.outputSnapTo ?? null,
+            })
           } else if (active.data.current?.origin === "drawer") {
             const offsetClientX = clientX + event.delta.x - rect.left
             const offsetClientY = clientY + event.delta.y - rect.top
@@ -290,7 +367,8 @@ export function DndLayout({
               y: 0,
             }
 
-            const block = {
+            setNextBlockId(nextBlockId + 1)
+            addBlock({
               id: `block-${nextBlockId}`,
               type: active.data.current.blockType,
               data: blockRegistry[active.data.current.blockType].createNew(),
@@ -298,9 +376,9 @@ export function DndLayout({
                 x: offsetClientX - viewPosition.x - dragOffset.x,
                 y: offsetClientY - viewPosition.y - dragOffset.y,
               },
-            }
-            setNextBlockId(nextBlockId + 1)
-            setBlocks([...blocks, block])
+              input: activeDragItem?.inputSnapTo ?? null,
+              output: activeDragItem?.outputSnapTo ?? null,
+            })
           }
         }
       }
@@ -308,7 +386,14 @@ export function DndLayout({
       // Reset drag start coordinates
       setActiveDragItem(null)
     },
-    [blocks, nextBlockId, viewPosition, activeDragItem, blockRegistry]
+    [blocks, nextBlockId, viewPosition, blockRegistry]
+  )
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      handleDrop(event, handleSnapping(event.active, event.delta))
+    },
+    [handleDrop, handleSnapping]
   )
 
   // Convert blocks to the format expected by BlocksView
@@ -322,12 +407,7 @@ export function DndLayout({
       if (!blockElement) return null
 
       return {
-        id: block.id,
-        type: block.type,
-        data: block.data,
-        position: block.position,
-        element: (props: any) =>
-          blockRegistry[block.type]?.block(block.data, block.id, props),
+        ...block,
         visible: block.id !== activeDragItem?.id,
       }
     })
@@ -358,21 +438,21 @@ export function DndLayout({
         </Sidebar>
         <SidebarInset>
           <RouteBreadcrumb title={title} />
-          <div className="flex-1 p-4 space-y-4">
+          <div className="flex-1 p-4 space-y-4 flex">
             {description && <p>{description}</p>}
 
             <div
               id="canvas-container"
-              className="h-[calc(100vh-180px)] border border-gray-200 rounded-md overflow-hidden"
+              className="flex-1 border border-gray-200 rounded-md overflow-hidden"
             >
-              <BlocksView blocks={blockViewItems} onMove={setViewPosition} />
+              <BlocksView blockRegistry={blockRegistry} blocks={blockViewItems} onMove={setViewPosition} />
             </div>
           </div>
         </SidebarInset>
 
         {/* Drag Overlay */}
         <DragOverlay dropAnimation={null} modifiers={[snapToPosition]}>
-          {activeDragItem && (
+          {activeDragItem && blockRegistry[activeDragItem.blockType] && (
             <div
               style={{
                 width: `${activeDragItem.bounds?.width}px`,
@@ -382,10 +462,15 @@ export function DndLayout({
                 zIndex: 1000,
               }}
             >
-              {blockRegistry[activeDragItem?.blockType]?.block(
-                blockRegistry[activeDragItem?.blockType].createNew(),
-                "drag-overlay"
-              )}
+              <BlockIO
+                id="drag-overlay"
+                type={blockRegistry[activeDragItem.blockType]}
+              >
+                {blockRegistry[activeDragItem.blockType].block(
+                  blockRegistry[activeDragItem.blockType].createNew(),
+                  "drag-overlay"
+                )}
+              </BlockIO>
             </div>
           )}
         </DragOverlay>
