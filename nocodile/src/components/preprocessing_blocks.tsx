@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import { AlertCircle, Database, Image, Notebook, NotebookPen, Upload, X } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
@@ -29,7 +29,7 @@ const EndBlock: BlockType<{}> = {
   },
 }
 
-const ImportDataBlock: BlockType<{
+type ImportDataProps = {
   images: Record<
     string,
     {
@@ -39,7 +39,9 @@ const ImportDataBlock: BlockType<{
       error?: string
     }
   >
-}> = {
+}
+
+const ImportDataBlock: BlockType<ImportDataProps> = {
   hasInput: true,
   hasOutput: true,
   title: "Import Data",
@@ -214,30 +216,21 @@ const ImportDataBlock: BlockType<{
 }
 
 const ResizeFilterBlock: BlockType<{
-  width: number
-  height: number
+  size: number
 }> = {
   hasInput: true,
   hasOutput: true,
   title: "Resize Filter",
   icon: <Image className="w-5 h-5" />,
-  createNew: () => ({ width: 256, height: 256 }),
-  block({ data, id, dragHandleProps }) {
+  createNew: () => ({ size: 16 }),
+  block({ data, id, setData, dragHandleProps }) {
     return (
       <Block id={id} title="Resize Filter" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label htmlFor={`${id}-width`} className="text-xs text-gray-500">
-              Width
-            </label>
-            <Input id={`${id}-width`} type="number" value={data.width} min={1} onChange={(e) => (data.width = parseInt(e.target.value) || 1)} className="h-7 text-sm" />
-          </div>
-          <div>
-            <label htmlFor={`${id}-height`} className="text-xs text-gray-500">
-              Height
-            </label>
-            <Input id={`${id}-height`} type="number" value={data.height} min={1} onChange={(e) => (data.height = parseInt(e.target.value) || 1)} className="h-7 text-sm" />
-          </div>
+        <div>
+          <label htmlFor={`${id}-size`} className="text-xs text-gray-500">
+            Size
+          </label>
+          <Input id={`${id}-size`} type="number" value={data.size} min={1} onChange={(e) => setData({ ...data, size: parseInt(e.target.value) || 1 })} className="h-7 text-sm" />
         </div>
       </Block>
     )
@@ -279,132 +272,146 @@ const ShufflingFilterBlock: BlockType<{}> = {
 
 type UploadBlockProps = {
   files: Record<
-  string,
-  {
-    path: string
-    status: "pending" | "processing" | "success" | "error"
-    progress: number
-    error?: string
-  }
->
+    string,
+    {
+      path: string
+      status: "pending" | "processing" | "success" | "error"
+      progress: number
+      error?: string
+    }
+  >
 }
 
 const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: CreateBlockElementProps<UploadBlockProps>) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-    
-  // Always define these variables, even if they're null
-  let importData = null;
-  let hasImportedFiles = false;
-  
-  // Only try to find the import block if chain exists
-  if (chain) {
-    // Find the last (closest) import block in the chain
-    const importBlocks = chain.before.filter(block => block.type === "import");
-    const importBlock = importBlocks.length > 0 ? importBlocks[importBlocks.length - 1] : null;
-    
-    if (importBlock) {
-      importData = importBlock.data;
-      hasImportedFiles = importData && Object.keys(importData.images || {}).length > 0;
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [importData, setImportData] = useState<ImportDataProps | null>(null)
+  const [options, setOptions] = useState<object>({})
+  const hasImportedFiles = importData && Object.keys(importData.images || {}).length > 0
+
+  useEffect(() => {
+    setImportData(null)
+    const options: Record<string, any> = {}
+
+    if (chain) {
+      const uploadBlocks = chain.before.filter((block) => block.type === "upload")
+      const uploadBlock = uploadBlocks.length > 0 ? uploadBlocks[uploadBlocks.length - 1] : null
+      const uploadBlockIndex = uploadBlock ? chain.before.findIndex((block) => block.id === uploadBlock.id) : null
+      const importBlocks = chain.before.filter((block, index) => block.type === "import" && (!uploadBlockIndex || index > uploadBlockIndex))
+      const importBlock = importBlocks.length > 0 ? importBlocks[importBlocks.length - 1] : null
+
+      if (importBlock) {
+        const importBlockIndex = chain.before.findIndex((block) => block.id === importBlock.id)
+        setImportData(importBlock.data)
+
+        chain.before.slice(importBlockIndex + 1).forEach((block) => {
+          if (block.type === "resize") {
+            options.resize = block.data.size
+          } else if (block.type === "grayscale") {
+            options.grayscale = true
+          } else if (block.type === "normalize") {
+            options.normalize = true
+          } else if (block.type === "shuffling") {
+            options.shuffling = true
+          }
+        })
+      }
     }
-  }
-  
-  const processFile = async (filename: string, filePath: string) => {
-    // Skip if already processed
-    if (data.files[filename] && data.files[filename].status !== "pending") {
-      return;
-    }
-    
+
+    setOptions(options)
+  }, [chain])
+
+  const processFile = async (data: UploadBlockProps, filename: string, filePath: string) => {
     // Update status to processing
-    const updatedData = { ...data };
+    const updatedData = { ...data }
     updatedData.files[filename] = {
       path: filePath,
       status: "processing",
       progress: 0,
-    };
-    setData({ ...updatedData });
-    
+    }
+    setData({ ...updatedData })
+
     try {
       // Use XMLHttpRequest to track processing progress
-      const xhr = new XMLHttpRequest();
-      
+      const xhr = new XMLHttpRequest()
+
       xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          const progressData = { ...data };
+          const progress = Math.round((event.loaded / event.total) * 100)
+          const progressData = { ...data }
           if (progressData.files[filename]) {
             progressData.files[filename] = {
               ...progressData.files[filename],
               progress,
-            };
-            setData({ ...progressData });
+            }
+            setData({ ...progressData })
           }
         }
-      });
-      
+      })
+
       // Set up promise to handle response
       const promise = new Promise<any>((resolve, reject) => {
         xhr.onreadystatechange = () => {
           if (xhr.readyState === 4) {
             if (xhr.status >= 200 && xhr.status < 300) {
               try {
-                const response = JSON.parse(xhr.responseText);
-                resolve(response);
+                const response = JSON.parse(xhr.responseText)
+                resolve(response)
               } catch (e) {
-                reject(new Error("Invalid response format"));
+                reject(new Error("Invalid response format"))
               }
             } else {
-              reject(new Error(`Processing failed with status ${xhr.status}`));
+              reject(new Error(`Processing failed with status ${xhr.status}`))
             }
           }
-        };
-        xhr.onerror = () => reject(new Error("Network error"));
-      });
-      
+        }
+        xhr.onerror = () => reject(new Error("Network error"))
+      })
+
       // Prepare request data as JSON
       const requestData = JSON.stringify({
         image_path: filePath,
-        options: {}
-      });
-      
+        options,
+      })
+
       // Open and send the request
-      xhr.open("POST", "http://localhost:8888/preprocess");
-      xhr.setRequestHeader("Content-Type", "application/json");
-      xhr.send(requestData);
-      
+      xhr.open("POST", "http://localhost:8888/preprocess")
+      xhr.setRequestHeader("Content-Type", "application/json")
+      xhr.send(requestData)
+
       // Wait for the response
-      const response = await promise;
-      
+      const response = await promise
+
       // Update the data with success
-      const successData = { ...data };
+      const successData = { ...data }
       successData.files[filename] = {
         path: response.processed_path || filePath,
         status: "success",
         progress: 100,
-      };
-      setData({ ...successData });
+      }
+      setData({ ...successData })
     } catch (error) {
-      console.error(`Error processing ${filename}:`, error);
-      
+      console.error(`Error processing ${filename}:`, error)
+
       // Update the data with the error
-      const errorData = { ...data };
+      const errorData = { ...data }
       errorData.files[filename] = {
         path: filePath,
         status: "error",
         progress: 0,
         error: error instanceof Error ? error.message : "Unknown error",
-      };
-      setData({ ...errorData });
+      }
+      setData({ ...errorData })
     }
-  };
-  
+  }
+
   const startProcessing = async () => {
-    if (!importData || !importData.images) return;
-    
-    setIsProcessing(true);
-    
+    if (!importData || !importData.images) return
+
+    setIsProcessing(true)
+
     // Initialize files from import data if not already present
-    const filesToProcess = { ...data.files };
-    
+    const filesToProcess = { ...data.files }
+
     // Add any new files from import that aren't already in our data
     // and reset any errored files to pending status
     Object.entries(importData.images || {}).forEach(([filename, fileData]: [string, any]) => {
@@ -415,7 +422,7 @@ const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: Cre
             path: fileData.path,
             status: "pending",
             progress: 0,
-          };
+          }
         }
         // If file exists but had an error, reset it to pending
         else if (filesToProcess[filename].status === "error") {
@@ -423,65 +430,58 @@ const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: Cre
             path: fileData.path,
             status: "pending",
             progress: 0,
-          };
+          }
         }
       }
-    });
-    
+    })
+
     // Update data with the initialized files
-    setData({ files: filesToProcess });
-    
+    const newData = { files: filesToProcess }
+    setData(newData)
+
     // Process each file
-    const fileEntries = Object.entries(filesToProcess);
+    const fileEntries = Object.entries(filesToProcess)
     for (const [filename, fileData] of fileEntries) {
       if (fileData.status === "pending") {
-        await processFile(filename, fileData.path);
+        await processFile(newData, filename, fileData.path)
       }
     }
-    
-    setIsProcessing(false);
-  };
-  
+
+    setIsProcessing(false)
+  }
+
   return (
     <Block id={id} title="Upload" icon={<Upload className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
       <div className="space-y-4">
         {!hasImportedFiles ? (
-          <div className="text-center text-sm text-gray-500">
-            No imported files found. Please add an Import Data block before this block.
-          </div>
+          <div className="text-center text-sm text-gray-500">No imported files found. Please add an Import Data block before this block.</div>
         ) : (
           <>
             <div className="flex flex-col gap-2 justify-between items-center">
               <p className="text-sm font-medium">
-                {Object.keys(data.files).length > 0 
-                  ? `${Object.keys(data.files).length} file${Object.keys(data.files).length !== 1 ? "s" : ""} to process`
-                  : `${Object.keys(importData.images).length} file${Object.keys(importData.images).length !== 1 ? "s" : ""} available`}
+                {Object.keys(data.files).length > 0 ? `${Object.keys(data.files).length} file${Object.keys(data.files).length !== 1 ? "s" : ""} to process` : `${Object.keys(importData.images).length} file${Object.keys(importData.images).length !== 1 ? "s" : ""} available`}
               </p>
-              <Button 
-                size="sm" 
-                onClick={startProcessing}
-                disabled={isProcessing || Object.keys(importData.images).length === 0}
-              >
+              <Button size="sm" onClick={startProcessing} disabled={isProcessing || Object.keys(importData.images).length === 0}>
                 {isProcessing ? "Processing..." : "Process Files"}
               </Button>
             </div>
-            
+
             {Object.keys(data.files).length > 0 && (
               <div className="mt-2 text-left">
                 <ul className="text-xs text-gray-600 space-y-3">
                   {Object.keys(data.files).map((filename) => {
-                    const fileData = data.files[filename];
+                    const fileData = data.files[filename]
                     return (
                       <li key={filename} className="space-y-1">
                         <div className="flex items-center justify-between truncate">
                           <span className="truncate">{filename}</span>
                         </div>
-                        
+
                         {/* Progress bar */}
                         <div className="w-full">
                           <Progress value={fileData.progress} className="h-1" />
                         </div>
-                        
+
                         {/* Status indicator */}
                         <div className="flex items-center text-xs">
                           {fileData.status === "pending" && <span className="text-gray-500">Pending</span>}
@@ -495,7 +495,7 @@ const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: Cre
                           )}
                         </div>
                       </li>
-                    );
+                    )
                   })}
                 </ul>
               </div>
@@ -504,7 +504,7 @@ const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: Cre
         )}
       </div>
     </Block>
-  );
+  )
 }
 
 const UploadBlock: BlockType<UploadBlockProps> = {
