@@ -1,9 +1,9 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance } from "@/components/dnd_layout"
 import allBlocks from "@/components/preprocessing_blocks"
-import { calculateInactiveBlocks } from "@/components/blocks_drawer"
-import { allTrainingBlocks, trainingBlocks } from "@/routes/training"
+import { allTrainingBlocks } from "@/routes/training"
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
 interface BlocksState {
   preprocessingBlocks: BlockInstance[]
