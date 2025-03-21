@@ -1,29 +1,23 @@
 import {
-  BlockDrawer,
-  calculateInactiveBlocks,
+  BlockDrawer
 } from "@/components/blocks_drawer"
-import { BlockInstance, DndLayout } from "@/components/dnd_layout"
+import { DndLayout } from "@/components/dnd_layout"
 import allBlocks from "@/components/preprocessing_blocks"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { useEffect, useState } from "react"
+import { defaultBlocks } from "@/store/useBlocksStore"
+import { useEffect } from "react"
 
 export default function Preprocessing() {
-  const { blocks: storedBlocks } = useBlocksStore()
-  const [blocks, setBlocks] = useState<BlockInstance[]>(storedBlocks ?? [])
-  const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([])
-
-  useEffect(() => {
-    setInactiveBlocks(calculateInactiveBlocks(allBlocks, blocks))
-  }, [blocks])
+  const { preprocessingBlocks, setPreprocessingBlocks, inactivePreprocessingBlocks } = useBlocksStore()
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-semibold mb-4">Blocks</h2>
       <BlockDrawer
         blockRegistry={allBlocks}
-        inactiveBlocks={inactiveBlocks}
+        inactiveBlocks={inactivePreprocessingBlocks}
         className="flex-1"
       />
     </div>
@@ -49,8 +43,8 @@ export default function Preprocessing() {
   )
 
   useEffect(() => {
-    console.log(JSON.stringify(blocks))
-  }, [blocks])
+    console.log(JSON.stringify(preprocessingBlocks))
+  }, [preprocessingBlocks])
 
   return (
     <>
@@ -58,9 +52,10 @@ export default function Preprocessing() {
         title="Data Preprocessing"
         sidebarContent={sidebarContent}
         blockRegistry={allBlocks}
-        blocks={blocks}
-        setBlocks={setBlocks}
+        blocks={preprocessingBlocks}
+        setBlocks={setPreprocessingBlocks}
         save={saveFunc}
+        defaultBlocks={defaultBlocks}
       />
       <Toaster />
     </>

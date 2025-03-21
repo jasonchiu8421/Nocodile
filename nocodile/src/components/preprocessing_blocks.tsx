@@ -187,20 +187,79 @@ const ShufflingFilterBlock: BlockType<{}> = {
   },
 }
 
-const UploadBlock: BlockType<{}> = {
+const UploadBlock: BlockType<{
+  images: Record<string, string> // Dictionary of file paths to base64 data
+}> = {
   hasInput: true,
   hasOutput: true,
-  title: "Upload",
+  title: "Upload Images",
   icon: <Upload className="w-5 h-5" />,
-  createNew: () => ({}),
-  block(_, id, dragHandleProps) {
+  createNew: () => ({ images: {} }),
+  block(data, id, dragHandleProps) {
+    const handleFileUpload = (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      
+      // Process each file
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64Data = e.target?.result as string;
+          // Update the data object with new file
+          data.images = {
+            ...data.images,
+            [file.name]: base64Data
+          };
+          console.log(`Added image: ${file.name}`);
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+
     return (
       <Block
         id={id}
-        title="Upload"
+        title="Upload Images"
         icon={<Upload className="w-5 h-5" />}
         dragHandleProps={dragHandleProps}
-      />
+      >
+        <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center space-y-3">
+          <p className="text-sm text-gray-500">
+            Drag and drop images here or click to browse
+          </p>
+          <input
+            type="file"
+            className="hidden"
+            id={`${id}-file-input`}
+            multiple
+            accept="image/*"
+            onChange={(e) => handleFileUpload(e.target.files)}
+          />
+          <Button
+            variant="ghost"
+            onClick={() => document.getElementById(`${id}-file-input`)?.click()}
+          >
+            Select Images
+          </Button>
+          
+          {/* Display uploaded images count */}
+          {Object.keys(data.images).length > 0 && (
+            <div className="mt-3">
+              <p className="text-sm font-medium">
+                {Object.keys(data.images).length} image{Object.keys(data.images).length !== 1 ? 's' : ''} uploaded
+              </p>
+              <div className="mt-2 max-h-40 overflow-y-auto text-left">
+                <ul className="text-xs text-gray-600 space-y-1">
+                  {Object.keys(data.images).map((filename) => (
+                    <li key={filename} className="truncate">
+                      {filename}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      </Block>
     )
   },
 }

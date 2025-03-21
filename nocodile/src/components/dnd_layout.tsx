@@ -17,7 +17,8 @@ import {
 import { Coordinates } from "@dnd-kit/core/dist/types"
 import { ReactNode, useCallback, useState } from "react"
 import { BlocksView } from "./canvas"
-import { SaveButton, SaveFunction } from "./save_alerts"
+import { ResetBlocksButton } from "./reset_blocks"
+import { SaveFunction } from "./save_alerts"
 
 export type BlockInstance = {
   id: string
@@ -35,6 +36,7 @@ type DndLayoutProps = {
   blockRegistry: BlockRegistry
   blocks: BlockInstance[]
   setBlocks: (blocks: BlockInstance[]) => void
+  defaultBlocks: () => BlockInstance[]
   save: SaveFunction
 }
 
@@ -69,6 +71,7 @@ export function DndLayout({
   blockRegistry,
   blocks,
   setBlocks,
+  defaultBlocks,
   save,
 }: DndLayoutProps) {
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
@@ -454,11 +457,7 @@ export function DndLayout({
         </Sidebar>
         <SidebarInset>
           <RouteBreadcrumb title={title}>
-            <SaveButton
-              blockRegistry={blockRegistry}
-              blocks={blocks}
-              save={save}
-            />
+            <ResetBlocksButton defaultBlocks={defaultBlocks} setBlocks={setBlocks} />
           </RouteBreadcrumb>
           <div className="flex-1 p-4 space-y-4 flex">
             {description && <p>{description}</p>}

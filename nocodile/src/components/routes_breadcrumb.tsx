@@ -31,7 +31,9 @@ export function RouteBreadcrumb({
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      {children}
+      <div className="flex items-center gap-2">
+        {children}
+      </div>
     </header>
   )
 }
