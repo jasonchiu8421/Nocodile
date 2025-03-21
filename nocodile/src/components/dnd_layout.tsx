@@ -53,6 +53,13 @@ type ActiveDragItem = {
   bounds: { width: number; height: number } | null
 }
 
+function nextBlockId(blocks: BlockInstance[]) {
+  return blocks.reduce((maxId, block) => {
+    const blockId = parseInt(block.id.replace("block-", ""))
+    return Math.max(maxId, blockId)
+  }, 0) + 1
+}
+
 export function DndLayout({
   title,
   description,
@@ -62,7 +69,6 @@ export function DndLayout({
   setBlocks,
   save,
 }: DndLayoutProps) {
-  const [nextBlockId, setNextBlockId] = useState(1)
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
     null
   )
@@ -374,9 +380,8 @@ export function DndLayout({
               output: activeDragItem?.outputSnapTo ?? null,
             })
           } else if (active.data.current?.origin === "drawer") {
-            setNextBlockId(nextBlockId + 1)
             addBlock({
-              id: `block-${nextBlockId}`,
+              id: `block-${nextBlockId(blocks)}`,
               type: active.data.current.blockType,
               data: blockRegistry[active.data.current.blockType].createNew(),
               position,

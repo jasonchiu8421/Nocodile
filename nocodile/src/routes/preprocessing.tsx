@@ -32,15 +32,15 @@ export default function Preprocessing() {
   const saveFunc = SaveFunction.requireChainCount(1).then(
     SaveFunction.create((_, blocks) => {
       const chain = splitChain(blocks)
-      if (chain[0][0].type !== "import") {
+      if (chain[0][0].type !== "start") {
         return {
           type: "error",
-          message: "The first block must be an import block!",
+          message: "The first block must be a start block!",
         }
-      } else if (chain[0][chain[0].length - 1].type !== "submit") {
+      } else if (chain[0][chain[0].length - 1].type !== "end") {
         return {
           type: "error",
-          message: "The last block must be a submit block!",
+          message: "The last block must be an end block!",
         }
       }
 
