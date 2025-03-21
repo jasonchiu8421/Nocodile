@@ -2,15 +2,21 @@ import { DndLayout } from "@/components/dnd_layout";
 import { SaveFunction } from "@/components/save_alerts";
 import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { Database } from "lucide-react";
+import { BlockRegistry, BlockType } from "@/components/blocks";
+import { Block } from "@/components/blocks";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   BlockDrawer,
   calculateInactiveBlocks,
 } from "@/components/blocks_drawer";
 import { Button } from "@/components/ui/button";
 import { BlockInstance } from "@/components/dnd_layout";
-import { BlockRegistry, BlockType } from "@/components/blocks";
-import { Database } from "lucide-react";
-import { Block } from "@/components/blocks";
 
 // Define a placeholder block for performance metrics
 const PlaceholderBlock: BlockType<{
@@ -23,7 +29,7 @@ const PlaceholderBlock: BlockType<{
   icon: <Database className="w-5 h-5" />,
   limit: 1,
   createNew: () => ({ field1: "", field2: 0 }),
-  block: (data, id, setData, dragHandleProps) => (
+  block: (data, id, dragHandleProps) => (
     <Block
       id={id}
       title="Placeholder"
@@ -217,7 +223,9 @@ const ConvolutionBlock: BlockType<{
                       default:
                         return;
                     }
-                    data.layers[index] = newLayer;
+                    const newLayers = [...data.layers];
+                    newLayers[index] = newLayer;
+                    setData({ ...data, layers: newLayers });
                   }}
                   className="w-full p-2 border rounded mb-2"
                 >
@@ -236,7 +244,11 @@ const ConvolutionBlock: BlockType<{
                     <input
                       type="number"
                       value={layer.filters}
-                      onChange={(e) => layer.filters = parseInt(e.target.value)}
+                      onChange={(e) => {
+                        const newLayers = [...data.layers];
+                        newLayers[index] = { ...layer, filters: parseInt(e.target.value) };
+                        setData({ ...data, layers: newLayers });
+                      }}
                       placeholder="Number of filters"
                       className="w-full p-2 border rounded mb-2"
                     />
@@ -244,14 +256,28 @@ const ConvolutionBlock: BlockType<{
                       <input
                         type="number"
                         value={layer.kernelSize[0]}
-                        onChange={(e) => layer.kernelSize[0] = parseInt(e.target.value)}
+                        onChange={(e) => {
+                          const newLayers = [...data.layers];
+                          newLayers[index] = { 
+                            ...layer, 
+                            kernelSize: [parseInt(e.target.value), layer.kernelSize[1]] 
+                          };
+                          setData({ ...data, layers: newLayers });
+                        }}
                         placeholder="Kernel size X"
                         className="w-1/2 p-2 border rounded"
                       />
                       <input
                         type="number"
                         value={layer.kernelSize[1]}
-                        onChange={(e) => layer.kernelSize[1] = parseInt(e.target.value)}
+                        onChange={(e) => {
+                          const newLayers = [...data.layers];
+                          newLayers[index] = { 
+                            ...layer, 
+                            kernelSize: [layer.kernelSize[0], parseInt(e.target.value)] 
+                          };
+                          setData({ ...data, layers: newLayers });
+                        }}
                         placeholder="Kernel size Y"
                         className="w-1/2 p-2 border rounded"
                       />
@@ -262,7 +288,11 @@ const ConvolutionBlock: BlockType<{
                 {(layer.type === "Conv2D" || layer.type === "Activation") && (
                   <select
                     value={layer.activation}
-                    onChange={(e) => layer.activation = e.target.value as ActivationType}
+                    onChange={(e) => {
+                      const newLayers = [...data.layers];
+                      newLayers[index] = { ...layer, activation: e.target.value as ActivationType };
+                      setData({ ...data, layers: newLayers });
+                    }}
                     className="w-full p-2 border rounded mt-2"
                   >
                     <option value="relu">ReLU</option>
@@ -276,24 +306,51 @@ const ConvolutionBlock: BlockType<{
                     <input
                       type="number"
                       value={layer.poolSize[0]}
-                      onChange={(e) => layer.poolSize[0] = parseInt(e.target.value)}
+                      onChange={(e) => {
+                        const newLayers = [...data.layers];
+                        newLayers[index] = { 
+                          ...layer, 
+                          poolSize: [parseInt(e.target.value), layer.poolSize[1]] 
+                        };
+                        setData({ ...data, layers: newLayers });
+                      }}
                       placeholder="Pool size X"
                       className="w-1/2 p-2 border rounded"
                     />
                     <input
                       type="number"
                       value={layer.poolSize[1]}
-                      onChange={(e) => layer.poolSize[1] = parseInt(e.target.value)}
+                      onChange={(e) => {
+                        const newLayers = [...data.layers];
+                        newLayers[index] = { 
+                          ...layer, 
+                          poolSize: [layer.poolSize[0], parseInt(e.target.value)] 
+                        };
+                        setData({ ...data, layers: newLayers });
+                      }}
                       placeholder="Pool size Y"
                       className="w-1/2 p-2 border rounded"
                     />
                   </div>
                 )}
+                <button
+                  onClick={() => {
+                    const newLayers = [...data.layers];
+                    newLayers.splice(index, 1);
+                    setData({ ...data, layers: newLayers });
+                  }}
+                  className="mt-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Remove Layer
+                </button>
               </div>
             ))}
           </div>
           <button
-            onClick={() => setData({ ...data, layers: [...data.layers, { type: "Conv2D", filters: 32, kernelSize: [3, 3], activation: "relu" }] })}
+            onClick={() => {
+              const newLayer = { type: "Conv2D", filters: 32, kernelSize: [3, 3], activation: "relu" } as Conv2DLayer;
+              setData({ ...data, layers: [...data.layers, newLayer] });
+            }}
             className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Add Layer
