@@ -1,11 +1,4 @@
-import {
-  Check,
-  Database,
-  Image,
-  Notebook,
-  NotebookPen,
-  Upload,
-} from "lucide-react"
+import { Database, Image, Notebook, NotebookPen, Upload } from "lucide-react"
 import { Block, BlockRegistry, BlockType } from "./blocks"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"

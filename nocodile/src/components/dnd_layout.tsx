@@ -54,10 +54,12 @@ type ActiveDragItem = {
 }
 
 function nextBlockId(blocks: BlockInstance[]) {
-  return blocks.reduce((maxId, block) => {
-    const blockId = parseInt(block.id.replace("block-", ""))
-    return Math.max(maxId, blockId)
-  }, 0) + 1
+  return (
+    blocks.reduce((maxId, block) => {
+      const blockId = parseInt(block.id.replace("block-", ""))
+      return Math.max(maxId, blockId)
+    }, 0) + 1
+  )
 }
 
 export function DndLayout({
@@ -73,6 +75,7 @@ export function DndLayout({
     null
   )
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
+  const [viewZoom, setViewZoom] = useState(1)
 
   const handleSnapping = useCallback<
     (
@@ -123,8 +126,6 @@ export function DndLayout({
             y: selfConnectorPosition.y + 16 + 16,
           }
         : null
-
-      console.log("try drop", selfConnectorPosition, connectors)
 
       for (const element of connectors) {
         // Skip if not an HTMLElement
@@ -219,6 +220,7 @@ export function DndLayout({
             const offsetX = clientX - rect.left
             const offsetY = clientY - rect.top
 
+            // Account for zoom in position calculation
             position = (delta: Coordinates) => ({
               x: clientX + delta.x - offsetX,
               y: clientY + delta.y - offsetY,
@@ -287,7 +289,7 @@ export function DndLayout({
         }
       }
     },
-    [blocks]
+    [blocks, viewZoom]
   )
 
   const handleDragMove = useCallback(
@@ -359,15 +361,17 @@ export function DndLayout({
         if (active.data.current?.type === "block") {
           const position = {
             x:
-              (activeDragItem?.currentPosition?.x ?? 0) -
-              rect.x -
-              viewPosition.x -
-              3,
+              ((activeDragItem?.currentPosition?.x ?? 0) -
+                rect.x -
+                viewPosition.x -
+                3) /
+              viewZoom,
             y:
-              (activeDragItem?.currentPosition?.y ?? 0) -
-              rect.y -
-              viewPosition.y -
-              3,
+              ((activeDragItem?.currentPosition?.y ?? 0) -
+                rect.y -
+                viewPosition.y -
+                3) /
+              viewZoom,
           }
 
           if (active.data.current?.origin === "canvas") {
@@ -395,7 +399,7 @@ export function DndLayout({
       // Reset drag start coordinates
       setActiveDragItem(null)
     },
-    [blocks, nextBlockId, viewPosition, blockRegistry]
+    [blocks, nextBlockId, viewPosition, viewZoom, blockRegistry]
   )
 
   const handleDragEnd = useCallback(
@@ -422,15 +426,18 @@ export function DndLayout({
     })
     .filter(Boolean) as BlockViewItem[]
 
+  // This modifier positions the drag overlay at the correct position
   const snapToPosition: Modifier = (args) => {
-    return activeDragItem?.currentPosition
-      ? {
-          x: activeDragItem.currentPosition.x,
-          y: activeDragItem.currentPosition.y,
-          scaleX: 1,
-          scaleY: 1,
-        }
-      : args.transform
+    if (!activeDragItem?.currentPosition) return args.transform
+
+    // For drag overlay, we need to position it correctly but not scale it here
+    // The scaling will be handled by the div's transform style
+    return {
+      x: activeDragItem.currentPosition.x,
+      y: activeDragItem.currentPosition.y,
+      scaleX: 1, // Don't scale here, we'll handle it in the div style
+      scaleY: 1,
+    }
   }
 
   return (
@@ -464,6 +471,7 @@ export function DndLayout({
                 blockRegistry={blockRegistry}
                 blocks={blockViewItems}
                 onMove={setViewPosition}
+                onZoom={setViewZoom}
               />
             </div>
           </div>
@@ -477,14 +485,22 @@ export function DndLayout({
                 width: `${activeDragItem.bounds?.width}px`,
                 height: `${activeDragItem.bounds?.height}px`,
                 pointerEvents: "none",
-                transform: `translate(${activeDragItem.previewTranslate?.x}px, ${activeDragItem.previewTranslate?.y}px)`,
+                transform: `translate(${
+                  activeDragItem.previewTranslate?.x || 0
+                }px, ${
+                  activeDragItem.previewTranslate?.y || 0
+                }px) scale(${viewZoom})`,
+                transformOrigin: "0 0",
                 zIndex: 1000,
               }}
             >
               <BlockIO
                 id="drag-overlay"
                 type={blockRegistry[activeDragItem.blockType]}
-                previewConnections={{ input: activeDragItem.inputSnapTo !== null, output: activeDragItem.outputSnapTo !== null }}
+                previewConnections={{
+                  input: activeDragItem.inputSnapTo !== null,
+                  output: activeDragItem.outputSnapTo !== null,
+                }}
               >
                 {blockRegistry[activeDragItem.blockType].block(
                   blockRegistry[activeDragItem.blockType].createNew(),
