@@ -65,6 +65,7 @@ type ImportDataProps = {
 const ImportDataBlock: BlockType<ImportDataProps> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Import Data",
   icon: <Database className="w-5 h-5" />,
   width: 300,
@@ -241,6 +242,7 @@ const ResizeFilterBlock: BlockType<{
 }> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Resize Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({ size: 16 }),
@@ -261,6 +263,7 @@ const ResizeFilterBlock: BlockType<{
 const GrayscaleFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Grayscale Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({}),
@@ -272,6 +275,7 @@ const GrayscaleFilterBlock: BlockType<{}> = {
 const NormalizeFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Normalize Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({}),
@@ -283,6 +287,7 @@ const NormalizeFilterBlock: BlockType<{}> = {
 const ShufflingFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Shuffling Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({}),
