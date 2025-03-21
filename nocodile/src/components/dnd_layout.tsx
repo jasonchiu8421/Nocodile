@@ -43,6 +43,7 @@ type DndLayoutProps = {
 type ActiveDragItem = {
   id: string | null
   type: string
+  data: any
   blockType: string
   origin: "drawer" | "canvas"
   currentPosition: { x: number; y: number } | null
@@ -242,6 +243,7 @@ export function DndLayout({
             inputSnapTo: null,
             outputSnapTo: null,
             bounds: { width: 200, height: 0 },
+            data: blockRegistry[event.active.data.current.blockType].createNew(),
           })
         } else if (event.active.data.current?.origin === "canvas") {
           const element = document.getElementById(
@@ -265,6 +267,7 @@ export function DndLayout({
             inputSnapTo: null,
             outputSnapTo: null,
             bounds: { width: rect.width, height: rect.height },
+            data: event.active.data.current.data,
           })
 
           setBlocks(
@@ -504,7 +507,7 @@ export function DndLayout({
                 }}
               >
                 {blockRegistry[activeDragItem.blockType].block(
-                  blockRegistry[activeDragItem.blockType].createNew(),
+                  activeDragItem.data ?? blockRegistry[activeDragItem.blockType].createNew(),
                   "drag-overlay",
                   d => {}
                 )}

@@ -1,7 +1,8 @@
-import { Database, Image, Notebook, NotebookPen, Upload, X } from "lucide-react"
+import { AlertCircle, Database, Image, Notebook, NotebookPen, Upload, X } from "lucide-react"
 import { Block, BlockRegistry, BlockType } from "./blocks"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
+import { Progress } from "./ui/progress"
 import { Separator } from "./ui/separator"
 
 const StartBlock: BlockType<{}> = {
@@ -27,7 +28,12 @@ const EndBlock: BlockType<{}> = {
 }
 
 const ImportDataBlock: BlockType<{
-  images: Record<string, string> // Dictionary of file paths to base64 data
+  images: Record<string, {
+    path: string,
+    status: "uploading" | "success" | "error",
+    progress: number,
+    error?: string
+  }>
 }> = {
   hasInput: true,
   hasOutput: true,
@@ -35,31 +41,87 @@ const ImportDataBlock: BlockType<{
   icon: <Database className="w-5 h-5" />,
   createNew: () => ({ images: {} }),
   block(data, id, setData, dragHandleProps) {
+    const uploadFile = async (file: File) => {
+      // Initialize file in the data structure with uploading status
+      const updatedData = { ...data }
+      updatedData.images[file.name] = {
+        path: "",
+        status: "uploading",
+        progress: 0
+      }
+      setData({ ...updatedData })
+
+      // Create form data for the file
+      const formData = new FormData()
+      formData.append("file", file)
+
+      try {
+        // Use XMLHttpRequest to track upload progress
+        const xhr = new XMLHttpRequest()
+        
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100)
+            const progressData = { ...data }
+            if (progressData.images[file.name]) {
+              progressData.images[file.name] = {
+                ...progressData.images[file.name],
+                progress
+              }
+              setData({ ...progressData })
+            }
+          }
+        })
+
+        // Create a promise to handle the XHR response
+        const uploadPromise = new Promise<{ status: string; file_path: string; message: string }>((resolve, reject) => {
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              const response = JSON.parse(xhr.responseText)
+              resolve(response)
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`))
+            }
+          }
+          xhr.onerror = () => reject(new Error("Network error"))
+        })
+
+        // Open and send the request
+        xhr.open("POST", "http://localhost:8888/upload")
+        xhr.send(formData)
+
+        // Wait for the upload to complete
+        const response = await uploadPromise
+
+        // Update the data with the successful upload
+        const successData = { ...data }
+        successData.images[file.name] = {
+          path: response.file_path,
+          status: "success",
+          progress: 100
+        }
+        setData({ ...successData })
+      } catch (error) {
+        console.error(`Error uploading ${file.name}:`, error)
+        
+        // Update the data with the error
+        const errorData = { ...data }
+        errorData.images[file.name] = {
+          path: "",
+          status: "error",
+          progress: 0,
+          error: error instanceof Error ? error.message : "Unknown error"
+        }
+        setData({ ...errorData })
+      }
+    }
+
     const handleFileUpload = (files: FileList | null) => {
       if (!files || files.length === 0) return
 
-      const newData = {...data}
-      const fileArray = Array.from(files)
-      let loadedCount = 0
-
       // Process each file
-      fileArray.forEach((file) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          const base64Data = e.target?.result as string
-          newData.images[file.name] = base64Data
-          console.log(`Added image: ${file.name}`)
-          
-          // Increment the counter for loaded files
-          loadedCount++
-          
-          // Only call setData after all files have been processed
-          if (loadedCount === fileArray.length) {
-            console.log("All files processed, updating data")
-            setData({...newData})
-          }
-        }
-        reader.readAsDataURL(file)
+      Array.from(files).forEach((file) => {
+        uploadFile(file)
       })
     }
 
@@ -94,24 +156,55 @@ const ImportDataBlock: BlockType<{
               <p className="text-sm font-medium">
                 {Object.keys(data.images).length} image{Object.keys(data.images).length !== 1 ? "s" : ""} uploaded
               </p>
-              <div className="mt-2 max-h-40 overflow-y-auto text-left">
-                <ul className="text-xs text-gray-600 space-y-1">
-                  {Object.keys(data.images).map((filename) => (
-                    <li key={filename} className="flex items-center justify-between truncate">
-                      <span className="truncate">{filename}</span>
-                      <button
-                        className="text-gray-500 hover:text-red-500 transition-colors ml-2 p-1"
-                        onClick={() => {
-                          // Create a new object without the selected file
-                          const { [filename]: _, ...rest } = data.images
-                          setData({ ...data, images: rest })
-                        }}
-                        title="Remove file"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </li>
-                  ))}
+              <div className="mt-2 max-h-60 overflow-y-auto text-left">
+                <ul className="text-xs text-gray-600 space-y-3">
+                  {Object.keys(data.images).map((filename) => {
+                    const fileData = data.images[filename]
+                    return (
+                      <li key={filename} className="space-y-1">
+                        <div className="flex items-center justify-between truncate">
+                          <span className="truncate">{filename}</span>
+                          <button
+                            className="text-gray-500 hover:text-red-500 transition-colors ml-2 p-1"
+                            onClick={() => {
+                              // Create a new object without the selected file
+                              const { [filename]: _, ...rest } = data.images
+                              setData({ ...data, images: rest })
+                            }}
+                            title="Remove file"
+                            disabled={fileData.status === "uploading"}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                        
+                        {/* Progress bar */}
+                        <div className="w-full">
+                          <Progress value={fileData.progress} className="h-1" />
+                        </div>
+                        
+                        {/* Status indicator */}
+                        <div className="flex items-center text-xs">
+                          {fileData.status === "uploading" && (
+                            <span className="text-blue-500">
+                              Uploading... {fileData.progress}%
+                            </span>
+                          )}
+                          {fileData.status === "success" && (
+                            <span className="text-green-500">
+                              Uploaded successfully
+                            </span>
+                          )}
+                          {fileData.status === "error" && (
+                            <div className="flex items-center text-red-500 gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              <span>{fileData.error || "Upload failed"}</span>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             </>
