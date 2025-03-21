@@ -122,6 +122,7 @@ const ConvolutionBlock: BlockType<{
   hasOutput: true,
   title: "Convolution Configuration",
   icon: <Database className="w-5 h-5" />,
+  width: 320,
   limit: 1,
   createNew: () => ({
     approach: "train_test",
@@ -149,7 +150,6 @@ const ConvolutionBlock: BlockType<{
       title="Convolution Configuration"
       icon={<Database className="w-5 h-5" />}
       dragHandleProps={dragHandleProps}
-      width="w-96"
     >
       <div className="space-y-4 p-4">
         <div>

@@ -242,7 +242,7 @@ export function DndLayout({
             previewTranslate,
             inputSnapTo: null,
             outputSnapTo: null,
-            bounds: { width: 200, height: 0 },
+            bounds: { width: blockRegistry[event.active.data.current.blockType]?.width ?? 200, height: 0 },
             data: blockRegistry[event.active.data.current.blockType].createNew(),
           })
         } else if (event.active.data.current?.origin === "canvas") {
