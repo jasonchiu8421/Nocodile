@@ -121,13 +121,13 @@ export function DndLayout({
       const inputConnectorPosition = blockRegistry[item.blockType].hasInput
         ? {
             x: selfConnectorPosition.x - 16 + 8,
-            y: selfConnectorPosition.y + 16 + 16,
+            y: selfConnectorPosition.y + 16,
           }
         : null
       const outputConnectorPosition = blockRegistry[item.blockType].hasOutput
         ? {
             x: selfConnectorPosition.x + (item.bounds?.width || 0) + 8,
-            y: selfConnectorPosition.y + 16 + 16,
+            y: selfConnectorPosition.y + 16,
           }
         : null
 
@@ -181,7 +181,6 @@ export function DndLayout({
           )
 
           if (distance < snapThreshold) {
-            console.log("pog")
             return {
               ...activeDragItem,
               currentPosition: {
@@ -352,6 +351,13 @@ export function DndLayout({
         over?.id === "blocks-drawer" &&
         active.data.current?.origin === "canvas"
       ) {
+        // Check if the block is a start or end block - prevent deletion if it is
+        const blockType = active.data.current?.blockType;
+        if (blockType === "start" || blockType === "end") {
+          // Do not allow deletion of start or end blocks
+          return;
+        }
+        
         // Remove the block from the blocks array
         setBlocks(blocks.filter((b) => b.id !== active.data.current?.blockId))
         return

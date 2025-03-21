@@ -269,8 +269,8 @@ export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }:
                 className="absolute block-item"
                 style={{
                   display: block.visible ? "block" : "none",
-                  left: block.position.x,
-                  top: block.position.y,
+                  left: block.position?.x ?? 0,
+                  top: block.position?.y ?? 0,
                 }}
                 ref={(node) => {
                   if (node) {
@@ -385,8 +385,8 @@ function Minimap({
               key={`minimap-${block.id}`}
               className="absolute bg-zinc-200 rounded border border-zinc-300"
               style={{
-                left: `${((block.position.x + realLimits.maxX + (containerRef.current?.clientWidth || 0) / 2) / (canvasLimits.maxX - canvasLimits.minX + (containerRef.current?.clientWidth || 0))) * 100}%`,
-                top: `${((block.position.y + realLimits.maxY + (containerRef.current?.clientHeight || 0) / 2) / (canvasLimits.maxY - canvasLimits.minY + (containerRef.current?.clientHeight || 0))) * 100}%`,
+                left: `${((block.position?.x ?? 0) + realLimits.maxX + (containerRef.current?.clientWidth || 0) / 2) / (canvasLimits.maxX - canvasLimits.minX + (containerRef.current?.clientWidth || 0)) * 100}%`,
+                top: `${((block.position?.y ?? 0) + realLimits.maxY + (containerRef.current?.clientHeight || 0) / 2) / (canvasLimits.maxY - canvasLimits.minY + (containerRef.current?.clientHeight || 0)) * 100}%`,
                 width: `${((blockRefs.current.get(block.id)?.clientWidth || 0) / (canvasLimits.maxX - canvasLimits.minX) / scale) * 100}%`,
                 height: `${((blockRefs.current.get(block.id)?.clientHeight || 0) / (canvasLimits.maxY - canvasLimits.minY) / scale) * 100}%`,
                 transform: "translate(-50%, -50%)",
