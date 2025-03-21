@@ -23,6 +23,7 @@ type BlockProps = {
   title: string
   icon?: ReactNode
   color?: string
+  width?: string
   children?: ReactNode
   dragHandleProps?: any
   onConnect?: (sourceId: string, targetId: string) => void
@@ -97,11 +98,12 @@ export const Block = ({
   title,
   icon,
   color = "bg-white",
+  width = "w-50",
   children,
   dragHandleProps,
 }: BlockProps) => {
   return (
-    <Card className={`${color} p-5 w-50 shadow-md min-h-16`}>
+    <Card className={`${color} p-5 ${width} shadow-md min-h-16`}>
       <div
         className="flex items-center gap-2 font-medium -m-5 p-5 pb-3 !cursor-move"
         {...dragHandleProps}
