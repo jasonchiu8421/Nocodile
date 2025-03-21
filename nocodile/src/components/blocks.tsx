@@ -3,12 +3,20 @@ import { cn } from "@/lib/utils"
 import { ChevronRight } from "lucide-react"
 import React, { ReactNode } from "react"
 import { BlockInstance } from "./dnd_layout"
+import { BlockChain } from "./save_alerts"
+
+type BlockChainProps = {
+  entire: BlockChain
+  before: BlockChain
+  after: BlockChain
+}
 
 export type CreateBlockElementProps<T> = {
   data: T
   id: string
   setData: (data: T) => void
   dragHandleProps?: any
+  chain?: BlockChainProps
 }
 
 export type BlockType<T> = {

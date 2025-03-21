@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 import { AlertCircle, Database, Image, Notebook, NotebookPen, Upload, X } from "lucide-react"
-import { Block, BlockRegistry, BlockType } from "./blocks"
+import { useState } from "react"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Progress } from "./ui/progress"
@@ -276,15 +277,244 @@ const ShufflingFilterBlock: BlockType<{}> = {
   },
 }
 
-const UploadBlock: BlockType<{}> = {
+type UploadBlockProps = {
+  files: Record<
+  string,
+  {
+    path: string
+    status: "pending" | "processing" | "success" | "error"
+    progress: number
+    error?: string
+  }
+>
+}
+
+const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: CreateBlockElementProps<UploadBlockProps>) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+    
+  // Always define these variables, even if they're null
+  let importData = null;
+  let hasImportedFiles = false;
+  
+  // Only try to find the import block if chain exists
+  if (chain) {
+    // Find the last (closest) import block in the chain
+    const importBlocks = chain.before.filter(block => block.type === "import");
+    const importBlock = importBlocks.length > 0 ? importBlocks[importBlocks.length - 1] : null;
+    
+    if (importBlock) {
+      importData = importBlock.data;
+      hasImportedFiles = importData && Object.keys(importData.images || {}).length > 0;
+    }
+  }
+  
+  const processFile = async (filename: string, filePath: string) => {
+    // Skip if already processed
+    if (data.files[filename] && data.files[filename].status !== "pending") {
+      return;
+    }
+    
+    // Update status to processing
+    const updatedData = { ...data };
+    updatedData.files[filename] = {
+      path: filePath,
+      status: "processing",
+      progress: 0,
+    };
+    setData({ ...updatedData });
+    
+    try {
+      // Use XMLHttpRequest to track processing progress
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          const progressData = { ...data };
+          if (progressData.files[filename]) {
+            progressData.files[filename] = {
+              ...progressData.files[filename],
+              progress,
+            };
+            setData({ ...progressData });
+          }
+        }
+      });
+      
+      // Set up promise to handle response
+      const promise = new Promise<any>((resolve, reject) => {
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 4) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                resolve(response);
+              } catch (e) {
+                reject(new Error("Invalid response format"));
+              }
+            } else {
+              reject(new Error(`Processing failed with status ${xhr.status}`));
+            }
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error"));
+      });
+      
+      // Prepare request data as JSON
+      const requestData = JSON.stringify({
+        image_path: filePath,
+        options: {}
+      });
+      
+      // Open and send the request
+      xhr.open("POST", "http://localhost:8888/preprocess");
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(requestData);
+      
+      // Wait for the response
+      const response = await promise;
+      
+      // Update the data with success
+      const successData = { ...data };
+      successData.files[filename] = {
+        path: response.processed_path || filePath,
+        status: "success",
+        progress: 100,
+      };
+      setData({ ...successData });
+    } catch (error) {
+      console.error(`Error processing ${filename}:`, error);
+      
+      // Update the data with the error
+      const errorData = { ...data };
+      errorData.files[filename] = {
+        path: filePath,
+        status: "error",
+        progress: 0,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+      setData({ ...errorData });
+    }
+  };
+  
+  const startProcessing = async () => {
+    if (!importData || !importData.images) return;
+    
+    setIsProcessing(true);
+    
+    // Initialize files from import data if not already present
+    const filesToProcess = { ...data.files };
+    
+    // Add any new files from import that aren't already in our data
+    // and reset any errored files to pending status
+    Object.entries(importData.images || {}).forEach(([filename, fileData]: [string, any]) => {
+      if (fileData.status === "success" && fileData.path) {
+        // If file doesn't exist in our data yet, add it
+        if (!filesToProcess[filename]) {
+          filesToProcess[filename] = {
+            path: fileData.path,
+            status: "pending",
+            progress: 0,
+          };
+        }
+        // If file exists but had an error, reset it to pending
+        else if (filesToProcess[filename].status === "error") {
+          filesToProcess[filename] = {
+            path: fileData.path,
+            status: "pending",
+            progress: 0,
+          };
+        }
+      }
+    });
+    
+    // Update data with the initialized files
+    setData({ files: filesToProcess });
+    
+    // Process each file
+    const fileEntries = Object.entries(filesToProcess);
+    for (const [filename, fileData] of fileEntries) {
+      if (fileData.status === "pending") {
+        await processFile(filename, fileData.path);
+      }
+    }
+    
+    setIsProcessing(false);
+  };
+  
+  return (
+    <Block id={id} title="Upload" icon={<Upload className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
+      <div className="space-y-4">
+        {!hasImportedFiles ? (
+          <div className="text-center text-sm text-gray-500">
+            No imported files found. Please add an Import Data block before this block.
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2 justify-between items-center">
+              <p className="text-sm font-medium">
+                {Object.keys(data.files).length > 0 
+                  ? `${Object.keys(data.files).length} file${Object.keys(data.files).length !== 1 ? "s" : ""} to process`
+                  : `${Object.keys(importData.images).length} file${Object.keys(importData.images).length !== 1 ? "s" : ""} available`}
+              </p>
+              <Button 
+                size="sm" 
+                onClick={startProcessing}
+                disabled={isProcessing || Object.keys(importData.images).length === 0}
+              >
+                {isProcessing ? "Processing..." : "Process Files"}
+              </Button>
+            </div>
+            
+            {Object.keys(data.files).length > 0 && (
+              <div className="mt-2 text-left">
+                <ul className="text-xs text-gray-600 space-y-3">
+                  {Object.keys(data.files).map((filename) => {
+                    const fileData = data.files[filename];
+                    return (
+                      <li key={filename} className="space-y-1">
+                        <div className="flex items-center justify-between truncate">
+                          <span className="truncate">{filename}</span>
+                        </div>
+                        
+                        {/* Progress bar */}
+                        <div className="w-full">
+                          <Progress value={fileData.progress} className="h-1" />
+                        </div>
+                        
+                        {/* Status indicator */}
+                        <div className="flex items-center text-xs">
+                          {fileData.status === "pending" && <span className="text-gray-500">Pending</span>}
+                          {fileData.status === "processing" && <span className="text-blue-500">Processing... {fileData.progress}%</span>}
+                          {fileData.status === "success" && <span className="text-green-500">Processed successfully</span>}
+                          {fileData.status === "error" && (
+                            <div className="flex items-center text-red-500 gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              <span>{fileData.error || "Processing failed"}</span>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Block>
+  );
+}
+
+const UploadBlock: BlockType<UploadBlockProps> = {
   hasInput: true,
   hasOutput: true,
   title: "Upload",
   icon: <Upload className="w-5 h-5" />,
-  createNew: () => ({}),
-  block({ id, dragHandleProps }) {
-    return <Block id={id} title="Upload" icon={<Upload className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
-  },
+  width: 300,
+  createNew: () => ({ files: {} }),
+  block: (props) => <UploadBlockComponent {...props} />,
 }
 
 // Block registry

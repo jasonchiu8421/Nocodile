@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState, WheelEvent } from "rea
 import { BlockIO, BlockRegistry, BlockType, BlockViewItem } from "./blocks"
 import { BlockInstance } from "./dnd_layout"
 import { Button } from "./ui/button"
+import { BlockChain, splitChain } from "./save_alerts"
 
 // Draggable block component for the canvas
 export function DraggableBlock({ block, children }: { block: BlockViewItem; children: (dragHandleProps: any) => React.ReactNode }) {
@@ -62,6 +63,7 @@ export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }:
   const [scale, setScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const chains = splitChain(blocks)
 
   // Canvas boundary limits
   const [canvasLimits, setCanvasLimits] = useState({
@@ -285,7 +287,7 @@ export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }:
                     if (!type) return null
                     return (
                       <BlockIO id={block.id} type={type} block={block}>
-                        <BlockFunction type={type} block={block} blocks={blocks} setBlocks={setBlocks} props={props}/>
+                        <BlockFunction type={type} block={block} blocks={blocks} chains={chains} setBlocks={setBlocks} props={props}/>
                       </BlockIO>
                     )
                   }}
@@ -320,13 +322,15 @@ export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }:
   )
 }
 
-function BlockFunction({type, block, blocks, setBlocks, props}: {
+function BlockFunction({type, block, blocks, chains, setBlocks, props}: {
   type: BlockType<any>,
   block: BlockInstance,
   blocks: BlockInstance[],
+  chains: BlockChain[],
   setBlocks: (blocks: BlockInstance[]) => void
   props: any
 }) {
+  const chain = chains.find(chain => chain.find(b => b.id === block.id))
   return type.block({
     data: block.data,
     id: block.id,
@@ -344,6 +348,11 @@ function BlockFunction({type, block, blocks, setBlocks, props}: {
         })
       )
     },
+    chain: chain ? {
+      entire: chain,
+      before: chain.slice(0, chain.findIndex(b => b.id === block.id)),
+      after: chain.slice(chain.findIndex(b => b.id === block.id) + 1),
+    } : undefined,
     dragHandleProps: { ...props }
   })
 }

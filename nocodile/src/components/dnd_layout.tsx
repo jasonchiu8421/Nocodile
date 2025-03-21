@@ -56,15 +56,6 @@ type ActiveDragItem = {
   bounds: { width: number; height: number } | null
 }
 
-function nextBlockId(blocks: BlockInstance[]) {
-  return (
-    blocks.reduce((maxId, block) => {
-      const blockId = parseInt(block.id.replace("block-", ""))
-      return Math.max(maxId, blockId)
-    }, 0) + 1
-  )
-}
-
 export function DndLayout({
   title,
   description,
@@ -80,6 +71,15 @@ export function DndLayout({
   )
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
   const [viewZoom, setViewZoom] = useState(1)
+
+  const nextBlockId = useCallback(() => {
+    return (
+      blocks.reduce((maxId, block) => {
+        const blockId = parseInt(block.id.replace("block-", ""))
+        return Math.max(maxId, blockId)
+      }, 0) + 1
+    )
+  }, [blocks])
 
   const handleSnapping = useCallback<
     (
@@ -391,7 +391,7 @@ export function DndLayout({
             })
           } else if (active.data.current?.origin === "drawer") {
             addBlock({
-              id: `block-${nextBlockId(blocks)}`,
+              id: `block-${nextBlockId()}`,
               type: active.data.current.blockType,
               data: blockRegistry[active.data.current.blockType].createNew(),
               position,
@@ -508,7 +508,7 @@ export function DndLayout({
                 {blockRegistry[activeDragItem.blockType].block({
                   data: activeDragItem.data ?? blockRegistry[activeDragItem.blockType].createNew(),
                   id: "drag-overlay",
-                  setData: () => {}
+                  setData: () => {},
                 })}
               </BlockIO>
             </div>

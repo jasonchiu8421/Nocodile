@@ -23,7 +23,7 @@ type SaveSuccess = {
 }
 type SaveResult = SaveError | SaveSuccess
 
-type BlockChain = BlockInstance[]
+export type BlockChain = BlockInstance[]
 
 export function splitChain(blocks: BlockInstance[]): BlockChain[] {
   const chains: BlockChain[] = [
@@ -52,11 +52,6 @@ export function splitChain(blocks: BlockInstance[]): BlockChain[] {
       )
     }
   }
-
-  console.log(
-    "splitChain",
-    chains.map((chain) => chain.map((block) => block.id))
-  )
 
   return chains
 }
