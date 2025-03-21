@@ -351,6 +351,13 @@ export function DndLayout({
         over?.id === "blocks-drawer" &&
         active.data.current?.origin === "canvas"
       ) {
+        // Check if the block is a start or end block - prevent deletion if it is
+        const blockType = active.data.current?.blockType;
+        if (blockType === "start" || blockType === "end") {
+          // Do not allow deletion of start or end blocks
+          return;
+        }
+        
         // Remove the block from the blocks array
         setBlocks(blocks.filter((b) => b.id !== active.data.current?.blockId))
         return
