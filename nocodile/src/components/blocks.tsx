@@ -11,7 +11,7 @@ export type BlockType<T> = {
   icon: React.ReactNode
   limit?: number
   createNew: () => T
-  block: (data: T, id: string, dragHandleProps?: any) => React.ReactElement
+  block: (data: T, id: string, setData: (data: T) => void, dragHandleProps?: any) => React.ReactElement
 }
 
 export interface BlockRegistry {

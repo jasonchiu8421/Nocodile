@@ -418,6 +418,7 @@ export function DndLayout({
       const blockElement = blockRegistry[block.type]?.block(
         block.data,
         block.id,
+        d => {},
         null
       )
       if (!blockElement) return null
@@ -469,6 +470,7 @@ export function DndLayout({
               <BlocksView
                 blockRegistry={blockRegistry}
                 blocks={blockViewItems}
+                setBlocks={setBlocks}
                 onMove={setViewPosition}
                 onZoom={setViewZoom}
               />
@@ -503,7 +505,8 @@ export function DndLayout({
               >
                 {blockRegistry[activeDragItem.blockType].block(
                   blockRegistry[activeDragItem.blockType].createNew(),
-                  "drag-overlay"
+                  "drag-overlay",
+                  d => {}
                 )}
               </BlockIO>
             </div>

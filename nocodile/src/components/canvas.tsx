@@ -2,9 +2,9 @@ import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState, WheelEvent } from "react"
-import { BlockIO, BlockRegistry, BlockViewItem } from "./blocks"
-import { Button } from "./ui/button"
+import { BlockIO, BlockRegistry, BlockType, BlockViewItem } from "./blocks"
 import { BlockInstance } from "./dnd_layout"
+import { Button } from "./ui/button"
 
 // Draggable block component for the canvas
 export function DraggableBlock({ block, children }: { block: BlockViewItem; children: (dragHandleProps: any) => React.ReactNode }) {
@@ -48,11 +48,12 @@ export function DroppableCanvas({ children }: { children: React.ReactNode }) {
 type BlocksViewProps = {
   blockRegistry: BlockRegistry
   blocks: BlockViewItem[]
+  setBlocks: (blocks: BlockInstance[]) => void
   onMove: (position: { x: number; y: number }) => void
   onZoom?: (scale: number) => void
 }
 
-export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksViewProps) {
+export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }: BlocksViewProps) {
   const dndContext = useDndContext()
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -95,7 +96,6 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
 
   useEffect(() => {
     setRealLimits(calculateRealLimits())
-    console.log("realLimits", realLimits)
   }, [calculateRealLimits])
 
   useEffect(() => {
@@ -130,8 +130,6 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
         x: constrainedX,
         y: constrainedY,
       })
-
-      console.log(position)
     }
   }
 
@@ -286,7 +284,7 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
                     if (!type) return null
                     return (
                       <BlockIO id={block.id} type={type} block={block}>
-                        {type.block(block.data, block.id, { ...props })}
+                        <BlockFunction type={type} block={block} blocks={blocks} setBlocks={setBlocks} props={props}/>
                       </BlockIO>
                     )
                   }}
@@ -318,6 +316,34 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
         </div>
       </div>
     </div>
+  )
+}
+
+function BlockFunction({type, block, blocks, setBlocks, props}: {
+  type: BlockType<any>,
+  block: BlockInstance,
+  blocks: BlockInstance[],
+  setBlocks: (blocks: BlockInstance[]) => void
+  props: any
+}) {
+  return type.block(
+    block.data,
+    block.id,
+    (data) => {
+      setBlocks(
+        blocks.map((b) => {
+          if (block.id === b.id) {
+            return {
+              ...b,
+              data: { ...data },
+            }
+          } else {
+            return b
+          }
+        })
+      )
+    },
+    { ...props }
   )
 }
 
