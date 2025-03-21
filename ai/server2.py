@@ -51,22 +51,33 @@ class TrainRequest(BaseModel):
     dataset: Dict[str, str]
 
 class ImagePreprocessRequest(BaseModel):
-    image_path: str
-    options: Dict[str, Any]
+    dataset_path: str
+    options: Dict[str, Any] = {
+        "resize": (28,28),
+        "rgb2gray": 0,
+        "shuffle": 0,
+        "normalize": 0,
+        "save_option": "one image per class"
+    }
 
 class TrainingRequest(BaseModel):
     preprocessed_images: List[str]
     labels: List[int]
     training_options: Dict[str, Any] = {
-        "learning_rate": 0.001,
+        "method": "train_test_val",
+        "layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}],
+        "optimizer": "Adam",
+        "loss": "categorical_crossentropy",
+        "metrics": ["accuracy"],
+        "lr": 0.01,
         "epochs": 10,
-        "optimizer": "adam",  # 可选: "sgd", "adam", "adagrad"
-        "batch_size": 32
+        "batch_size": 64,
+        "kFold_k": 5
     }
 
 class PredictionRequest(BaseModel):
-    image: str
     model_path: str
+    data_path: str
 
 class DatasetCreator:
     def __init__(self, base_folder):
@@ -566,6 +577,13 @@ async def train(request: TrainRequest):
         "message": f"Training initiated with {len(request.dataset)} images",
     }
 
+def create_dataset(directory_path: str):
+    datasetcreator = DatasetCreator(directory_path)
+    datasetcreator.load_data()
+    dataset_path = datasetcreator.save_dataset()
+
+    return dataset_path
+
 def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
     """
     预处理图像
@@ -642,21 +660,19 @@ def predict(model_path: str, test_path: str):
     cnn.load_model(model_path)
     X_test = pd.read_csv(test_path)
     X_test = np.array(X_test)
-    cnn.run_model(X_test)
+    return cnn.run_model(X_test)
 
 @app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(filename: str):
     """
     处理图片上传
     """
-    file_location = f"datasets/{file.filename}"
-    with open(file_location, "wb+") as file_object:
-        file_object.write(await file.read())
+    dataset_path = create_dataset(filename)
     
     return {
         "status": "success",
-        "file_path": file_location,
-        "message": f"Successfully uploaded {file.filename}"
+        "dataset_path": dataset_path,
+        "message": f"Successfully saved to {dataset_path}"
     }
 
 @app.post("/preprocess")
@@ -665,15 +681,14 @@ async def preprocess(request: ImagePreprocessRequest):
     处理图像预处理请求
     """
     try:
-        preprocessed_path = preprocess_image(request.image_path, request.options)
+        preprocessed_path = preprocess_image(request.dataset_path, request.options)
         
         # 读取预处理后的图像并转换为base64
-        with open(preprocessed_path, "rb") as img_file:
-            img_data = base64.b64encode(img_file.read()).decode()
+        # with open(preprocessed_path, "rb") as img_file:
+        #    img_data = base64.b64encode(img_file.read()).decode()
         
         return {
             "status": "success",
-            "preprocessed_image": img_data,
             "preprocessed_path": preprocessed_path
         }
     except Exception as e:
@@ -714,43 +729,13 @@ async def predict(request: PredictionRequest):
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
-        # 加载模型
-        model = DigitCNN()
-        model.load_state_dict(torch.load(request.model_path)['model_state_dict'])
-        model.eval()
-        
-        # 处理输入图像
-        image_data = base64.b64decode(request.image.split(',')[1])
-        image = Image.open(io.BytesIO(image_data))
-        
-        # 预处理图像
-        transform = transforms.Compose([
-            transforms.Grayscale(),
-            transforms.Resize((28, 28)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-        image_tensor = transform(image).unsqueeze(0)
-        
-     
-        with torch.no_grad():
-            outputs = model(image_tensor)
-            # 使用softmax获取概率分布
-            probabilities = F.softmax(outputs, dim=1)
-            # 获取最可能的类别
-            _, predicted = torch.max(outputs.data, 1)
-            
-           
-            prob_list = [round(prob.item() * 100, 4) for prob in probabilities[0]]
+        predicted_class = predict(request.model_path, request.data_path)
         
         return {
             "status": "success",
-            "predicted_class": predicted.item(),
-            "probabilities": {
-                str(i): prob_list[i] for i in range(10)
-            },
-            "message": f"The prediction is: {predicted.item()}，confidence: {prob_list[predicted.item()]:.2f}%"
-        }
+            "predicted_class": predicted_class
+            }
+
     except Exception as e:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
