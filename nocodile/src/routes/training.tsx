@@ -608,16 +608,16 @@ const ClassificationBlock: BlockType<{
   ),
 };
 
-// Block registry for performance blocks
-const performanceBlocks: BlockRegistry = {
+// Block registry for training blocks
+const trainingBlocks: BlockRegistry = {
   convolution: ConvolutionBlock,
   classification: ClassificationBlock,
 };
 
-export default function PerformanceRoute() {
+export default function TrainingRoute() {
   const [blocks, setBlocks] = useState(() => {
     // Try to load blocks from localStorage
-    const savedLayout = localStorage.getItem("performanceLayout");
+    const savedLayout = localStorage.getItem("trainingLayout");
     if (savedLayout) {
       try {
         return JSON.parse(savedLayout);
@@ -649,17 +649,17 @@ export default function PerformanceRoute() {
 
   const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([]);
   const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore();
-  const isPerformanceAvailable = isStepAvailable("performance");
-  const isPerformanceCompleted = isStepCompleted("performance");
+  const isTrainingAvailable = isStepAvailable("training");
+  const isTrainingCompleted = isStepCompleted("training");
 
   // Update inactive blocks when blocks change
   useEffect(() => {
-    setInactiveBlocks(calculateInactiveBlocks(performanceBlocks, blocks));
+    setInactiveBlocks(calculateInactiveBlocks(trainingBlocks, blocks));
   }, [blocks]);
 
   // Save blocks to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem("performanceLayout", JSON.stringify(blocks));
+    localStorage.setItem("trainingLayout", JSON.stringify(blocks));
     console.log(JSON.stringify(blocks)); // Log blocks for debugging
   }, [blocks]);
 
@@ -667,7 +667,7 @@ export default function PerformanceRoute() {
   useEffect(() => {
     const orderedBlocks = getOrderedBlocks();
     localStorage.setItem(
-      "orderedPerformanceBlocks",
+      "orderedTrainingBlocks",
       JSON.stringify(orderedBlocks)
     );
   }, [blocks]);
@@ -755,7 +755,7 @@ export default function PerformanceRoute() {
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Performance Blocks</h2>
+        <h2 className="text-lg font-semibold">Training Blocks</h2>
         <Button
           variant="default"
           size="sm"
@@ -765,7 +765,7 @@ export default function PerformanceRoute() {
         </Button>
       </div>
       <BlockDrawer
-        blockRegistry={performanceBlocks}
+        blockRegistry={trainingBlocks}
         inactiveBlocks={inactiveBlocks}
         className="flex-1"
       />
@@ -774,7 +774,7 @@ export default function PerformanceRoute() {
 
   // Combine with internal blocks
   const allBlocks = {
-    ...performanceBlocks,
+    ...trainingBlocks,
     start: {
       hasOutput: true,
       hasInput: false,
@@ -802,8 +802,8 @@ export default function PerformanceRoute() {
       limit: 1,
       createNew: () => ({}),
       block: (_: any, id: string, _setData: any, dragHandleProps?: any) => {
-        const canRun = hasCompleteChain() && isPerformanceAvailable;
-        const isCompleted = isPerformanceCompleted;
+        const canRun = hasCompleteChain() && isTrainingAvailable;
+        const isCompleted = isTrainingCompleted;
         
         return (
           <Block
@@ -820,8 +820,8 @@ export default function PerformanceRoute() {
                 className="w-full"
                 disabled={!canRun}
                 onClick={() => {
-                  console.log("Run performance code");
-                  completeStep("performance");
+                  console.log("Run training code");
+                  completeStep("training");
                 }}
               >
                 {isCompleted ? "Run Again" : "Run"}
@@ -836,8 +836,7 @@ export default function PerformanceRoute() {
   return (
     <>
       <DndLayout
-        title="Performance"
-        //description="Configure performance metrics"
+        title="Model Training"
         sidebarContent={sidebarContent}
         blockRegistry={allBlocks}
         blocks={blocks}
