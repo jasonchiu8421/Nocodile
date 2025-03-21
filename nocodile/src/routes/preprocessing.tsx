@@ -39,7 +39,7 @@ export default function Preprocessing() {
     // Override the end block to include a Run button
     blocks.end = {
       ...blocks.end,
-      block: (_: any, id: string, _setData: any, dragHandleProps?: any) => {
+      block: ({id, dragHandleProps}) => {
         const canRun = hasCompleteChain();
         const isCompleted = isPreprocessingCompleted;
         
