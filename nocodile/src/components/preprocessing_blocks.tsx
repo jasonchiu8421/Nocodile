@@ -65,6 +65,7 @@ type ImportDataProps = {
 const ImportDataBlock: BlockType<ImportDataProps> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Import Data",
   icon: <Database className="w-5 h-5" />,
   width: 300,
@@ -531,6 +532,7 @@ const UploadBlockComponent = ({ id, dragHandleProps, chain, data, setData }: Cre
 const UploadBlock: BlockType<UploadBlockProps> = {
   hasInput: true,
   hasOutput: true,
+  limit: 1,
   title: "Upload",
   icon: <Upload className="w-5 h-5" />,
   width: 300,

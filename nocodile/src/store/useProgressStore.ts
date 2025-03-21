@@ -1,25 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ProgressStep = "preprocessing" | "training" | "performance";
+type Step = "preprocessing" | "training" | "performance" | "testing";
 
-export interface ProgressState {
-  // Track completion status for each step
-  completedSteps: Record<ProgressStep, boolean>;
-  // Check if a step is completed
-  isStepCompleted: (step: ProgressStep) => boolean;
-  // Mark a step as completed
-  completeStep: (step: ProgressStep) => void;
-  // Reset a step's completion status
-  resetStep: (step: ProgressStep) => void;
-  // Check if a step is available (previous step completed)
-  isStepAvailable: (step: ProgressStep) => boolean;
-  // Reset all progress
-  resetAllProgress: () => void;
+interface ProgressState {
+  completedSteps: Record<Step, boolean>;
+  isStepCompleted: (step: Step) => boolean;
+  isStepAvailable: (step: Step) => boolean;
+  completeStep: (step: Step) => void;
+  resetStep: (step: Step) => void;
 }
-
-// Define the order of steps
-const stepOrder: ProgressStep[] = ["preprocessing", "training", "performance"];
 
 export const useProgressStore = create<ProgressState>()(
   persist(
@@ -28,48 +18,31 @@ export const useProgressStore = create<ProgressState>()(
         preprocessing: false,
         training: false,
         performance: false,
+        testing: false,
       },
-
-      isStepCompleted: (step) => {
-        return get().completedSteps[step];
+      isStepCompleted: (step: Step) => get().completedSteps[step],
+      isStepAvailable: (step: Step) => {
+        const { completedSteps } = get();
+        if (step === "preprocessing") return true;
+        if (step === "training") return completedSteps.preprocessing;
+        if (step === "performance") return completedSteps.training;
+        if (step === "testing") return completedSteps.performance;
+        return false;
       },
-
-      completeStep: (step) => {
+      completeStep: (step: Step) =>
         set((state) => ({
           completedSteps: {
             ...state.completedSteps,
             [step]: true,
           },
-        }));
-      },
-
-      resetStep: (step) => {
+        })),
+      resetStep: (step: Step) =>
         set((state) => ({
           completedSteps: {
             ...state.completedSteps,
             [step]: false,
           },
-        }));
-      },
-
-      isStepAvailable: (step) => {
-        const stepIndex = stepOrder.indexOf(step);
-        if (stepIndex === 0) return true; // First step is always available
-        
-        // Previous step must be completed
-        const previousStep = stepOrder[stepIndex - 1];
-        return get().completedSteps[previousStep];
-      },
-
-      resetAllProgress: () => {
-        set({
-          completedSteps: {
-            preprocessing: false,
-            training: false,
-            performance: false,
-          },
-        });
-      },
+        })),
     }),
     {
       name: "nocodile-progress-storage",

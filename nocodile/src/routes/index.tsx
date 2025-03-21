@@ -29,9 +29,9 @@ export default function Index() {
     },
     { 
       title: "Try the Model", 
-      route: "/try", 
+      route: "/testing", 
       icon: Play,
-      step: "try" as const
+      step: "testing" as const
     },
   ]
 
@@ -45,8 +45,8 @@ export default function Index() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4 justify-between items-center">
           {steps.map((step) => {
-            const isCompleted = step.step !== "try" ? isStepCompleted(step.step) : false;
-            const isAvailable = step.step !== "try" ? isStepAvailable(step.step) : false;
+            const isCompleted = step.step !== "testing" ? isStepCompleted(step.step) : false;
+            const isAvailable = step.step !== "testing" ? isStepAvailable(step.step) : false;
             
             return (
               <NavLink key={step.route} to={step.route} className="flex-1 min-w-72 h-20">
