@@ -23,7 +23,7 @@ const PlaceholderBlock: BlockType<{
   icon: <Database className="w-5 h-5" />,
   limit: 1,
   createNew: () => ({ field1: "", field2: 0 }),
-  block: (data, id, dragHandleProps) => (
+  block: (data, id, setData, dragHandleProps) => (
     <Block
       id={id}
       title="Placeholder"
@@ -143,7 +143,7 @@ const ConvolutionBlock: BlockType<{
       }
     ]
   }),
-  block: (data, id, dragHandleProps) => (
+  block: (data, id, setData, dragHandleProps) => (
     <Block
       id={id}
       title="Convolution Configuration"
@@ -156,7 +156,7 @@ const ConvolutionBlock: BlockType<{
           <label className="block text-sm font-medium mb-1">Approach</label>
           <select 
             value={data.approach} 
-            onChange={(e) => data.approach = e.target.value}
+            onChange={(e) => setData({ ...data, approach: e.target.value })}
             className="w-full p-2 border rounded"
           >
             <option value="train_test">Train test</option>
@@ -171,7 +171,7 @@ const ConvolutionBlock: BlockType<{
             <input
               type="number"
               value={data.kFold_k}
-              onChange={(e) => data.kFold_k = parseInt(e.target.value)}
+              onChange={(e) => setData({ ...data, kFold_k: parseInt(e.target.value) })}
               min="2"
               className="w-full p-2 border rounded"
             />
@@ -293,7 +293,7 @@ const ConvolutionBlock: BlockType<{
             ))}
           </div>
           <button
-            onClick={() => data.layers.push({ type: "Conv2D", filters: 32, kernelSize: [3, 3], activation: "relu" })}
+            onClick={() => setData({ ...data, layers: [...data.layers, { type: "Conv2D", filters: 32, kernelSize: [3, 3], activation: "relu" }] })}
             className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Add Layer
@@ -460,7 +460,7 @@ export default function PerformanceRoute() {
       icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
       limit: 1,
       createNew: () => ({}),
-      block: (_: any, id: string, dragHandleProps?: any) => (
+      block: (_: any, id: string, setData: (data: any) => void, dragHandleProps?: any) => (
         <Block
           id={id}
           title="Start"
@@ -477,7 +477,7 @@ export default function PerformanceRoute() {
       icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
       limit: 1,
       createNew: () => ({}),
-      block: (_: any, id: string, dragHandleProps?: any) => (
+      block: (_: any, id: string, setData: (data: any) => void, dragHandleProps?: any) => (
         <Block
           id={id}
           title="End"
