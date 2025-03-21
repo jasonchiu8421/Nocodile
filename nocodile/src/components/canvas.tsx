@@ -17,6 +17,7 @@ export function DraggableBlock({ block, children }: { block: BlockViewItem; chil
       blockType: block.type,
       blockData: block.data,
       blockPosition: block.position,
+      data: block.data,
     },
   })
 
