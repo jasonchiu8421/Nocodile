@@ -1,13 +1,13 @@
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "@/components/blocks"
-import { BlockDrawer, calculateInactiveBlocks } from "@/components/blocks_drawer"
-import { BlockInstance, DndLayout } from "@/components/dnd_layout"
-import { SaveFunction } from "@/components/save_alerts"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "@/components/blocks"
+import { BlockDrawer } from "@/components/blocks_drawer"
+import { DndLayout } from "@/components/dnd_layout"
+import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
+import { useBlocksStore } from "@/store"
 import { useProgressStore } from "@/store/useProgressStore"
 import { Database } from "lucide-react"
-import { useEffect, useState } from "react"
 
 // Layer types
 type KernelSize = [number, number]
@@ -69,6 +69,50 @@ interface DenseLayer extends BaseLayer {
 }
 
 type Layer = ActivationLayer | Conv2DLayer | MaxPooling2DLayer | GlobalMaxPooling2DLayer | AveragePooling2DLayer | GlobalAveragePooling2DLayer | BatchNormalizationLayer | FlattenLayer | DropoutLayer | DenseLayer
+
+const saveFunc = SaveFunction.requireChainCount(1).then(
+  SaveFunction.create((_, blocks) => {
+    const chain = splitChain(blocks)
+
+    if (chain[0][0].type !== "start") {
+      return {
+        type: "error",
+        message: "The first block must be a Start block",
+      }
+    }
+
+    if (chain[0][chain[0].length - 1].type !== "end") {
+      return {
+        type: "error",
+        message: "The last block must be an End block",
+      }
+    }
+
+    return { type: "success" }
+  })
+)
+
+const StartBlock: BlockType<{}> = {
+  hasOutput: true,
+  title: "Start",
+  icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({}),
+  block({ id, dragHandleProps }) {
+    return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
+  },
+}
+
+const EndBlock: BlockType<{}> = {
+  hasInput: true,
+  title: "End",
+  icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({}),
+  block: (props) => <EndBlockComponent stage="training" saveFunc={saveFunc} allBlocks={allTrainingBlocks} {...props} />,
+}
 
 // Convolution
 const ConvolutionBlock: BlockType<{
@@ -513,221 +557,36 @@ const ClassificationBlock: BlockType<{
 }
 
 // Block registry for training blocks
-const trainingBlocks: BlockRegistry = {
+export const allTrainingBlocks: BlockRegistry = {
+  start: StartBlock,
+  end: EndBlock,
   convolution: ConvolutionBlock,
   classification: ClassificationBlock,
 }
 
 export default function TrainingRoute() {
-  const [blocks, setBlocks] = useState(() => {
-    // Try to load blocks from localStorage
-    const savedLayout = localStorage.getItem("trainingLayout")
-    if (savedLayout) {
-      try {
-        return JSON.parse(savedLayout)
-      } catch (e) {
-        console.error("Failed to load saved layout:", e)
-      }
-    }
-
-    // Default blocks if no saved layout - initialize with start and end blocks
-    return [
-      {
-        id: "block-1",
-        type: "start",
-        data: {},
-        position: { x: 100, y: 100 }, // Start block at (100,100)
-        input: null,
-        output: null,
-      },
-      {
-        id: "block-2",
-        type: "end",
-        data: {},
-        position: { x: 500, y: 100 }, // End block at (500,100)
-        input: null,
-        output: null,
-      },
-    ]
-  })
-
-  const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([])
-  const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore()
-  const isTrainingAvailable = isStepAvailable("training")
-  const isTrainingCompleted = isStepCompleted("training")
-
-  // Update inactive blocks when blocks change
-  useEffect(() => {
-    setInactiveBlocks(calculateInactiveBlocks(trainingBlocks, blocks))
-  }, [blocks])
-
-  // Save blocks to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("trainingLayout", JSON.stringify(blocks))
-    console.log(JSON.stringify(blocks)) // Log blocks for debugging
-  }, [blocks])
-
-  // Save ordered blocks to localStorage
-  useEffect(() => {
-    const orderedBlocks = getOrderedBlocks()
-    localStorage.setItem("orderedTrainingBlocks", JSON.stringify(orderedBlocks))
-  }, [blocks])
-
-  // Function to get ordered blocks from start to end
-  const getOrderedBlocks = () => {
-    const orderedBlocks: BlockInstance[] = []
-    let currentBlock = blocks.find((block: BlockInstance) => block.type === "start")
-
-    while (currentBlock && orderedBlocks.length < blocks.length) {
-      orderedBlocks.push(currentBlock)
-      currentBlock = blocks.find((block: BlockInstance) => block.input === currentBlock?.id)
-    }
-    return orderedBlocks
-  }
-
-  // Handler for submit button
-  const handleSubmit = () => {
-    const orderedBlocks = getOrderedBlocks()
-    console.log("orderedCanvasBlocks:", orderedBlocks)
-  }
-
-  // Check if there's a complete chain from start to end
-  const hasCompleteChain = () => {
-    const startBlock = blocks.find((block: BlockInstance) => block.type === "start")
-    if (!startBlock) return false
-
-    let currentBlock = startBlock
-    while (currentBlock.output) {
-      const nextBlock = blocks.find((block: BlockInstance) => block.id === currentBlock.output)
-      if (!nextBlock) return false
-      if (nextBlock.type === "end") return true
-      currentBlock = nextBlock
-    }
-    return false
-  }
-
-  // Save function
-  const save = SaveFunction.create((_, blocks) => {
-    const chain = blocks.reduce((acc, block) => {
-      if (block.type === "start") {
-        const chain: BlockInstance[] = [block]
-        let current = block
-
-        while (current.output) {
-          const nextBlock = blocks.find((b) => b.id === current.output)
-          if (!nextBlock) break
-          chain.push(nextBlock)
-          current = nextBlock
-        }
-        return chain
-      }
-      return acc
-    }, [] as BlockInstance[])
-
-    if (chain.length === 0) {
-      return {
-        type: "error",
-        message: "Could not find a complete chain starting from the Start block",
-      }
-    }
-
-    if (chain[0].type !== "start") {
-      return {
-        type: "error",
-        message: "The first block must be a Start block",
-      }
-    }
-
-    if (chain[chain.length - 1].type !== "end") {
-      return {
-        type: "error",
-        message: "The last block must be an End block",
-      }
-    }
-
-    return { type: "success" }
-  })
+  const { trainingBlocks, setTrainingBlocks, inactiveTrainingBlocks } = useBlocksStore()
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Training Blocks</h2>
-        <Button variant="default" size="sm" onClick={handleSubmit}>
+        <Button variant="default" size="sm">
           Submit
         </Button>
       </div>
-      <BlockDrawer blockRegistry={trainingBlocks} inactiveBlocks={inactiveBlocks} className="flex-1" />
+      <BlockDrawer blockRegistry={allTrainingBlocks} inactiveBlocks={inactiveTrainingBlocks} className="flex-1" />
     </div>
   )
-
-  // Combine with internal blocks
-  const allBlocks = {
-    ...trainingBlocks,
-    start: {
-      hasOutput: true,
-      hasInput: false,
-      title: "Start",
-      icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
-      width: 100,
-      limit: 1,
-      createNew: () => ({}),
-      block: ({ id, dragHandleProps }: CreateBlockElementProps<{}>) => {
-        const isAvailable = isStepAvailable("training");
-        const isCompleted = isTrainingCompleted;
-        
-        return (
-          <Block 
-            id={id} 
-            title="Start" 
-            color={isCompleted ? "bg-green-100" : isAvailable ? "bg-green-50" : "bg-gray-100"} 
-            icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : isAvailable ? "bg-green-500" : "bg-gray-400"}`} />} 
-            dragHandleProps={dragHandleProps} 
-          />
-        );
-      },
-    },
-    end: {
-      hasInput: true,
-      hasOutput: false,
-      title: "End",
-      icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
-      width: 100,
-      limit: 1,
-      createNew: () => ({}),
-      block: ({ id, dragHandleProps }: CreateBlockElementProps<{}>) => {
-        const canRun = hasCompleteChain() && isTrainingAvailable
-        const isCompleted = isTrainingCompleted
-
-        return (
-          <Block id={id} title="End" color={isCompleted ? "bg-green-100" : "bg-red-100"} icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : "bg-red-500"}`} />} dragHandleProps={dragHandleProps}>
-            <div className="p-2">
-              <Button
-                variant="default"
-                size="sm"
-                className="w-full"
-                disabled={!canRun}
-                onClick={() => {
-                  console.log("Run training code")
-                  completeStep("training")
-                }}
-              >
-                {isCompleted ? "Run Again" : "Run"}
-              </Button>
-            </div>
-          </Block>
-        )
-      },
-    },
-  }
 
   return (
     <>
       <DndLayout
         title="Model Training"
         sidebarContent={sidebarContent}
-        blockRegistry={allBlocks}
-        blocks={blocks}
-        setBlocks={setBlocks}
+        blockRegistry={allTrainingBlocks}
+        blocks={trainingBlocks}
+        setBlocks={setTrainingBlocks}
         defaultBlocks={() => [
           {
             id: "block-1",
@@ -746,7 +605,7 @@ export default function TrainingRoute() {
             output: null,
           },
         ]}
-        save={save}
+        save={saveFunc}
       />
       <Toaster />
     </>

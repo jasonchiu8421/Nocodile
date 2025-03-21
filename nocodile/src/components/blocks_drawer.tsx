@@ -46,7 +46,7 @@ export function BlockDrawer({
       <Separator className="my-3" />
 
       {/* Block items */}
-      {Object.entries(blockRegistry).map(([blockType, blockInfo]) =>
+      {Object.entries(blockRegistry).filter(([_, info]) => !info.immortal).map(([blockType, blockInfo]) =>
         inactiveBlocks.includes(blockType) ? (
           <DrawerItem key={blockType} blockInfo={blockInfo} active={false} />
         ) : (

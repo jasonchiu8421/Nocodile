@@ -1,19 +1,7 @@
 import { BlockIO, BlockRegistry, BlockViewItem } from "@/components/blocks"
 import { RouteBreadcrumb } from "@/components/routes_breadcrumb"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
-import {
-  DndContext,
-  DragEndEvent,
-  DragMoveEvent,
-  DragOverlay,
-  DragStartEvent,
-  Modifier,
-} from "@dnd-kit/core"
+import { Sidebar, SidebarContent, SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { DndContext, DragEndEvent, DragMoveEvent, DragOverlay, DragStartEvent, Modifier } from "@dnd-kit/core"
 import { Coordinates } from "@dnd-kit/core/dist/types"
 import { ReactNode, useCallback, useState } from "react"
 import { BlocksView } from "./canvas"
@@ -47,28 +35,15 @@ type ActiveDragItem = {
   blockType: string
   origin: "drawer" | "canvas"
   currentPosition: { x: number; y: number } | null
-  position:
-    | ((delta: { x: number; y: number }) => { x: number; y: number })
-    | null
+  position: ((delta: { x: number; y: number }) => { x: number; y: number }) | null
   previewTranslate: { x: number; y: number } | null
   inputSnapTo: string | null
   outputSnapTo: string | null
   bounds: { width: number; height: number } | null
 }
 
-export function DndLayout({
-  title,
-  description,
-  sidebarContent,
-  blockRegistry,
-  blocks,
-  setBlocks,
-  defaultBlocks,
-  save,
-}: DndLayoutProps) {
-  const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
-    null
-  )
+export function DndLayout({ title, description, sidebarContent, blockRegistry, blocks, setBlocks, defaultBlocks, save }: DndLayoutProps) {
+  const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(null)
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
   const [viewZoom, setViewZoom] = useState(1)
 
@@ -81,12 +56,7 @@ export function DndLayout({
     )
   }, [blocks])
 
-  const handleSnapping = useCallback<
-    (
-      active: DragStartEvent["active"],
-      delta: Coordinates
-    ) => ActiveDragItem | null
-  >(
+  const handleSnapping = useCallback<(active: DragStartEvent["active"], delta: Coordinates) => ActiveDragItem | null>(
     (active, delta) => {
       let item: ActiveDragItem | null = activeDragItem
       if (!item) return null
@@ -141,14 +111,10 @@ export function DndLayout({
         const connectorFilled = element.getAttribute("data-connector-filled")
 
         // Skip if no connector type or ID or if the connector is already filled
-        if (!connectorType || !connectorId || connectorFilled === "true")
-          continue
+        if (!connectorType || !connectorId || connectorFilled === "true") continue
 
         // Skip if this connector belongs to the active block
-        const connectorBlockId = connectorId.substring(
-          0,
-          connectorId.lastIndexOf("/")
-        )
+        const connectorBlockId = connectorId.substring(0, connectorId.lastIndexOf("/"))
         if (connectorBlockId === activeBlockId) continue
 
         console.log("considering", connectorBlockId)
@@ -156,13 +122,7 @@ export function DndLayout({
         const rect = element.getBoundingClientRect()
 
         if (connectorType === "input" && outputConnectorPosition) {
-          const distance = Math.sqrt(
-            Math.pow(outputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
-              Math.pow(
-                outputConnectorPosition.y - (rect.y + rect.height / 2),
-                2
-              )
-          )
+          const distance = Math.sqrt(Math.pow(outputConnectorPosition.x - (rect.x + rect.width / 2), 2) + Math.pow(outputConnectorPosition.y - (rect.y + rect.height / 2), 2))
 
           if (distance < snapThreshold) {
             return {
@@ -175,10 +135,7 @@ export function DndLayout({
             } as ActiveDragItem
           }
         } else if (connectorType === "output" && inputConnectorPosition) {
-          const distance = Math.sqrt(
-            Math.pow(inputConnectorPosition.x - (rect.x + rect.width / 2), 2) +
-              Math.pow(inputConnectorPosition.y - (rect.y + rect.height / 2), 2)
-          )
+          const distance = Math.sqrt(Math.pow(inputConnectorPosition.x - (rect.x + rect.width / 2), 2) + Math.pow(inputConnectorPosition.y - (rect.y + rect.height / 2), 2))
 
           if (distance < snapThreshold) {
             return {
@@ -208,15 +165,10 @@ export function DndLayout({
           let position: null | ((delta: Coordinates) => Coordinates) = null
           let previewTranslate: { x: number; y: number } | null = null
 
-          if (
-            "clientX" in event.activatorEvent &&
-            "clientY" in event.activatorEvent
-          ) {
+          if ("clientX" in event.activatorEvent && "clientY" in event.activatorEvent) {
             const { clientX, clientY } = event.activatorEvent as PointerEvent
 
-            const element = document.getElementById(
-              `draggable/drawer/${event.active.id}`
-            )
+            const element = document.getElementById(`draggable/drawer/${event.active.id}`)
             if (!element) return
 
             const rect = element.getBoundingClientRect()
@@ -245,9 +197,7 @@ export function DndLayout({
             data: blockRegistry[event.active.data.current.blockType].createNew(),
           })
         } else if (event.active.data.current?.origin === "canvas") {
-          const element = document.getElementById(
-            `draggable/block/${event.active.id}`
-          )
+          const element = document.getElementById(`draggable/block/${event.active.id}`)
           if (!element) return
 
           const rect = element.getBoundingClientRect()
@@ -280,14 +230,8 @@ export function DndLayout({
               }
               return {
                 ...block,
-                input:
-                  block.input === event.active.data.current?.blockId
-                    ? null
-                    : block.input,
-                output:
-                  block.output === event.active.data.current?.blockId
-                    ? null
-                    : block.output,
+                input: block.input === event.active.data.current?.blockId ? null : block.input,
+                output: block.output === event.active.data.current?.blockId ? null : block.output,
               }
             })
           )
@@ -341,49 +285,39 @@ export function DndLayout({
       const canvasElement = document.getElementById("canvas-container")
       if (!canvasElement) return
 
-      if (!("clientX" in activatorEvent) || !("clientY" in activatorEvent))
-        return
+      if (!("clientX" in activatorEvent) || !("clientY" in activatorEvent)) return
       const { clientX, clientY } = activatorEvent as MouseEvent
       const rect = canvasElement.getBoundingClientRect()
 
       // Handle deletion when dropped on the blocks drawer
-      if (
-        over?.id === "blocks-drawer" &&
-        active.data.current?.origin === "canvas"
-      ) {
+      if (over?.id === "blocks-drawer" && active.data.current?.origin === "canvas") {
         // Check if the block is a start or end block - prevent deletion if it is
-        const blockType = active.data.current?.blockType;
-        if (blockType === "start" || blockType === "end") {
+        const blockType = active.data.current?.blockType
+        if (!!blockRegistry[blockType].immortal) {
           // Do not allow deletion of start or end blocks
-          return;
+          setActiveDragItem(null)
+          addBlock({
+            id: active.data.current.blockId,
+            type: active.data.current.blockType,
+            data: active.data.current.blockData,
+            position: active.data.current.blockPosition,
+            input: null,
+            output: null,
+          })
+          return
         }
-        
+
         // Remove the block from the blocks array
         setBlocks(blocks.filter((b) => b.id !== active.data.current?.blockId))
         return
       }
 
       // Only process if we have a valid drop target and active item
-      if (
-        clientX + event.delta.x >= rect.left &&
-        clientX + event.delta.x <= rect.right &&
-        clientY + event.delta.y >= rect.top &&
-        clientY + event.delta.y <= rect.bottom
-      ) {
+      if (clientX + event.delta.x >= rect.left && clientX + event.delta.x <= rect.right && clientY + event.delta.y >= rect.top && clientY + event.delta.y <= rect.bottom) {
         if (active.data.current?.type === "block") {
           const position = {
-            x:
-              ((activeDragItem?.currentPosition?.x ?? 0) -
-                rect.x -
-                viewPosition.x -
-                3) /
-              viewZoom,
-            y:
-              ((activeDragItem?.currentPosition?.y ?? 0) -
-                rect.y -
-                viewPosition.y -
-                3) /
-              viewZoom,
+            x: ((activeDragItem?.currentPosition?.x ?? 0) - rect.x - viewPosition.x - 3) / viewZoom,
+            y: ((activeDragItem?.currentPosition?.y ?? 0) - rect.y - viewPosition.y - 3) / viewZoom,
           }
 
           if (active.data.current?.origin === "canvas") {
@@ -427,7 +361,7 @@ export function DndLayout({
       const blockElement = blockRegistry[block.type]?.block({
         data: block.data,
         id: block.id,
-        setData: d => {},
+        setData: (d) => {},
       })
       if (!blockElement) return null
 
@@ -454,11 +388,7 @@ export function DndLayout({
 
   return (
     <SidebarProvider>
-      <DndContext
-        onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
-        onDragEnd={handleDragEnd}
-      >
+      <DndContext onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <Sidebar>
           <SidebarContent>
             <div className="p-4 h-full">{sidebarContent}</div>
@@ -471,17 +401,8 @@ export function DndLayout({
           <div className="flex-1 p-4 space-y-4 flex">
             {description && <p>{description}</p>}
 
-            <div
-              id="canvas-container"
-              className="flex-1 border border-gray-200 rounded-md overflow-hidden"
-            >
-              <BlocksView
-                blockRegistry={blockRegistry}
-                blocks={blockViewItems}
-                setBlocks={setBlocks}
-                onMove={setViewPosition}
-                onZoom={setViewZoom}
-              />
+            <div id="canvas-container" className="flex-1 border border-gray-200 rounded-md overflow-hidden">
+              <BlocksView blockRegistry={blockRegistry} blocks={blockViewItems} setBlocks={setBlocks} onMove={setViewPosition} onZoom={setViewZoom} />
             </div>
           </div>
         </SidebarInset>
@@ -494,11 +415,7 @@ export function DndLayout({
                 width: `${activeDragItem.bounds?.width}px`,
                 height: `${activeDragItem.bounds?.height}px`,
                 pointerEvents: "none",
-                transform: `translate(${
-                  activeDragItem.previewTranslate?.x || 0
-                }px, ${
-                  activeDragItem.previewTranslate?.y || 0
-                }px) scale(${viewZoom})`,
+                transform: `translate(${activeDragItem.previewTranslate?.x || 0}px, ${activeDragItem.previewTranslate?.y || 0}px) scale(${viewZoom})`,
                 transformOrigin: "0 0",
                 zIndex: 1000,
               }}
