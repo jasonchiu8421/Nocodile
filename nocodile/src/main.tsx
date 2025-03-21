@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom"
 import "./index.css"
 import Index from "./routes/index.tsx"
 import Preprocessing from "./routes/preprocessing.tsx"
+import Performance from "./routes/performance.tsx"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -11,6 +12,7 @@ createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route index element={<Index />} />
         <Route path="/preprocessing" element={<Preprocessing />} />
+        <Route path="/performance" element={<Performance />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>
