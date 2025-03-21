@@ -1,32 +1,53 @@
 import { cn } from "@/lib/utils"
 import { AlertCircle, Database, Image, Notebook, NotebookPen, Upload, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Progress } from "./ui/progress"
 import { Separator } from "./ui/separator"
+import { SaveFunction, splitChain } from "./save_alerts"
+import { useProgressStore } from "@/store/useProgressStore"
+
+export const saveFunc = SaveFunction.requireChainCount(1).then(
+  SaveFunction.create((_, blocks) => {
+    const chain = splitChain(blocks)
+    if (chain[0][0].type !== "start") {
+      return {
+        type: "error",
+        message: "The first block must be a start block!",
+      }
+    } else if (chain[0][chain[0].length - 1].type !== "end") {
+      return {
+        type: "error",
+        message: "The last block must be an end block!",
+      }
+    }
+
+    return { type: "success" }
+  })
+)
 
 const StartBlock: BlockType<{}> = {
   hasOutput: true,
   title: "Start",
-  icon: <Notebook className="w-5 h-5" />,
+  icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
   limit: 1,
+  immortal: true,
   createNew: () => ({}),
   block({ id, dragHandleProps }) {
-    return <Block id={id} title="Start" icon={<Notebook className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
+    return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
   },
 }
 
 const EndBlock: BlockType<{}> = {
   hasInput: true,
   title: "End",
-  icon: <NotebookPen className="w-5 h-5" />,
+  icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
   limit: 1,
+  immortal: true,
   createNew: () => ({}),
-  block({ id, dragHandleProps }) {
-    return <Block id={id} title="End" icon={<NotebookPen className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
-  },
+  block: (props) => <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allBlocks} {...props} />,
 }
 
 type ImportDataProps = {
