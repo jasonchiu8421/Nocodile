@@ -50,7 +50,7 @@ export const BlockIO = ({
     <div id={`draggable/block/${id}`} className="relative cursor-auto w-50">
       {type.hasInput && (
         <div
-          className="absolute left-0 top-4 -translate-x-4 flex items-center"
+          className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 flex items-center"
           data-connector-id={`${id}/input`}
           data-connector-type="input"
           data-connector-filled={block?.input !== null}
@@ -67,7 +67,7 @@ export const BlockIO = ({
 
       {type.hasOutput && (
         <div
-          className="absolute right-0 top-4 translate-x-4 flex items-center"
+          className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 flex items-center"
           data-connector-id={`${id}/output`}
           data-connector-type="output"
           data-connector-filled={block?.output !== null}
@@ -82,7 +82,7 @@ export const BlockIO = ({
 
       {type.hasOutput && (
         <div
-          className="absolute right-0 top-4 translate-x-4 flex items-center transition-opacity z-10"
+          className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 flex items-center transition-opacity z-10"
           style={{ opacity: block?.output ? 1 : 0 }}
         >
           <div className="w-4 h-8 bg-gray-300 border-2 border-gray-500 flex items-center justify-center">
