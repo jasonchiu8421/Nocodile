@@ -95,6 +95,7 @@ export default function PerformanceRoute() {
   // Save blocks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('performanceLayout', JSON.stringify(blocks));
+    console.log(JSON.stringify(blocks)); // Log blocks for debugging
   }, [blocks]);
 
   // Save ordered blocks to localStorage
@@ -191,6 +192,7 @@ export default function PerformanceRoute() {
       hasInput: false,
       title: 'Start',
       icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
+      limit: 1,
       createNew: () => ({}),
       block: (_: any, id: string, dragHandleProps?: any) => (
         <Block
@@ -207,6 +209,7 @@ export default function PerformanceRoute() {
       hasOutput: false,
       title: 'End',
       icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
+      limit: 1,
       createNew: () => ({}),
       block: (_: any, id: string, dragHandleProps?: any) => (
         <Block
