@@ -18,7 +18,7 @@ export default function Preprocessing() {
   return (
     <>
       <DndLayout title="Data Preprocessing" sidebarContent={sidebarContent} blockRegistry={allBlocks} blocks={preprocessingBlocks} setBlocks={setPreprocessingBlocks} save={saveFunc} defaultBlocks={defaultPreprocessingBlocks} />
-      <Toaster />
+      <Toaster visibleToasts={10}/>
     </>
   )
 }

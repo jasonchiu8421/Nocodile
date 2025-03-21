@@ -1,4 +1,4 @@
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "@/components/blocks"
+import { Block, BlockRegistry, BlockType, EndBlockComponent } from "@/components/blocks"
 import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
@@ -6,7 +6,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { useProgressStore } from "@/store/useProgressStore"
 import { Database } from "lucide-react"
 
 // Layer types
@@ -607,7 +606,7 @@ export default function TrainingRoute() {
         ]}
         save={saveFunc}
       />
-      <Toaster />
+      <Toaster visibleToasts={10}/>
     </>
   )
 }

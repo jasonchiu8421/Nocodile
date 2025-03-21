@@ -110,10 +110,12 @@ export function EndBlockComponent({
   saveFunc,
   stage,
   allBlocks,
+  step,
 }: CreateBlockElementProps<{}> & {
   saveFunc: SaveFunction
   stage: ProgressStep
   allBlocks: BlockRegistry
+  step?: () => void
 }) {
   const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore()
   const saveFuncResult = blocks ? saveFunc.save(allBlocks, blocks) : null
@@ -131,6 +133,7 @@ export function EndBlockComponent({
           disabled={!canRun}
           onClick={() => {
             console.log(`Run ${stage} code`)
+            step?.()
             completeStep(stage)
           }}
         >
