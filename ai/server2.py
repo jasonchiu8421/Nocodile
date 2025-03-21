@@ -565,6 +565,10 @@ async def train(request: TrainRequest):
         "message": f"Training initiated with {len(request.dataset)} images",
     }
 
+def create_dataset(directory_path: str):
+    datasetcreator = DatasetCreator(directory_path)
+    datasetcreator
+
 def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
     """
     预处理图像
