@@ -515,9 +515,10 @@ export default function PerformanceRoute() {
       hasInput: false,
       title: "Start",
       icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
+      width: 100,
       limit: 1,
       createNew: () => ({}),
-      block: (_: any, id: string, setData: (data: any) => void, dragHandleProps?: any) => (
+      block: (_: any, id: string, _setData: any, dragHandleProps?: any) => (
         <Block
           id={id}
           title="Start"
@@ -532,9 +533,10 @@ export default function PerformanceRoute() {
       hasOutput: false,
       title: "End",
       icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
+      width: 100,
       limit: 1,
       createNew: () => ({}),
-      block: (_: any, id: string, setData: (data: any) => void, dragHandleProps?: any) => (
+      block: (_: any, id: string, _setData: any, dragHandleProps?: any) => (
         <Block
           id={id}
           title="End"

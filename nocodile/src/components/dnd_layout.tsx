@@ -118,17 +118,16 @@ export function DndLayout({
         y: item.position?.(delta)?.y || 0,
       }
 
-      const blockHeight = (item.bounds?.height || 0) + 32; // Add padding
       const inputConnectorPosition = blockRegistry[item.blockType].hasInput
         ? {
             x: selfConnectorPosition.x - 16 + 8,
-            y: selfConnectorPosition.y + blockHeight / 2,
+            y: selfConnectorPosition.y + 16,
           }
         : null
       const outputConnectorPosition = blockRegistry[item.blockType].hasOutput
         ? {
             x: selfConnectorPosition.x + (item.bounds?.width || 0) + 8,
-            y: selfConnectorPosition.y + blockHeight / 2,
+            y: selfConnectorPosition.y + 16,
           }
         : null
 
@@ -166,12 +165,11 @@ export function DndLayout({
           )
 
           if (distance < snapThreshold) {
-            const blockHeight = (item.bounds?.height || 0) + 32;
             return {
               ...item,
               currentPosition: {
                 x: rect.x - (item.bounds?.width || 0),
-                y: rect.y + rect.height / 2 - blockHeight / 2,
+                y: rect.y - 16,
               },
               outputSnapTo: connectorBlockId,
             } as ActiveDragItem
@@ -183,12 +181,11 @@ export function DndLayout({
           )
 
           if (distance < snapThreshold) {
-            const blockHeight = (item.bounds?.height || 0) + 32;
             return {
               ...activeDragItem,
               currentPosition: {
                 x: rect.x + 16,
-                y: rect.y + rect.height / 2 - blockHeight / 2,
+                y: rect.y - 16,
               },
               inputSnapTo: connectorBlockId,
             } as ActiveDragItem
