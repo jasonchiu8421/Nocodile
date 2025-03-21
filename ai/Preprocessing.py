@@ -40,11 +40,6 @@ class Preprocessing:
             self.X[i] = cv2.resize(self.X[i], new_size)
         return self.X
     
-        # from PIL import Image 
-        # size = (28, 28) # for the trial workshop
-        # r_data = data.resize(size)
-        # r_data.show()
-    
     # Grayscale Conversion
     def convert_to_grayscale(self):
         # Use the cvtColor() function to grayscale the image
@@ -56,16 +51,6 @@ class Preprocessing:
         # gr_data = ImageOps.grayscale(r_data) 
         # gr_data.show()
     
-    # Label Encoding  # https://www.geeksforgeeks.org/ml-label-encoding-of-datasets-in-python/
-    # Import label encoder 
-    # from sklearn import preprocessing 
-    # # label_encoder object knows  
-    # # how to understand word labels. 
-    # label_encoder = preprocessing.LabelEncoder() 
-    # # Encode labels in column 'species'. 
-    # df['species']= label_encoder.fit_transform(df['species']) 
-    # df['species'].unique() 
-    
     # Data Shuffling
     def shuffle_data(self):
         from sklearn.utils import shuffle
@@ -73,7 +58,7 @@ class Preprocessing:
         return self.X, self.y
     
     # Normalization
-    def normalise(self):
+    def normalize(self):
         import numpy as np
         from sklearn.preprocessing import MinMaxScaler
         # Initialize the scaler
