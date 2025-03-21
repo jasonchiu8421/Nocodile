@@ -36,6 +36,26 @@ export default function Preprocessing() {
   const [modifiedBlocks] = useState(() => {
     const blocks = { ...allBlocks };
     
+    // Add a custom start block that reflects whether it's available/completed
+    blocks.start = {
+      ...blocks.start,
+      block: ({id, dragHandleProps}) => {
+        // Preprocessing is always available as the first step
+        const isAvailable = true;
+        const isCompleted = isPreprocessingCompleted;
+        
+        return (
+          <Block
+            id={id}
+            title="Start"
+            color={isCompleted ? "bg-green-100" : isAvailable ? "bg-green-50" : "bg-gray-100"}
+            icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : isAvailable ? "bg-green-500" : "bg-gray-400"}`} />}
+            dragHandleProps={dragHandleProps}
+          />
+        );
+      },
+    };
+    
     // Override the end block to include a Run button
     blocks.end = {
       ...blocks.end,

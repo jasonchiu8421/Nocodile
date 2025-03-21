@@ -671,7 +671,20 @@ export default function TrainingRoute() {
       width: 100,
       limit: 1,
       createNew: () => ({}),
-      block: ({ id, dragHandleProps }: CreateBlockElementProps<{}>) => <Block id={id} title="Start" color="bg-green-50" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} dragHandleProps={dragHandleProps} />,
+      block: ({ id, dragHandleProps }: CreateBlockElementProps<{}>) => {
+        const isAvailable = isStepAvailable("training");
+        const isCompleted = isTrainingCompleted;
+        
+        return (
+          <Block 
+            id={id} 
+            title="Start" 
+            color={isCompleted ? "bg-green-100" : isAvailable ? "bg-green-50" : "bg-gray-100"} 
+            icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : isAvailable ? "bg-green-500" : "bg-gray-400"}`} />} 
+            dragHandleProps={dragHandleProps} 
+          />
+        );
+      },
     },
     end: {
       hasInput: true,
