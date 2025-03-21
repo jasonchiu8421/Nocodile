@@ -17,7 +17,24 @@ interface BlocksState {
 }
 
 export const useBlocksStore = create<BlocksState>((set) => ({
-  blocks: [],
+  blocks: [
+    {
+      id: "block-1",
+      type: "start",
+      data: {},
+      position: { x: 64, y: 81 },
+      input: null,
+      output: "block-2",
+    },
+    {
+      id: "block-2",
+      type: "end",
+      data: {},
+      position: { x: 280, y: 81 },
+      input: "block-1",
+      output: null,
+    },
+  ],
   inactiveBlocks: calculateInactiveBlocks(allBlocks, []),
 
   setBlocks: (blocks) =>

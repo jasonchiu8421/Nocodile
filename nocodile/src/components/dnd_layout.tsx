@@ -53,6 +53,15 @@ type ActiveDragItem = {
   bounds: { width: number; height: number } | null
 }
 
+function nextBlockId(blocks: BlockInstance[]) {
+  return (
+    blocks.reduce((maxId, block) => {
+      const blockId = parseInt(block.id.replace("block-", ""))
+      return Math.max(maxId, blockId)
+    }, 0) + 1
+  )
+}
+
 export function DndLayout({
   title,
   description,
@@ -62,78 +71,11 @@ export function DndLayout({
   setBlocks,
   save,
 }: DndLayoutProps) {
-  const [nextBlockId, setNextBlockId] = useState(1)
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(
     null
   )
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
-
-  // Initialize start and end blocks if they don't exist
-  useEffect(() => {
-    if (!blocks.some((b) => b.type === "start") || !blocks.some((b) => b.type === "end")) {
-      const newBlocks = [...blocks];
-      if (!blocks.some((b) => b.type === "start")) {
-        newBlocks.push({
-          id: `block-${nextBlockId}-start`,
-          type: "start",
-          data: {},
-          position: { x: 100, y: 100 },
-          input: null,
-          output: null,
-        });
-        setNextBlockId(nextBlockId + 1);
-      }
-      if (!blocks.some((b) => b.type === "end")) {
-        newBlocks.push({
-          id: `block-${nextBlockId}-end`,
-          type: "end",
-          data: {},
-          position: { x: 500, y: 100 },
-          input: null,
-          output: null,
-        });
-        setNextBlockId(nextBlockId + 1);
-      }
-      setBlocks(newBlocks);
-    }
-  }, [blocks, nextBlockId]);
-
-  // Extend block registry with start and end blocks
-  const extendedBlockRegistry: BlockRegistry = {
-    ...blockRegistry,
-    start: {
-      hasOutput: true,
-      hasInput: false,
-      title: 'Start',
-      icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
-      createNew: () => ({}),
-      block: (_: any, id: string, dragHandleProps?: any) => (
-        <Block
-          id={id}
-          title="Start"
-          color="bg-green-50"
-          icon={<div className="w-4 h-4 rounded-full bg-green-500" />}
-          dragHandleProps={dragHandleProps}
-        />
-      ),
-    },
-    end: {
-      hasInput: true,
-      hasOutput: false,
-      title: 'End',
-      icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
-      createNew: () => ({}),
-      block: (_: any, id: string, dragHandleProps?: any) => (
-        <Block
-          id={id}
-          title="End"
-          color="bg-red-50"
-          icon={<div className="w-4 h-4 rounded-full bg-red-500" />}
-          dragHandleProps={dragHandleProps}
-        />
-      ),
-    },
-  };
+  const [viewZoom, setViewZoom] = useState(1)
 
   const handleSnapping = useCallback<
     (
@@ -184,8 +126,6 @@ export function DndLayout({
             y: selfConnectorPosition.y + 16 + 16,
           }
         : null;
-
-      console.log("try drop", selfConnectorPosition, connectors);
 
       for (const element of connectors) {
         // Skip if not an HTMLElement
@@ -279,10 +219,11 @@ export function DndLayout({
             );
             if (!element) return;
 
-            const rect = element.getBoundingClientRect();
-            const offsetX = clientX - rect.left;
-            const offsetY = clientY - rect.top;
+            const rect = element.getBoundingClientRect()
+            const offsetX = clientX - rect.left
+            const offsetY = clientY - rect.top
 
+            // Account for zoom in position calculation
             position = (delta: Coordinates) => ({
               x: clientX + delta.x - offsetX,
               y: clientY + delta.y - offsetY,
@@ -351,8 +292,8 @@ export function DndLayout({
         }
       }
     },
-    [blocks]
-  );
+    [blocks, viewZoom]
+  )
 
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
@@ -424,16 +365,18 @@ export function DndLayout({
         if (active.data.current?.type === "block") {
           const position = {
             x:
-              (activeDragItem?.currentPosition?.x ?? 0) -
-              rect.x -
-              viewPosition.x -
-              3,
+              ((activeDragItem?.currentPosition?.x ?? 0) -
+                rect.x -
+                viewPosition.x -
+                3) /
+              viewZoom,
             y:
-              (activeDragItem?.currentPosition?.y ?? 0) -
-              rect.y -
-              viewPosition.y -
-              3,
-          };
+              ((activeDragItem?.currentPosition?.y ?? 0) -
+                rect.y -
+                viewPosition.y -
+                3) /
+              viewZoom,
+          }
 
           if (active.data.current?.origin === "canvas") {
             addBlock({
@@ -445,9 +388,8 @@ export function DndLayout({
               output: activeDragItem?.outputSnapTo ?? null,
             });
           } else if (active.data.current?.origin === "drawer") {
-            setNextBlockId(nextBlockId + 1);
             addBlock({
-              id: `block-${nextBlockId}`,
+              id: `block-${nextBlockId(blocks)}`,
               type: active.data.current.blockType,
               data: extendedBlockRegistry[active.data.current.blockType].createNew(),
               position,
@@ -461,8 +403,8 @@ export function DndLayout({
       // Reset drag start coordinates
       setActiveDragItem(null);
     },
-    [blocks, nextBlockId, viewPosition, extendedBlockRegistry]
-  );
+    [blocks, nextBlockId, viewPosition, viewZoom, blockRegistry]
+  )
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -488,16 +430,19 @@ export function DndLayout({
     })
     .filter(Boolean) as BlockViewItem[];
 
+  // This modifier positions the drag overlay at the correct position
   const snapToPosition: Modifier = (args) => {
-    return activeDragItem?.currentPosition
-      ? {
-          x: activeDragItem.currentPosition.x,
-          y: activeDragItem.currentPosition.y,
-          scaleX: 1,
-          scaleY: 1,
-        }
-      : args.transform;
-  };
+    if (!activeDragItem?.currentPosition) return args.transform
+
+    // For drag overlay, we need to position it correctly but not scale it here
+    // The scaling will be handled by the div's transform style
+    return {
+      x: activeDragItem.currentPosition.x,
+      y: activeDragItem.currentPosition.y,
+      scaleX: 1, // Don't scale here, we'll handle it in the div style
+      scaleY: 1,
+    }
+  }
 
   return (
     <SidebarProvider>
@@ -530,6 +475,7 @@ export function DndLayout({
                 blockRegistry={extendedBlockRegistry}
                 blocks={blockViewItems}
                 onMove={setViewPosition}
+                onZoom={setViewZoom}
               />
             </div>
           </div>
@@ -543,13 +489,18 @@ export function DndLayout({
                 width: `${activeDragItem.bounds?.width}px`,
                 height: `${activeDragItem.bounds?.height}px`,
                 pointerEvents: "none",
-                transform: `translate(${activeDragItem.previewTranslate?.x}px, ${activeDragItem.previewTranslate?.y}px)`,
+                transform: `translate(${
+                  activeDragItem.previewTranslate?.x || 0
+                }px, ${
+                  activeDragItem.previewTranslate?.y || 0
+                }px) scale(${viewZoom})`,
+                transformOrigin: "0 0",
                 zIndex: 1000,
               }}
             >
               <BlockIO
                 id="drag-overlay"
-                type={extendedBlockRegistry[activeDragItem.blockType]}
+                type={blockRegistry[activeDragItem.blockType]}
                 previewConnections={{
                   input: activeDragItem.inputSnapTo !== null,
                   output: activeDragItem.outputSnapTo !== null,
