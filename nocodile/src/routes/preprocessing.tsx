@@ -1,66 +1,112 @@
-import {
-  BlockDrawer,
-  calculateInactiveBlocks,
-} from "@/components/blocks_drawer"
-import { BlockInstance, DndLayout } from "@/components/dnd_layout"
-import allBlocks from "@/components/preprocessing_blocks"
-import { SaveFunction, splitChain } from "@/components/save_alerts"
+import { DndLayout } from "@/components/dnd_layout"
+import { SaveFunction } from "@/components/save_alerts"
+import { useState, useEffect } from "react"
+import preprocessingBlocks from "@/components/preprocessing_blocks"
 import { Toaster } from "@/components/ui/sonner"
-import { useBlocksStore } from "@/store"
-import { useEffect, useState } from "react"
+import { BlockDrawer, calculateInactiveBlocks } from "@/components/blocks_drawer"
+import { Button } from "@/components/ui/button"
+import { BlockInstance } from "@/components/dnd_layout"
+import { StartBlock, EndBlock } from "@/components/internal_blocks"
 
-export default function Preprocessing() {
-  const { blocks: storedBlocks } = useBlocksStore()
-  const [blocks, setBlocks] = useState<BlockInstance[]>(storedBlocks ?? [])
-  const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([])
+export default function PreprocessingRoute() {
+  const [blocks, setBlocks] = useState(() => {
+    // Try to load blocks from localStorage
+    const savedLayout = localStorage.getItem("blockLayout");
+    if (savedLayout) {
+      try {
+        return JSON.parse(savedLayout);
+      } catch (e) {
+        console.error("Failed to load saved layout:", e);
+      }
+    }
+    
+    // Default blocks if no saved layout - initialize with start and end blocks
+    return [
+      {
+        id: "block-1",
+        type: "start",
+        data: {},
+        position: { x: 100, y: 100 }, // Start block at (100,100)
+        input: null,
+        output: null,
+      },
+      {
+        id: "block-2",
+        type: "end",
+        data: {},
+        position: { x: 500, y: 100 }, // End block at (500,100)
+        input: null,
+        output: null,
+      },
+    ];
+  });
 
+  const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([]);
+
+  // Update inactive blocks when blocks change
   useEffect(() => {
-    setInactiveBlocks(calculateInactiveBlocks(allBlocks, blocks))
-  }, [blocks])
+    setInactiveBlocks(calculateInactiveBlocks(preprocessingBlocks, blocks));
+  }, [blocks]);
+
+  // Function to get ordered blocks from start to end
+  const getOrderedBlocks = () => {
+    const orderedBlocks: BlockInstance[] = [];
+    let currentBlock = blocks.find((block: BlockInstance) => block.type === "start");
+    
+    while (currentBlock && orderedBlocks.length < blocks.length) {
+      orderedBlocks.push(currentBlock);
+      currentBlock = blocks.find((block: BlockInstance) => block.input === currentBlock?.id);
+    }
+
+    return orderedBlocks;
+  };
+
+  // Handler for submit button
+  const handleSubmit = () => {
+    const orderedBlocks = getOrderedBlocks();
+    console.log("orderedCanvasBlocks:", orderedBlocks);
+  };
+
+  // Save function that uses the new format
+  const save = SaveFunction.formatPreprocessing();
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      <h2 className="text-lg font-semibold mb-4">Blocks</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Blocks</h2>
+        <Button 
+          variant="default" 
+          size="sm"
+          onClick={handleSubmit}
+        >
+          Submit
+        </Button>
+      </div>
       <BlockDrawer
-        blockRegistry={allBlocks}
+        blockRegistry={preprocessingBlocks}
         inactiveBlocks={inactiveBlocks}
         className="flex-1"
       />
     </div>
-  )
+  );
 
-  const saveFunc = SaveFunction.requireChainCount(1).then(
-    SaveFunction.create((_, blocks) => {
-      const chain = splitChain(blocks)
-      if (chain[0][0].type !== "import") {
-        return {
-          type: "error",
-          message: "The first block must be an import block!",
-        }
-      } else if (chain[0][chain[0].length - 1].type !== "submit") {
-        return {
-          type: "error",
-          message: "The last block must be a submit block!",
-        }
-      }
-
-      return { type: "success" }
-    })
-  )
-
-  useEffect(() => {
-    console.log(JSON.stringify(blocks))
-  }, [blocks])
+  // Combine preprocessing blocks with internal blocks for the layout
+  const allBlocks = {
+    ...preprocessingBlocks,
+    start: StartBlock,
+    end: EndBlock,
+  };
 
   return (
     <>
       <DndLayout
-        title="Data Preprocessing"
+        title="Preprocessing"
+        description="Configure preprocessing steps for your dataset"
         sidebarContent={sidebarContent}
         blockRegistry={allBlocks}
         blocks={blocks}
         setBlocks={setBlocks}
-        save={saveFunc}
+        save={save}
       />
       <Toaster />
     </>

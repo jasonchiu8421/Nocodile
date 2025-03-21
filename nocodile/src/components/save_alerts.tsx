@@ -53,101 +53,88 @@ export function splitChain(blocks: BlockInstance[]): BlockChain[] {
     }
   }
 
-  console.log(
-    "splitChain",
-    chains.map((chain) => chain.map((block) => block.id))
-  )
-
   return chains
 }
 
-export abstract class SaveFunction {
-  abstract save(
-    blockRegistry: BlockRegistry,
-    blocks: BlockInstance[]
-  ): SaveResult
-
-  abstract filter(
+export type SaveFunction = {
+  save(blockRegistry: BlockRegistry, blocks: BlockInstance[]): SaveResult
+  filter(
     filter: (blockRegistry: BlockRegistry, blocks: BlockInstance[]) => boolean
   ): SaveFunction
+  then(func: SaveFunction): SaveFunction
+}
 
-  abstract then(func: SaveFunction): SaveFunction
-
-  static create(
+export const SaveFunction = {
+  create(
     func: (blockRegistry: BlockRegistry, blocks: BlockInstance[]) => SaveResult
   ): SaveFunction {
-    class SaveFunctionImpl implements SaveFunction {
-      save(blockRegistry: BlockRegistry, blocks: BlockInstance[]) {
-        return func(blockRegistry, blocks)
-      }
-
+    return {
+      save: func,
       filter(
-        filter: (
-          blockRegistry: BlockRegistry,
-          blocks: BlockInstance[]
-        ) => boolean
+        filter: (blockRegistry: BlockRegistry, blocks: BlockInstance[]) => boolean
       ): SaveFunction {
+        const originalFunc = func
         return SaveFunction.create((blockRegistry, blocks) => {
-          if (filter(blockRegistry, blocks)) {
-            return this.save(blockRegistry, blocks)
+          if (!filter(blockRegistry, blocks)) {
+            return { type: "error", message: "Filter condition not met" }
           }
-          return { type: "success" }
+          return originalFunc(blockRegistry, blocks)
         })
-      }
-
-      then(func: SaveFunction): SaveFunction {
+      },
+      then(nextFunc: SaveFunction): SaveFunction {
+        const originalFunc = func
         return SaveFunction.create((blockRegistry, blocks) => {
-          const result = this.save(blockRegistry, blocks)
+          const result = originalFunc(blockRegistry, blocks)
           if (result.type === "error") {
-            return { type: "error", message: result.message }
+            return result
           }
-          return func.save(blockRegistry, blocks)
+          return nextFunc.save(blockRegistry, blocks)
         })
-      }
+      },
     }
-    return new SaveFunctionImpl()
-  }
+  },
 
-  static success(): SaveFunction {
+  success(): SaveFunction {
     return SaveFunction.create(() => ({ type: "success" }))
-  }
+  },
 
-  static error(message: string): SaveFunction {
+  error(message: string): SaveFunction {
     return SaveFunction.create(() => ({ type: "error", message }))
-  }
+  },
 
-  static requireChainCount(count: number): SaveFunction {
-    return SaveFunction.create((_, blocks) => {
-      const chains = splitChain(blocks)
-      if (count >= 0 && chains.length === 0) {
-        return { type: "error", message: `No blocks found!` }
-      } else if (count > 0 && chains.length < count) {
-        return {
-          type: "error",
-          message: `At least ${count} block groups are required!`,
+  formatPreprocessing(): SaveFunction {
+    return SaveFunction.create((_blockRegistry, blocks) => {
+      try {
+        const importBlock = blocks.find((block) => block.type === "import")
+        if (!importBlock) {
+          return { type: "error", message: "No import block found" }
         }
-      } else if (count < 0 && chains.length > -count) {
-        return {
-          type: "error",
-          message: `At most ${-count} block groups are allowed!`,
+
+        const filterBlocks = blocks.filter((block) =>
+          ["resize", "grayscale", "normalize", "shuffling"].includes(block.type)
+        )
+
+        const preprocessingData = {
+          images: importBlock.data.images || [],
+          filters: filterBlocks.map((block) => ({
+            type: block.type,
+            detail: block.data,
+            enabled: block.data.enabled,
+          })),
         }
-      } else if (count === 0 && chains.length !== 0) {
-        return { type: "error", message: `No block groups are allowed!` }
-      } else if (count === 1 && chains.length > 1) {
+
+        localStorage.setItem("preprocessingData", JSON.stringify(preprocessingData))
+        localStorage.setItem("blockLayout", JSON.stringify(blocks))
+
+        return { type: "success" }
+      } catch (error) {
         return {
           type: "error",
-          message: `You have dangling blocks that are not part of a chain! You should connect them or remove them.`,
-        }
-      } else if (count >= 1 && chains.length > count) {
-        return {
-          type: "error",
-          message: `At most ${count} block groups are allowed!`,
+          message: `Failed to save: ${error instanceof Error ? error.message : String(error)}`,
         }
       }
-
-      return { type: "success" }
     })
-  }
+  },
 }
 
 export function SaveButton({
@@ -164,29 +151,28 @@ export function SaveButton({
 
   const handleSave = () => {
     const result = save.save(blockRegistry, blocks)
-    console.log("handleSave", result)
     if (result.type === "error") {
-      setOpen(true)
       setError(result.message)
+      setOpen(true)
     } else {
-      toast.success("Saved successfully!")
+      toast.success("Saved successfully")
     }
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <Button variant="outline" onClick={handleSave}>
-        Save
-      </Button>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Save Error</AlertDialogTitle>
-          <AlertDialogDescription>{error}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <>
+      <Button onClick={handleSave}>Save</Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Error</AlertDialogTitle>
+            <AlertDialogDescription>{error}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

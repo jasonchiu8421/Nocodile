@@ -68,6 +68,37 @@ export function DndLayout({
   )
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
 
+  //json repr blocks
+  // Load blocks from local storage on mount
+  useEffect(() => {
+    const savedBlocks = localStorage.getItem('canvasBlocks');
+    if (savedBlocks) {
+      setBlocks(JSON.parse(savedBlocks));
+    }
+  }, []);
+
+  // Save blocks to local storage whenever they change
+useEffect(() => {
+  localStorage.setItem('canvasBlocks', JSON.stringify(blocks));
+}, [blocks]);
+
+// Function to get blocks in order from start to end
+const getOrderedBlocks = () => {
+  const orderedBlocks = [];
+  let currentBlock = blocks.find(block => block.type === 'start');
+  while (currentBlock) {
+    orderedBlocks.push(currentBlock);
+    currentBlock = blocks.find(block => block.input === currentBlock.id);
+  }
+  return orderedBlocks;
+};
+
+// Save ordered blocks to local storage
+useEffect(() => {
+  const orderedBlocks = getOrderedBlocks();
+  localStorage.setItem('orderedCanvasBlocks', JSON.stringify(orderedBlocks));
+}, [blocks]);
+
   // Initialize start and end blocks if they don't exist
   useEffect(() => {
     if (!blocks.some((b) => b.type === "start") || !blocks.some((b) => b.type === "end")) {
@@ -126,7 +157,7 @@ export function DndLayout({
       block: (_: any, id: string, dragHandleProps?: any) => (
         <Block
           id={id}
-          title="End"
+          title="Train model"
           color="bg-red-50"
           icon={<div className="w-4 h-4 rounded-full bg-red-500" />}
           dragHandleProps={dragHandleProps}
@@ -255,14 +286,8 @@ export function DndLayout({
     [activeDragItem]
   );
 
-  // Handle drag start
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      const { active } = event
-      const { blockId, origin } = active.data.current ?? {}
-
-      setActiveDragItem(null);
-
       if (event.active.data.current?.type === "block") {
         if (event.active.data.current?.origin === "drawer") {
           let position: null | ((delta: Coordinates) => Coordinates) = null;
@@ -273,7 +298,6 @@ export function DndLayout({
             "clientY" in event.activatorEvent
           ) {
             const { clientX, clientY } = event.activatorEvent as PointerEvent;
-
             const element = document.getElementById(
               `draggable/drawer/${event.active.id}`
             );
@@ -309,7 +333,6 @@ export function DndLayout({
           if (!element) return;
 
           const rect = element.getBoundingClientRect();
-
           setActiveDragItem({
             id: event.active.data.current.blockId,
             type: "block",
@@ -326,6 +349,7 @@ export function DndLayout({
             bounds: { width: rect.width, height: rect.height },
           });
 
+          // Clear connections when dragging
           setBlocks(
             blocks.map((block) => {
               if (block.id === event.active.data.current?.blockId) {
@@ -393,7 +417,7 @@ export function DndLayout({
   // Handle drag end from DndContext
   const handleDrop = useCallback(
     (event: DragEndEvent, activeDragItem: ActiveDragItem | null) => {
-      const { active, over, activatorEvent } = event
+      const { over, activatorEvent } = event
 
       const canvasElement = document.getElementById("canvas-container");
       if (!canvasElement) return;
@@ -406,10 +430,10 @@ export function DndLayout({
       // Handle deletion when dropped on the blocks drawer
       if (
         over?.id === "blocks-drawer" &&
-        active.data.current?.type === "block" &&
-        active.data.current?.origin === "canvas"
+        event.active.data.current?.type === "block" &&
+        event.active.data.current?.origin === "canvas"
       ) {
-        const blockId = active.data.current?.blockId;
+        const blockId = event.active.data.current?.blockId;
         setBlocks(blocks.filter((b) => b.id !== blockId));
         return;
       }
@@ -421,7 +445,7 @@ export function DndLayout({
         clientY + event.delta.y >= rect.top &&
         clientY + event.delta.y <= rect.bottom
       ) {
-        if (active.data.current?.type === "block") {
+        if (event.active.data.current?.type === "block") {
           const position = {
             x:
               (activeDragItem?.currentPosition?.x ?? 0) -
@@ -435,21 +459,21 @@ export function DndLayout({
               3,
           };
 
-          if (active.data.current?.origin === "canvas") {
+          if (event.active.data.current?.origin === "canvas") {
             addBlock({
-              id: active.data.current.blockId,
-              type: active.data.current.blockType,
-              data: active.data.current.blockData,
+              id: event.active.data.current.blockId,
+              type: event.active.data.current.blockType,
+              data: event.active.data.current.blockData,
               position,
               input: activeDragItem?.inputSnapTo ?? null,
               output: activeDragItem?.outputSnapTo ?? null,
             });
-          } else if (active.data.current?.origin === "drawer") {
+          } else if (event.active.data.current?.origin === "drawer") {
             setNextBlockId(nextBlockId + 1);
             addBlock({
               id: `block-${nextBlockId}`,
-              type: active.data.current.blockType,
-              data: extendedBlockRegistry[active.data.current.blockType].createNew(),
+              type: event.active.data.current.blockType,
+              data: extendedBlockRegistry[event.active.data.current.blockType].createNew(),
               position,
               input: activeDragItem?.inputSnapTo ?? null,
               output: activeDragItem?.outputSnapTo ?? null,
@@ -519,12 +543,11 @@ export function DndLayout({
               save={save}
             />
           </RouteBreadcrumb>
-          <div className="flex-1 p-4 space-y-4 flex">
+          <div className="flex-1 p-4 space-y-4 flex flex-col">
             {description && <p>{description}</p>}
-
             <div
               id="canvas-container"
-              className="flex-1 border border-gray-200 rounded-md overflow-hidden"
+              className="flex-1 border border-gray-200 rounded-md overflow-hidden relative"
             >
               <BlocksView
                 blockRegistry={extendedBlockRegistry}

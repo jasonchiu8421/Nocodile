@@ -26,6 +26,7 @@ type BlockProps = {
   children?: ReactNode
   dragHandleProps?: any
   onConnect?: (sourceId: string, targetId: string) => void
+  className?: string
 }
 
 export type BlockViewItem = BlockInstance & {
@@ -61,9 +62,7 @@ export const BlockIO = ({
           </div>
         </div>
       )}
-
       {children}
-
       {type.hasOutput && (
         <div
           className="absolute right-0 top-4 translate-x-4 flex items-center"
@@ -78,14 +77,13 @@ export const BlockIO = ({
           </div>
         </div>
       )}
-
-      {type.hasOutput && (
+      {type.hasOutput && block?.output && (
         <div
           className="absolute right-0 top-4 translate-x-4 flex items-center transition-opacity z-10"
           style={{ opacity: block?.output ? 1 : 0 }}
         >
           <div className="w-4 h-8 bg-gray-300 border-2 border-gray-500 flex items-center justify-center">
-            <ChevronRight className="size-4 text-gray-600 stroke-3" />
+            <ChevronRight className="w-4 h-4 text-gray-600" />
           </div>
         </div>
       )}
@@ -93,23 +91,30 @@ export const BlockIO = ({
   )
 }
 
-export const Block = ({
+export function Block({
   title,
   icon,
   color = "bg-white",
   children,
   dragHandleProps,
-}: BlockProps) => {
+  className,
+}: BlockProps) {
   return (
-    <Card className={`${color} p-5 w-50 shadow-md min-h-16`}>
+    <Card
+      className={cn(
+        "w-[200px] overflow-hidden shadow-md",
+        color,
+        className
+      )}
+    >
       <div
-        className="flex items-center gap-2 font-medium -m-5 p-5 pb-3 !cursor-move"
+        className="flex items-center gap-2 p-2 border-b cursor-move"
         {...dragHandleProps}
       >
         {icon}
-        <span className="whitespace-nowrap">{title}</span>
+        <span className="font-medium text-sm">{title}</span>
       </div>
-      {children}
+      <div className="p-2">{children}</div>
     </Card>
   )
 }
