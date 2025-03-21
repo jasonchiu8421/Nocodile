@@ -30,6 +30,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
 import tensorflow as tf
+from typing import Any, Dict
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,12 +52,12 @@ class TrainRequest(BaseModel):
 
 class ImagePreprocessRequest(BaseModel):
     image_path: str
-    options: Dict[str, any]
+    options: Dict[str, Any]
 
 class TrainingRequest(BaseModel):
     preprocessed_images: List[str]
     labels: List[int]
-    training_options: Dict[str, any] = {
+    training_options: Dict[str, Any] = {
         "learning_rate": 0.001,
         "epochs": 10,
         "optimizer": "adam",  # 可选: "sgd", "adam", "adagrad"

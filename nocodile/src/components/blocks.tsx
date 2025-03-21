@@ -9,6 +9,7 @@ export type BlockType<T> = {
   hasOutput?: boolean
   title: string
   icon: React.ReactNode
+  width?: number
   limit?: number
   createNew: () => T
   block: (data: T, id: string, setData: (data: T) => void, dragHandleProps?: any) => React.ReactElement
@@ -47,7 +48,9 @@ export const BlockIO = ({
   children?: ReactNode
 }) => {
   return (
-    <div id={`draggable/block/${id}`} className="relative cursor-auto w-50">
+    <div id={`draggable/block/${id}`} className="relative cursor-auto" style={{
+      width: type.width ?? 200,
+    }}>
       {type.hasInput && (
         <div
           className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 flex items-center"
@@ -98,12 +101,11 @@ export const Block = ({
   title,
   icon,
   color = "bg-white",
-  width = "w-50",
   children,
   dragHandleProps,
 }: BlockProps) => {
   return (
-    <Card className={`${color} p-5 ${width} shadow-md min-h-16`}>
+    <Card className={`${color} p-5 w-full shadow-md min-h-16`}>
       <div
         className="flex items-center gap-2 font-medium -m-5 p-5 pb-3 !cursor-move"
         {...dragHandleProps}

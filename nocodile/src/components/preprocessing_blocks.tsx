@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils"
 import { AlertCircle, Database, Image, Notebook, NotebookPen, Upload, X } from "lucide-react"
 import { Block, BlockRegistry, BlockType } from "./blocks"
 import { Button } from "./ui/button"
@@ -28,17 +29,21 @@ const EndBlock: BlockType<{}> = {
 }
 
 const ImportDataBlock: BlockType<{
-  images: Record<string, {
-    path: string,
-    status: "uploading" | "success" | "error",
-    progress: number,
-    error?: string
-  }>
+  images: Record<
+    string,
+    {
+      path: string
+      status: "uploading" | "success" | "error"
+      progress: number
+      error?: string
+    }
+  >
 }> = {
   hasInput: true,
   hasOutput: true,
   title: "Import Data",
   icon: <Database className="w-5 h-5" />,
+  width: 300,
   createNew: () => ({ images: {} }),
   block(data, id, setData, dragHandleProps) {
     const uploadFile = async (file: File) => {
@@ -47,7 +52,7 @@ const ImportDataBlock: BlockType<{
       updatedData.images[file.name] = {
         path: "",
         status: "uploading",
-        progress: 0
+        progress: 0,
       }
       setData({ ...updatedData })
 
@@ -58,7 +63,7 @@ const ImportDataBlock: BlockType<{
       try {
         // Use XMLHttpRequest to track upload progress
         const xhr = new XMLHttpRequest()
-        
+
         xhr.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) {
             const progress = Math.round((event.loaded / event.total) * 100)
@@ -66,7 +71,7 @@ const ImportDataBlock: BlockType<{
             if (progressData.images[file.name]) {
               progressData.images[file.name] = {
                 ...progressData.images[file.name],
-                progress
+                progress,
               }
               setData({ ...progressData })
             }
@@ -98,19 +103,19 @@ const ImportDataBlock: BlockType<{
         successData.images[file.name] = {
           path: response.file_path,
           status: "success",
-          progress: 100
+          progress: 100,
         }
         setData({ ...successData })
       } catch (error) {
         console.error(`Error uploading ${file.name}:`, error)
-        
+
         // Update the data with the error
         const errorData = { ...data }
         errorData.images[file.name] = {
           path: "",
           status: "error",
           progress: 0,
-          error: error instanceof Error ? error.message : "Unknown error"
+          error: error instanceof Error ? error.message : "Unknown error",
         }
         setData({ ...errorData })
       }
@@ -156,7 +161,7 @@ const ImportDataBlock: BlockType<{
               <p className="text-sm font-medium">
                 {Object.keys(data.images).length} image{Object.keys(data.images).length !== 1 ? "s" : ""} uploaded
               </p>
-              <div className="mt-2 max-h-60 overflow-y-auto text-left">
+              <div className="mt-2 text-left">
                 <ul className="text-xs text-gray-600 space-y-3">
                   {Object.keys(data.images).map((filename) => {
                     const fileData = data.images[filename]
@@ -165,36 +170,28 @@ const ImportDataBlock: BlockType<{
                         <div className="flex items-center justify-between truncate">
                           <span className="truncate">{filename}</span>
                           <button
-                            className="text-gray-500 hover:text-red-500 transition-colors ml-2 p-1"
+                            className={cn("text-gray-500 not-disabled:hover:text-red-500 transition-colors ml-2 p-1 disabled:!cursor-default")}
                             onClick={() => {
                               // Create a new object without the selected file
                               const { [filename]: _, ...rest } = data.images
                               setData({ ...data, images: rest })
                             }}
                             title="Remove file"
-                            disabled={fileData.status === "uploading"}
+                            disabled={fileData.status !== "error"}
                           >
                             <X className="h-3 w-3" />
                           </button>
                         </div>
-                        
+
                         {/* Progress bar */}
                         <div className="w-full">
                           <Progress value={fileData.progress} className="h-1" />
                         </div>
-                        
+
                         {/* Status indicator */}
                         <div className="flex items-center text-xs">
-                          {fileData.status === "uploading" && (
-                            <span className="text-blue-500">
-                              Uploading... {fileData.progress}%
-                            </span>
-                          )}
-                          {fileData.status === "success" && (
-                            <span className="text-green-500">
-                              Uploaded successfully
-                            </span>
-                          )}
+                          {fileData.status === "uploading" && <span className="text-blue-500">Uploading... {fileData.progress}%</span>}
+                          {fileData.status === "success" && <span className="text-green-500">Uploaded successfully</span>}
                           {fileData.status === "error" && (
                             <div className="flex items-center text-red-500 gap-1">
                               <AlertCircle className="h-3 w-3" />
