@@ -1,22 +1,14 @@
-import { DndLayout } from "@/components/dnd_layout";
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "@/components/blocks";
+import {
+    BlockDrawer,
+    calculateInactiveBlocks,
+} from "@/components/blocks_drawer";
+import { BlockInstance, DndLayout } from "@/components/dnd_layout";
 import { SaveFunction } from "@/components/save_alerts";
-import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { Database } from "lucide-react";
-import { BlockRegistry, BlockType } from "@/components/blocks";
-import { Block } from "@/components/blocks";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  BlockDrawer,
-  calculateInactiveBlocks,
-} from "@/components/blocks_drawer";
-import { Button } from "@/components/ui/button";
-import { BlockInstance } from "@/components/dnd_layout";
+import { useEffect, useState } from "react";
 
 // Define a placeholder block for performance metrics
 const PlaceholderBlock: BlockType<{
@@ -29,8 +21,8 @@ const PlaceholderBlock: BlockType<{
   icon: <Database className="w-5 h-5" />,
   limit: 1,
   createNew: () => ({ field1: "", field2: 0 }),
-  block: (data, id, dragHandleProps) => (
-    <Block
+  block({ data, id, dragHandleProps }) {
+    return <Block
       id={id}
       title="Placeholder"
       icon={<Database className="w-5 h-5" />}
@@ -55,7 +47,7 @@ const PlaceholderBlock: BlockType<{
         />
       </div>
     </Block>
-  ),
+  }
 };
 
 // Layer types
@@ -150,7 +142,7 @@ const ConvolutionBlock: BlockType<{
       }
     ]
   }),
-  block: (data, id, setData, dragHandleProps) => (
+  block: ({data, id, setData, dragHandleProps}) => (
     <Block
       id={id}
       title="Convolution Configuration"
@@ -517,7 +509,7 @@ export default function PerformanceRoute() {
       icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
       limit: 1,
       createNew: () => ({}),
-      block: (_: any, id: string, setData: (data: any) => void, dragHandleProps?: any) => (
+      block: ({id, dragHandleProps}: CreateBlockElementProps<{}>) => (
         <Block
           id={id}
           title="Start"
@@ -534,7 +526,7 @@ export default function PerformanceRoute() {
       icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
       limit: 1,
       createNew: () => ({}),
-      block: (_: any, id: string, setData: (data: any) => void, dragHandleProps?: any) => (
+      block: ({id, dragHandleProps}: CreateBlockElementProps<{}>) => (
         <Block
           id={id}
           title="End"

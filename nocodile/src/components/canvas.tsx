@@ -327,10 +327,10 @@ function BlockFunction({type, block, blocks, setBlocks, props}: {
   setBlocks: (blocks: BlockInstance[]) => void
   props: any
 }) {
-  return type.block(
-    block.data,
-    block.id,
-    (data) => {
+  return type.block({
+    data: block.data,
+    id: block.id,
+    setData: (data) => {
       setBlocks(
         blocks.map((b) => {
           if (block.id === b.id) {
@@ -344,8 +344,8 @@ function BlockFunction({type, block, blocks, setBlocks, props}: {
         })
       )
     },
-    { ...props }
-  )
+    dragHandleProps: { ...props }
+  })
 }
 
 function Minimap({

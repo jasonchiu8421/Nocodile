@@ -418,12 +418,11 @@ export function DndLayout({
   // Convert blocks to the format expected by BlocksView
   const blockViewItems = blocks
     .map((block) => {
-      const blockElement = blockRegistry[block.type]?.block(
-        block.data,
-        block.id,
-        d => {},
-        null
-      )
+      const blockElement = blockRegistry[block.type]?.block({
+        data: block.data,
+        id: block.id,
+        setData: d => {},
+      })
       if (!blockElement) return null
 
       return {
@@ -506,11 +505,11 @@ export function DndLayout({
                   output: activeDragItem.outputSnapTo !== null,
                 }}
               >
-                {blockRegistry[activeDragItem.blockType].block(
-                  activeDragItem.data ?? blockRegistry[activeDragItem.blockType].createNew(),
-                  "drag-overlay",
-                  d => {}
-                )}
+                {blockRegistry[activeDragItem.blockType].block({
+                  data: activeDragItem.data ?? blockRegistry[activeDragItem.blockType].createNew(),
+                  id: "drag-overlay",
+                  setData: () => {}
+                })}
               </BlockIO>
             </div>
           )}

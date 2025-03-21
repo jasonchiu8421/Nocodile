@@ -12,7 +12,7 @@ const StartBlock: BlockType<{}> = {
   icon: <Notebook className="w-5 h-5" />,
   limit: 1,
   createNew: () => ({}),
-  block(_, id, setData, dragHandleProps) {
+  block({ id, dragHandleProps }) {
     return <Block id={id} title="Start" icon={<Notebook className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
 }
@@ -23,7 +23,7 @@ const EndBlock: BlockType<{}> = {
   icon: <NotebookPen className="w-5 h-5" />,
   limit: 1,
   createNew: () => ({}),
-  block(_, id, setData, dragHandleProps) {
+  block({ id, dragHandleProps }) {
     return <Block id={id} title="End" icon={<NotebookPen className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
 }
@@ -45,7 +45,7 @@ const ImportDataBlock: BlockType<{
   icon: <Database className="w-5 h-5" />,
   width: 300,
   createNew: () => ({ images: {} }),
-  block(data, id, setData, dragHandleProps) {
+  block({ data, id, setData, dragHandleProps }) {
     const uploadFile = async (file: File) => {
       // Initialize file in the data structure with uploading status
       const updatedData = { ...data }
@@ -221,7 +221,7 @@ const ResizeFilterBlock: BlockType<{
   title: "Resize Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({ width: 256, height: 256 }),
-  block(data, id, setData, dragHandleProps) {
+  block({ data, id, dragHandleProps }) {
     return (
       <Block id={id} title="Resize Filter" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
         <div className="grid grid-cols-2 gap-2">
@@ -249,7 +249,7 @@ const GrayscaleFilterBlock: BlockType<{}> = {
   title: "Grayscale Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({}),
-  block(_, id, setData, dragHandleProps) {
+  block({ id, dragHandleProps }) {
     return <Block id={id} title="Grayscale Filter" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
 }
@@ -260,7 +260,7 @@ const NormalizeFilterBlock: BlockType<{}> = {
   title: "Normalize Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({}),
-  block(_, id, setData, dragHandleProps) {
+  block({ id, dragHandleProps }) {
     return <Block id={id} title="Normalize Filter" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
 }
@@ -271,7 +271,7 @@ const ShufflingFilterBlock: BlockType<{}> = {
   title: "Shuffling Filter",
   icon: <Image className="w-5 h-5" />,
   createNew: () => ({}),
-  block(_, id, setData, dragHandleProps) {
+  block({ id, dragHandleProps }) {
     return <Block id={id} title="Shuffling Filter" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
 }
@@ -282,7 +282,7 @@ const UploadBlock: BlockType<{}> = {
   title: "Upload",
   icon: <Upload className="w-5 h-5" />,
   createNew: () => ({}),
-  block(_, id, setData, dragHandleProps) {
+  block({ id, dragHandleProps }) {
     return <Block id={id} title="Upload" icon={<Upload className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
 }

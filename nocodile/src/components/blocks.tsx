@@ -4,6 +4,13 @@ import { ChevronRight } from "lucide-react"
 import React, { ReactNode } from "react"
 import { BlockInstance } from "./dnd_layout"
 
+export type CreateBlockElementProps<T> = {
+  data: T
+  id: string
+  setData: (data: T) => void
+  dragHandleProps?: any
+}
+
 export type BlockType<T> = {
   hasInput?: boolean
   hasOutput?: boolean
@@ -12,7 +19,7 @@ export type BlockType<T> = {
   width?: number
   limit?: number
   createNew: () => T
-  block: (data: T, id: string, setData: (data: T) => void, dragHandleProps?: any) => React.ReactElement
+  block: (props: CreateBlockElementProps<T>) => React.ReactElement
 }
 
 export interface BlockRegistry {
