@@ -133,6 +133,7 @@ export function EndBlockComponent({
           disabled={!canRun}
           onClick={() => {
             console.log(`Run ${stage} code`)
+            localStorage.setItem("testingPageVisited", "false");
             step?.()
             completeStep(stage)
           }}

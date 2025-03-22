@@ -551,7 +551,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                 <>
                   <Separator />
                   <p className="text-sm font-medium">
-                    {Object.keys(activeDataset.images).length} image{Object.keys(activeDataset.images).length !== 1 ? "s" : ""} uploaded
+                    {Object.keys(activeDataset.images).length} image{Object.keys(activeDataset.images).length !== 1 ? 's' : ''} uploaded
                   </p>
                   <div className="mt-2 text-left">
                     <ul className="text-xs text-gray-600 space-y-3">
@@ -616,7 +616,7 @@ const ImportDataBlock: BlockType<ImportDataProps> = {
   block: (props) => <ImportDataBlockComponent {...props} />,
 }
 
-const ResizeFilterBlock: BlockType<{
+export const ResizeFilterBlock: BlockType<{
   size: number
 }> = {
   hasInput: true,
@@ -639,7 +639,7 @@ const ResizeFilterBlock: BlockType<{
   },
 }
 
-const GrayscaleFilterBlock: BlockType<{}> = {
+export const GrayscaleFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
   limit: 1,
@@ -651,7 +651,7 @@ const GrayscaleFilterBlock: BlockType<{}> = {
   },
 }
 
-const NormalizeFilterBlock: BlockType<{}> = {
+export const NormalizeFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
   limit: 1,
@@ -663,7 +663,7 @@ const NormalizeFilterBlock: BlockType<{}> = {
   },
 }
 
-const ShufflingFilterBlock: BlockType<{}> = {
+export const ShufflingFilterBlock: BlockType<{}> = {
   hasInput: true,
   hasOutput: true,
   limit: 1,

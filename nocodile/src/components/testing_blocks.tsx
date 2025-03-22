@@ -5,6 +5,12 @@ import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./bloc
 import { Button } from "./ui/button"
 import { SaveFunction, splitChain } from "./save_alerts"
 import { EndBlockComponent } from "./blocks"
+import { 
+  ResizeFilterBlock, 
+  GrayscaleFilterBlock, 
+  NormalizeFilterBlock, 
+  ShufflingFilterBlock 
+} from "./preprocessing_blocks"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_: any, blocks: any) => {
@@ -198,6 +204,10 @@ const DoodlePadBlock: BlockType<DoodlePadProps> = {
 const allBlocks: BlockRegistry = {
   start: StartBlock,
   doodlePad: DoodlePadBlock,
+  resize: ResizeFilterBlock,
+  grayscale: GrayscaleFilterBlock,
+  normalize: NormalizeFilterBlock,
+  shuffling: ShufflingFilterBlock,
   end: EndBlock,
 }
 

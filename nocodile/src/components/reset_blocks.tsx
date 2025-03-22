@@ -2,6 +2,7 @@ import { RotateCcw } from "lucide-react"
 import { BlockInstance } from "./dnd_layout"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog"
 import { Button } from "./ui/button"
+import { useState } from "react"
 
 interface ResetBlocksButtonProps {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
@@ -12,13 +13,19 @@ interface ResetBlocksButtonProps {
 }
 
 export function ResetBlocksButton({ variant = "outline", size = "default", className = "", defaultBlocks, setBlocks }: ResetBlocksButtonProps) {
-  const handleReset = () => {
-    // Reset blocks to default state
-    setBlocks(defaultBlocks())
-  }
+  const [shouldReset, setShouldReset] = useState(false);
+
+  // Use a separate effect to handle the reset action
+  const handleDialogChange = (open: boolean) => {
+    if (!open && shouldReset) {
+      // Reset blocks to default state when dialog closes and shouldReset is true
+      setBlocks(defaultBlocks());
+      setShouldReset(false);
+    }
+  };
 
   return (
-    <AlertDialog>
+    <AlertDialog onOpenChange={handleDialogChange}>
       <AlertDialogTrigger asChild>
         <Button variant={variant} size={size} className={className}>
           <RotateCcw className="h-4 w-4" />
@@ -32,7 +39,7 @@ export function ResetBlocksButton({ variant = "outline", size = "default", class
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
+          <AlertDialogAction onClick={() => setShouldReset(true)}>Reset</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
