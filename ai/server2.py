@@ -662,16 +662,18 @@ def predict(model_path: str, test_path: str):
     return cnn.run_model(X_test)
 
 @app.post("/upload")
-async def upload_image(filename: str):
+async def upload_image(file: UploadFile = File(...)):
     """
     处理图片上传
-
-    raise NotImplementedError
+    """
+    file_location = f"datasets/{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        file_object.write(await file.read())
     
     return {
         "status": "success",
-        "image_path": image_path,
-        "message": f"Successfully saved to {dataset_path}"
+        "file_path": file_location,
+        "message": f"Successfully uploaded {file.filename}"
     }
 
 @app.post("/preprocess")
