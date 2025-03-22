@@ -665,12 +665,12 @@ def predict(model_path: str, test_path: str):
 async def upload_image(filename: str):
     """
     处理图片上传
-    """
-    dataset_path = create_dataset(filename)
+
+    raise NotImplementedError
     
     return {
         "status": "success",
-        "dataset_path": dataset_path,
+        "image_path": image_path,
         "message": f"Successfully saved to {dataset_path}"
     }
 
@@ -680,6 +680,8 @@ async def preprocess(request: ImagePreprocessRequest):
     处理图像预处理请求
     """
     try:
+        """
+        dataset_path = create_dataset(filename)
         preprocessed_path = preprocess_image(request.dataset_path, request.options)
         
         # 读取预处理后的图像并转换为base64
