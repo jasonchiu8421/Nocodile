@@ -24,12 +24,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, Activation, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop, Adagrad, Adadelta, Nadam, Ftrl
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
-import tensorflow as tf
+from io import BytesIO
+from PIL import Image
+from sklearn.metrics import accuracy_score
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -108,6 +110,24 @@ class DatasetCreator:
             self.images = np.array(self.images)
 
         return self.images, self.labels
+    
+    def load_images(self):
+        # List all files in the folder
+        image_files = [f for f in os.listdir(self.base_folder) if f.endswith(('png', 'jpg', 'jpeg'))]
+        images_array = []
+        for image_file in image_files:
+            # Open an image file
+            img_path = os.path.join(self.base_folder, image_file)
+            with Image.open(img_path) as img:
+                images_array.append(np.array(img))
+        self.images = np.array(images_array)
+        return self.images
+        
+    def load_images(self, file_path):
+        # Create an HDF5 file
+        with h5py.File(file_path, 'w') as h5_file:                    
+            # Create a dataset in the HDF5 file
+            h5_file.create_dataset(file_path, data=self.images)
 
     def save_dataset(self, file_path=None):
         # Create dataset filename if not specified
@@ -155,6 +175,15 @@ class Dataset:
         self.images = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
         self.labels = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
         return self.images, self.labels
+    
+    def load_images(self, filename):
+        if filename.endswith('.csv'):
+            images = pd.read_csv(images)
+            self.images = np.array(images)
+        elif filename.endswith(".h5"):
+            with h5py.File(filename, 'r') as h5f:
+                self.images = h5f['images'][:]
+        return self.images
 
     def get_filename(self):
         return self.filename
@@ -287,22 +316,26 @@ class Preprocessing:
         dataset.save_dataset(filename, images, labels)
 
 class CNN:
-    def __init__(self, X=None, y=None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
+    def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
         self.X = X
         self.y = y
-        self.model = None
+        self.model = model
         self.hist = None
         self.batches = None
         self.val_batches = None
-        self.layers=layers
-        self.optimizer=optimizer
-        self.loss=loss
-        self.metrics=metrics
-        self.lr=lr
-        self.epochs=epochs
-        self.batch_size=batch_size
-        self.method=method
-        self.kFold_k=kFold_k
+        self.layers = layers
+        self.optimizer = optimizer
+        self.loss = loss
+        self.metrics = metrics
+        self.lr = lr
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.method = method
+        self.kFold_k = kFold_k
+        self.loss_graph = []
+        self.accuracy_graph = []
+        self.loss_data = []
+        self.accuracy_data = []
 
     def train_model(self):
         self.y = to_categorical(self.y)
@@ -314,6 +347,8 @@ class CNN:
             self._kFold_validation_approach()
         else:
             raise ValueError(f"Invalid method '{self.method}'. Expected one of: 'train_test', 'train_test_val', 'kFold_val'.")
+
+        return self.model
 
     def _standardize(self, x):
         mean_px = self.X.mean().astype(np.float32)
@@ -387,12 +422,12 @@ class CNN:
             self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
 
     def _custom_model(self):
-        self.model= Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
+        self.model = Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
         for layer in self.layers:
             self._add_layer(layer)
 
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
-            
+
         self.model.optimizer.lr=self.lr
         
         self.hist = self.model.fit(
@@ -439,6 +474,20 @@ class CNN:
         val_acc_values = history_dict['val_accuracy']
         epochs = range(1, len(loss_values) + 1)
 
+        # Save the loss and validation loss
+        self.loss_data = pd.DataFrame({
+            'Epoch': epochs,
+            'Loss': loss_values,
+            'Val_Loss': val_loss_values
+        })
+
+        # Save the accuracy and validation accuracy
+        self.accuracy_data = pd.DataFrame({
+            'Epoch': epochs,
+            'Accuracy': acc_values,
+            'Val_Accuracy': val_acc_values
+        })
+
         # Create a figure for loss
         plt.figure(figsize=(6, 5))
         plt.plot(epochs, loss_values, 'bo', label='Training Loss')
@@ -450,9 +499,15 @@ class CNN:
         plt.ylim(0, 1)
 
         # Save the loss figure
+        buf = BytesIO()
         plt.tight_layout()
-        plt.savefig('loss_plot.png')
+        plt.savefig(buf, format='png')
         plt.close()
+
+        # Convert the BytesIO object to a NumPy array
+        buf.seek(0)  # Move to the beginning of the BytesIO object
+        image = Image.open(buf)
+        self.loss_graph.append(image)
 
         # Create a figure for accuracy
         plt.figure(figsize=(6, 5))
@@ -465,12 +520,32 @@ class CNN:
         plt.ylim(0, 1)
 
         # Save the accuracy figure
+        buf = BytesIO()
         plt.tight_layout()
-        plt.savefig('accuracy_plot.png')
+        plt.savefig(buf, format='png')
         plt.close()
+
+        # Convert the BytesIO object to a NumPy array
+        buf.seek(0)  # Move to the beginning of the BytesIO object
+        image = Image.open(buf)
+        self.accuracy_graph.append(image)
     
     def _plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
         epochs = range(1, len(avg_loss) + 1)
+
+        # Save the loss and validation loss
+        self.loss_data = pd.DataFrame({
+            'Epoch': epochs,
+            'Loss': avg_loss,
+            'Val_Loss': avg_val_loss
+        })
+
+        # Save the accuracy and validation accuracy
+        self.accuracy_data = pd.DataFrame({
+            'Epoch': epochs,
+            'Accuracy': avg_acc,
+            'Val_Accuracy': avg_val_acc
+        })
 
         # Create a figure for loss
         plt.figure(figsize=(6, 5))
@@ -483,9 +558,15 @@ class CNN:
         plt.ylim(0, 1)
 
         # Save the loss figure
+        buf = BytesIO()
         plt.tight_layout()
-        plt.savefig('loss_plot.png')
+        plt.savefig(buf, format='png')
         plt.close()
+
+        # Convert the BytesIO object to a NumPy array
+        buf.seek(0)  # Move to the beginning of the BytesIO object
+        image = Image.open(buf)
+        self.loss_graph.append(image)
 
         # Create a figure for accuracy
         plt.figure(figsize=(6, 5))
@@ -498,18 +579,35 @@ class CNN:
         plt.ylim(0, 1)
 
         # Save the accuracy figure
+        buf = BytesIO()
         plt.tight_layout()
-        plt.savefig('accuracy_plot.png')
+        plt.savefig(buf, format='png')
         plt.close()
 
+        # Convert the BytesIO object to a NumPy array
+        buf.seek(0)  # Move to the beginning of the BytesIO object
+        image = Image.open(buf)
+        self.accuracy_graph.append(image)
+
     def load_model(self, filename):
-        self.model = tf.keras.models.load_model(filename)
+        self.model = load_model(filename)
       
     def run_model(self, X_test):
         X_test = X_test.reshape(len(X_test), 28, 28, 1).astype('float32')
         predictions = self.model.predict(X_test, verbose=1)
         predicted_class = np.argmax(predictions, axis=1)
         return predicted_class
+    
+    def test_model(self, X_test, y_test):
+        y_predict = self.run_model(X_test)
+        accuracy = accuracy_score(y_test, y_predict)
+        return accuracy
+
+    def get_performance_graphs(self):
+        return self.loss_graph, self.accuracy_graph
+
+    def get_performance_data(self):
+        return self.loss_data, self.accuracy_data
 
 def save_images_to_folder(image_dict: Dict[str, str]) -> List[str]:
     """
@@ -626,7 +724,7 @@ def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
 
     return output_paths
 
-def train_model(filename: str, training_options: Dict[str, any]):
+def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
     """
     训练CNN模型
     
@@ -651,29 +749,40 @@ def train_model(filename: str, training_options: Dict[str, any]):
     # 保存模型
     model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
     model.save(model_path)
-    
-    return model_path
 
-def predict(model_path: str, test_path: str):
+    loss_graph, accuracy_graph = cnn.get_performance_graphs()
+    loss_data, accuracy_data = cnn.get_performance_data()
+    
+    return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
+            "accuracy data": accuracy_data, "loss data": loss_data}
+
+def predict(model_path: str, data_path: str):
     cnn = CNN()
     cnn.load_model(model_path)
-    X_test = pd.read_csv(test_path)
-    X_test = np.array(X_test)
-    return cnn.run_model(X_test)
+    dataset = Dataset()
+    X_test = dataset.load_images(data_path)
+    predictions = cnn.run_model(X_test)
+    return predictions
+
+def test_model(model_path: str, data_path: str):
+    cnn = CNN()
+    cnn.load_model(model_path)
+    dataset = Dataset()
+    X_test, y_test = dataset.load_saved_dataset(data_path)
+    accuracy = cnn.test_model(X_test, y_test)
+    return accuracy
 
 @app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(filename: str):
     """
     处理图片上传
     """
-    file_location = f"datasets/{file.filename}"
-    with open(file_location, "wb+") as file_object:
-        file_object.write(await file.read())
+    dataset_path = create_dataset(filename)
     
     return {
         "status": "success",
-        "file_path": file_location,
-        "message": f"Successfully uploaded {file.filename}"
+        "dataset_path": dataset_path,
+        "message": f"Successfully saved to {dataset_path}"
     }
 
 @app.post("/preprocess")
@@ -682,8 +791,6 @@ async def preprocess(request: ImagePreprocessRequest):
     处理图像预处理请求
     """
     try:
-        """
-        dataset_path = create_dataset(filename)
         preprocessed_path = preprocess_image(request.dataset_path, request.options)
         
         # 读取预处理后的图像并转换为base64
@@ -727,6 +834,25 @@ async def train(request: TrainingRequest):
         )
 
 @app.post("/predict")
+async def predict(request: PredictionRequest):
+    """
+    处理预测请求，返回预测的数字和每个数字的概率分布
+    """
+    try:
+        accuracy = test_model(request.model_path, request.data_path)
+        
+        return {
+            "status": "success",
+            "model accuracy": accuracy
+            }
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+    
+@app.post("/test")
 async def predict(request: PredictionRequest):
     """
     处理预测请求，返回预测的数字和每个数字的概率分布
