@@ -48,9 +48,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class TrainRequest(BaseModel):
-    dataset: Dict[str, str]
-
 class ImagePreprocessRequest(BaseModel):
     dataset_path: str
     options: Dict[str, any] = {
