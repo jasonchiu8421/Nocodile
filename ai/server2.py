@@ -772,8 +772,8 @@ def test_model(model_path: str, data_path: str):
     accuracy = cnn.test_model(X_test, y_test)
     return accuracy
 
-@app.post("/upload")
-async def upload_image(filename: str):
+@app.post("/input_data")
+async def input_data(filename: str):
     """
     处理图片上传
     """
