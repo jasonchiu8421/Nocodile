@@ -2,9 +2,10 @@ import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState, WheelEvent } from "react"
-import { BlockIO, BlockRegistry, BlockViewItem } from "./blocks"
-import { Button } from "./ui/button"
+import { BlockIO, BlockRegistry, BlockType, BlockViewItem } from "./blocks"
 import { BlockInstance } from "./dnd_layout"
+import { Button } from "./ui/button"
+import { BlockChain, splitChain } from "./save_alerts"
 
 // Draggable block component for the canvas
 export function DraggableBlock({ block, children }: { block: BlockViewItem; children: (dragHandleProps: any) => React.ReactNode }) {
@@ -17,6 +18,7 @@ export function DraggableBlock({ block, children }: { block: BlockViewItem; chil
       blockType: block.type,
       blockData: block.data,
       blockPosition: block.position,
+      data: block.data,
     },
   })
 
@@ -48,11 +50,12 @@ export function DroppableCanvas({ children }: { children: React.ReactNode }) {
 type BlocksViewProps = {
   blockRegistry: BlockRegistry
   blocks: BlockViewItem[]
+  setBlocks: (blocks: BlockInstance[]) => void
   onMove: (position: { x: number; y: number }) => void
   onZoom?: (scale: number) => void
 }
 
-export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksViewProps) {
+export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }: BlocksViewProps) {
   const dndContext = useDndContext()
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -60,6 +63,7 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
   const [scale, setScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const chains = splitChain(blocks)
 
   // Canvas boundary limits
   const [canvasLimits, setCanvasLimits] = useState({
@@ -95,7 +99,6 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
 
   useEffect(() => {
     setRealLimits(calculateRealLimits())
-    console.log("realLimits", realLimits)
   }, [calculateRealLimits])
 
   useEffect(() => {
@@ -130,8 +133,6 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
         x: constrainedX,
         y: constrainedY,
       })
-
-      console.log(position)
     }
   }
 
@@ -268,8 +269,8 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
                 className="absolute block-item"
                 style={{
                   display: block.visible ? "block" : "none",
-                  left: block.position.x,
-                  top: block.position.y,
+                  left: block.position?.x ?? 0,
+                  top: block.position?.y ?? 0,
                 }}
                 ref={(node) => {
                   if (node) {
@@ -286,7 +287,7 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
                     if (!type) return null
                     return (
                       <BlockIO id={block.id} type={type} block={block}>
-                        {type.block(block.data, block.id, { ...props })}
+                        <BlockFunction type={type} block={block} blocks={blocks} chains={chains} setBlocks={setBlocks} props={props}/>
                       </BlockIO>
                     )
                   }}
@@ -321,6 +322,42 @@ export function BlocksView({ blockRegistry, blocks, onMove, onZoom }: BlocksView
   )
 }
 
+function BlockFunction({type, block, blocks, chains, setBlocks, props}: {
+  type: BlockType<any>,
+  block: BlockInstance,
+  blocks: BlockInstance[],
+  chains: BlockChain[],
+  setBlocks: (blocks: BlockInstance[]) => void
+  props: any
+}) {
+  const chain = chains.find(chain => chain.find(b => b.id === block.id))
+  return type.block({
+    data: block.data,
+    id: block.id,
+    setData: (data) => {
+      setBlocks(
+        blocks.map((b) => {
+          if (block.id === b.id) {
+            return {
+              ...b,
+              data: { ...data },
+            }
+          } else {
+            return b
+          }
+        })
+      )
+    },
+    chain: chain ? {
+      entire: chain,
+      before: chain.slice(0, chain.findIndex(b => b.id === block.id)),
+      after: chain.slice(chain.findIndex(b => b.id === block.id) + 1),
+    } : undefined,
+    blocks,
+    dragHandleProps: { ...props }
+  })
+}
+
 function Minimap({
   blocks,
   realLimits,
@@ -349,8 +386,8 @@ function Minimap({
               key={`minimap-${block.id}`}
               className="absolute bg-zinc-200 rounded border border-zinc-300"
               style={{
-                left: `${((block.position.x + realLimits.maxX + (containerRef.current?.clientWidth || 0) / 2) / (canvasLimits.maxX - canvasLimits.minX + (containerRef.current?.clientWidth || 0))) * 100}%`,
-                top: `${((block.position.y + realLimits.maxY + (containerRef.current?.clientHeight || 0) / 2) / (canvasLimits.maxY - canvasLimits.minY + (containerRef.current?.clientHeight || 0))) * 100}%`,
+                left: `${((block.position?.x ?? 0) + realLimits.maxX + (containerRef.current?.clientWidth || 0) / 2) / (canvasLimits.maxX - canvasLimits.minX + (containerRef.current?.clientWidth || 0)) * 100}%`,
+                top: `${((block.position?.y ?? 0) + realLimits.maxY + (containerRef.current?.clientHeight || 0) / 2) / (canvasLimits.maxY - canvasLimits.minY + (containerRef.current?.clientHeight || 0)) * 100}%`,
                 width: `${((blockRefs.current.get(block.id)?.clientWidth || 0) / (canvasLimits.maxX - canvasLimits.minX) / scale) * 100}%`,
                 height: `${((blockRefs.current.get(block.id)?.clientHeight || 0) / (canvasLimits.maxY - canvasLimits.minY) / scale) * 100}%`,
                 transform: "translate(-50%, -50%)",

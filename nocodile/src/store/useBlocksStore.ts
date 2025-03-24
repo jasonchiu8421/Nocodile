@@ -1,23 +1,22 @@
-import { create } from "zustand"
+import { calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance } from "@/components/dnd_layout"
 import allBlocks from "@/components/preprocessing_blocks"
-import { calculateInactiveBlocks } from "@/components/blocks_drawer"
+import { allTrainingBlocks } from "@/routes/training"
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
 interface BlocksState {
-  // Blocks currently on the canvas
-  blocks: BlockInstance[]
-  // Blocks that are inactive (not available to be added)
-  inactiveBlocks: string[]
-  // Actions
-  setBlocks: (blocks: BlockInstance[]) => void
-  addBlock: (blockType: string) => void
-  removeBlock: (id: string) => void
-  updateBlockData: (id: string, data: any) => void
-  connectBlock: (block: BlockInstance) => void
+  preprocessingBlocks: BlockInstance[]
+  inactivePreprocessingBlocks: string[]
+  setPreprocessingBlocks: (blocks: BlockInstance[]) => void
+
+  trainingBlocks: BlockInstance[]
+  inactiveTrainingBlocks: string[]
+  setTrainingBlocks: (blocks: BlockInstance[]) => void
 }
 
-export const useBlocksStore = create<BlocksState>((set) => ({
-  blocks: [
+export function defaultPreprocessingBlocks() {
+  return [
     {
       id: "block-1",
       type: "start",
@@ -34,78 +33,53 @@ export const useBlocksStore = create<BlocksState>((set) => ({
       input: "block-1",
       output: null,
     },
-  ],
-  inactiveBlocks: calculateInactiveBlocks(allBlocks, []),
+  ]
+}
 
-  setBlocks: (blocks) =>
-    set(() => ({
-      blocks,
-      inactiveBlocks: calculateInactiveBlocks(allBlocks, blocks),
-    })),
+export function defaultTrainingBlocks() {
+  return [
+    {
+      id: "block-1",
+      type: "start",
+      data: {},
+      position: { x: 100, y: 100 },
+      input: null,
+      output: null,
+    },
+    {
+      id: "block-2",
+      type: "end",
+      data: {},
+      position: { x: 500, y: 100 },
+      input: null,
+      output: null,
+    },
+  ]
+}
 
-  addBlock: (blockType) =>
-    set((state) => {
-      const newBlock: BlockInstance = {
-        id: `${blockType}-${Date.now()}`,
-        type: blockType,
-        data: allBlocks[blockType].createNew(),
-        position: { x: 100, y: 100 },
-        input: null,
-        output: null,
-      }
+export const useBlocksStore = create<BlocksState>()(
+  persist(
+    (set) => ({
+      preprocessingBlocks: defaultPreprocessingBlocks(),
+      inactivePreprocessingBlocks: calculateInactiveBlocks(allBlocks, []),
 
-      const updatedBlocks = [...state.blocks, newBlock]
+      setPreprocessingBlocks: (blocks) =>
+        set(() => ({
+          preprocessingBlocks: blocks,
+          inactivePreprocessingBlocks: calculateInactiveBlocks(allBlocks, blocks),
+        })),
 
-      return {
-        blocks: updatedBlocks,
-        inactiveBlocks: calculateInactiveBlocks(allBlocks, updatedBlocks),
-      }
+      trainingBlocks: defaultTrainingBlocks(),
+      inactiveTrainingBlocks: calculateInactiveBlocks(allTrainingBlocks, []),
+
+      setTrainingBlocks: (blocks) =>
+        set(() => ({
+          trainingBlocks: blocks,
+          inactiveTrainingBlocks: calculateInactiveBlocks(allTrainingBlocks, blocks),
+        })),
     }),
-
-  removeBlock: (id) =>
-    set((state) => {
-      const updatedBlocks = state.blocks.filter((block) => block.id !== id)
-
-      return {
-        blocks: updatedBlocks,
-        inactiveBlocks: calculateInactiveBlocks(allBlocks, updatedBlocks),
-      }
-    }),
-
-  updateBlockData: (id, data) =>
-    set((state) => ({
-      blocks: state.blocks.map((block) =>
-        block.id === id ? { ...block, data: { ...block.data, ...data } } : block
-      ),
-    })),
-
-  connectBlock: (block) =>
-    set((state) => ({
-      blocks: [
-        ...state.blocks
-          .filter((b) => b.id !== block.id)
-          .map((b) => {
-            if (b.id === block.input) {
-              return {
-                ...b,
-                input: b.input === block.id ? null : b.input,
-                output: block.id,
-              }
-            } else if (b.id === block.output) {
-              return {
-                ...b,
-                input: block.id,
-                output: b.output === block.id ? null : b.output,
-              }
-            }
-
-            return {
-              ...b,
-              input: b.input === block.id ? null : b.input,
-              output: b.output === block.id ? null : b.output,
-            }
-          }),
-        block,
-      ],
-    })),
-}))
+    {
+      name: "nocodile-blocks-storage",
+    }
+  )
+)
