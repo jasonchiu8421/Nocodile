@@ -1,2 +1,6 @@
 .venv
 datasets
+
+# uv trash
+uv.lock
+pyproject.toml
