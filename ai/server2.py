@@ -58,6 +58,9 @@ class ImagePreprocessRequest(BaseModel):
         "save_option": "one image per class"
     }
 
+class TrainRequest(BaseModel):
+    dataset: Dict[str, str]
+
 class TrainingRequest(BaseModel):
     preprocessed_images: List[str]
     labels: List[int]
