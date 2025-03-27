@@ -31,17 +31,16 @@ Instructions on how to install and set up the software:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/jasonchiu8421/Assemble.git
+   git clone https://github.com/jasonchiu8421/Nocodile.git
    ```
 2. Navigate to the project directory:
    ```bash
-   cd Assemble
+   cd Nocodile
    ```
 3. Install the required dependencies:
    ```bash
-   npm install
    cd nocodile
-   npm i
+   npm install
    ```
 
 ## Usage
@@ -50,7 +49,7 @@ Basic usage instructions with examples:
 
 1. Start the app:
    ```bash
-   npm start
+   npm run dev
    ```
 2. Follow the on-screen instructions to create your first AI model.
 
