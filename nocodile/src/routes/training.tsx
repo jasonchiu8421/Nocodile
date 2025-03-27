@@ -4,9 +4,13 @@ import { DndLayout } from "@/components/dnd_layout"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { Database } from "lucide-react"
+import { Database, Plus } from "lucide-react"
 
 // Layer types
 type KernelSize = [number, number]
@@ -148,53 +152,60 @@ const ConvolutionBlock: BlockType<{
   }),
   block: ({ id, data, setData, dragHandleProps }) => (
     <Block id={id} title="Convolution" icon={<Database className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
-      <div className="space-y-4 p-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Approach</label>
-          <select value={data.approach} onChange={(e) => setData({ ...data, approach: e.target.value })} className="w-full p-2 border rounded">
-            <option value="train_test">Train test</option>
-            <option value="train_test_val">Train test validation</option>
-            <option value="kFold_val">K fold validation</option>
-          </select>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="approach">Approach</Label>
+          <Select value={data.approach} onValueChange={(value) => setData({ ...data, approach: value })}>
+            <SelectTrigger id="approach" className="w-full">
+              <SelectValue placeholder="Select approach" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="train_test">Train test</SelectItem>
+              <SelectItem value="train_test_val">Train test validation</SelectItem>
+              <SelectItem value="kFold_val">K fold validation</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {data.approach === "kFold_val" && (
-          <div>
-            <label className="block text-sm font-medium mb-1">K-Fold K Value</label>
-            <input type="number" value={data.kFold_k} onChange={(e) => setData({ ...data, kFold_k: parseInt(e.target.value) })} min="2" className="w-full p-2 border rounded" />
+          <div className="space-y-2">
+            <Label htmlFor="kFold_k">K-Fold K Value</Label>
+            <Input id="kFold_k" type="number" value={data.kFold_k.toString()} onChange={(e) => setData({ ...data, kFold_k: parseInt(e.target.value) })} min={2} />
           </div>
         )}
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Layers</label>
-          <Accordion type="multiple" className="space-y-2">
+        <div className="space-y-2">
+          <Label htmlFor="layers">Layers</Label>
+          <Accordion type="single" className="space-y-2 mt-1" collapsible>
             {data.layers.map((layer, index) => (
-              <AccordionItem key={index} value={`layer-${index}`} className="border rounded">
+              <AccordionItem key={index} value={`layer-${index}`} className="!border rounded-lg">
                 <AccordionTrigger className="px-3 py-2 hover:no-underline">
                   <div className="flex justify-between w-full items-center">
                     <span>{layer.type}</span>
-                    <button
+                    <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation() // Prevent accordion from toggling
                         const newLayers = [...data.layers]
                         newLayers.splice(index, 1)
                         setData({ ...data, layers: newLayers })
                       }}
-                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                      className="h-7 px-2 py-1 text-xs"
                     >
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-3 py-2">
+                <AccordionContent className="p-3">
                   <div className="space-y-2">
-                    <select
+                    <Label htmlFor={`layer-type-${index}`}>Type</Label>
+                    <Select
                       value={layer.type}
-                      onChange={(e) => {
-                        const newType = e.target.value
+                      onValueChange={(value) => {
                         let newLayer: Layer
 
-                        switch (newType) {
+                        switch (value) {
                           case "Activation":
                             newLayer = { type: "Activation", activation: "relu" }
                             break
@@ -219,133 +230,62 @@ const ConvolutionBlock: BlockType<{
                           case "Flatten":
                             newLayer = { type: "Flatten" }
                             break
+                          case "Dropout":
+                            newLayer = { type: "Dropout", rate: 0.5, activation: "relu" }
+                            break
+                          case "Dense":
+                            newLayer = { type: "Dense", units: 128, activation: "relu" }
+                            break
                           default:
-                            return
+                            newLayer = { type: "Conv2D", filters: 32, kernelSize: [3, 3], activation: "relu" }
                         }
+
                         const newLayers = [...data.layers]
                         newLayers[index] = newLayer
                         setData({ ...data, layers: newLayers })
                       }}
-                      className="w-full p-2 border rounded"
                     >
-                      <option value="Activation">Activation</option>
-                      <option value="Conv2D">Conv2D</option>
-                      <option value="MaxPooling2D">MaxPooling2D</option>
-                      <option value="GlobalMaxPooling2D">GlobalMaxPooling2D</option>
-                      <option value="AveragePooling2D">AveragePooling2D</option>
-                      <option value="GlobalAveragePooling2D">GlobalAveragePooling2D</option>
-                      <option value="BatchNormalization">BatchNormalization</option>
-                      <option value="Flatten">Flatten</option>
-                    </select>
-
-                    {layer.type === "Conv2D" && (
-                      <div className="space-y-2">
-                        <input
-                          type="number"
-                          value={layer.filters}
-                          onChange={(e) => {
-                            const newLayers = [...data.layers]
-                            newLayers[index] = { ...layer, filters: parseInt(e.target.value) }
-                            setData({ ...data, layers: newLayers })
-                          }}
-                          placeholder="Number of filters"
-                          className="w-full p-2 border rounded"
-                        />
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            value={layer.kernelSize[0]}
-                            onChange={(e) => {
-                              const newLayers = [...data.layers]
-                              newLayers[index] = {
-                                ...layer,
-                                kernelSize: [parseInt(e.target.value), layer.kernelSize[1]],
-                              }
-                              setData({ ...data, layers: newLayers })
-                            }}
-                            placeholder="Kernel size X"
-                            className="w-1/2 p-2 border rounded"
-                          />
-                          <input
-                            type="number"
-                            value={layer.kernelSize[1]}
-                            onChange={(e) => {
-                              const newLayers = [...data.layers]
-                              newLayers[index] = {
-                                ...layer,
-                                kernelSize: [layer.kernelSize[0], parseInt(e.target.value)],
-                              }
-                              setData({ ...data, layers: newLayers })
-                            }}
-                            placeholder="Kernel size Y"
-                            className="w-1/2 p-2 border rounded"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {(layer.type === "Conv2D" || layer.type === "Activation") && (
-                      <select
-                        value={layer.activation}
-                        onChange={(e) => {
-                          const newLayers = [...data.layers]
-                          newLayers[index] = { ...layer, activation: e.target.value as ActivationType }
-                          setData({ ...data, layers: newLayers })
-                        }}
-                        className="w-full p-2 border rounded"
-                      >
-                        <option value="relu">ReLU</option>
-                        <option value="softmax">Softmax</option>
-                        <option value="tanh">Tanh</option>
-                      </select>
-                    )}
-
-                    {(layer.type === "MaxPooling2D" || layer.type === "AveragePooling2D") && (
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          value={layer.poolSize[0]}
-                          onChange={(e) => {
-                            const newLayers = [...data.layers]
-                            newLayers[index] = {
-                              ...layer,
-                              poolSize: [parseInt(e.target.value), layer.poolSize[1]],
-                            }
-                            setData({ ...data, layers: newLayers })
-                          }}
-                          placeholder="Pool size X"
-                          className="w-1/2 p-2 border rounded"
-                        />
-                        <input
-                          type="number"
-                          value={layer.poolSize[1]}
-                          onChange={(e) => {
-                            const newLayers = [...data.layers]
-                            newLayers[index] = {
-                              ...layer,
-                              poolSize: [layer.poolSize[0], parseInt(e.target.value)],
-                            }
-                            setData({ ...data, layers: newLayers })
-                          }}
-                          placeholder="Pool size Y"
-                          className="w-1/2 p-2 border rounded"
-                        />
-                      </div>
-                    )}
+                      <SelectTrigger id={`layer-type-${index}`} className="w-full">
+                        <SelectValue placeholder="Select layer type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Activation">Activation</SelectItem>
+                        <SelectItem value="Conv2D">Conv2D</SelectItem>
+                        <SelectItem value="MaxPooling2D">MaxPooling2D</SelectItem>
+                        <SelectItem value="GlobalMaxPooling2D">GlobalMaxPooling2D</SelectItem>
+                        <SelectItem value="AveragePooling2D">AveragePooling2D</SelectItem>
+                        <SelectItem value="GlobalAveragePooling2D">GlobalAveragePooling2D</SelectItem>
+                        <SelectItem value="BatchNormalization">BatchNormalization</SelectItem>
+                        <SelectItem value="Flatten">Flatten</SelectItem>
+                        <SelectItem value="Dropout">Dropout</SelectItem>
+                        <SelectItem value="Dense">Dense</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              onClick={() => {
+                setData({
+                  ...data,
+                  layers: [
+                    ...data.layers,
+                    {
+                      type: "Conv2D",
+                      filters: 32,
+                      kernelSize: [3, 3],
+                      activation: "relu",
+                    },
+                  ],
+                })
+              }}
+            >
+              <Plus className="h-4 w-4" /> Add Layer
+            </Button>
           </Accordion>
-          <button
-            onClick={() => {
-              const newLayer = { type: "Conv2D", filters: 32, kernelSize: [3, 3], activation: "relu" } as Conv2DLayer
-              setData({ ...data, layers: [...data.layers, newLayer] })
-            }}
-            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Add Layer
-          </button>
         </div>
       </div>
     </Block>
@@ -388,167 +328,188 @@ const ClassificationBlock: BlockType<{
   }),
   block: ({ id, data, setData, dragHandleProps }) => (
     <Block id={id} title="Classification" icon={<Database className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
-      <div className="space-y-4 p-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Layers</label>
-          <Accordion type="multiple" className="space-y-2">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="layers">Layers</Label>
+          <Accordion type="single" className="space-y-2 mt-1" collapsible>
             {data.layers.map((layer, index) => (
-              <AccordionItem key={index} value={`layer-${index}`} className="border rounded">
+              <AccordionItem key={index} value={`layer-${index}`} className="!border rounded-lg">
                 <AccordionTrigger className="px-3 py-2 hover:no-underline">
                   <div className="flex justify-between w-full items-center">
                     <span>{layer.type}</span>
-                    <button
+                    <Button
+                      variant="destructive"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation() // Prevent accordion from toggling
                         const newLayers = [...data.layers]
                         newLayers.splice(index, 1)
                         setData({ ...data, layers: newLayers })
                       }}
-                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                      className="h-7 px-2 py-1 text-xs"
                     >
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-3 py-2">
+                <AccordionContent className="p-3 space-y-2">
+                <Label htmlFor={`layer-type-${index}`}>Type</Label>
+                  <Select
+                    value={layer.type}
+                    onValueChange={(value) => {
+                      let newLayer: Layer
+
+                      switch (value) {
+                        case "Dense":
+                          newLayer = { type: "Dense", units: 512, activation: "relu" }
+                          break
+                        case "Dropout":
+                          newLayer = { type: "Dropout", rate: 0.3, activation: "relu" }
+                          break
+                        default:
+                          return
+                      }
+                      const newLayers = [...data.layers]
+                      newLayers[index] = newLayer
+                      setData({ ...data, layers: newLayers })
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select layer type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Dense">Dense</SelectItem>
+                      <SelectItem value="Dropout">Dropout</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {layer.type === "Dense" && (
+                    <div className="space-y-2">
+                      <Label htmlFor={`units-${index}`}>Units</Label>
+                      <Input
+                        id={`units-${index}`}
+                        type="number"
+                        value={(layer as DenseLayer).units.toString()}
+                        onChange={(e) => {
+                          const newLayers = [...data.layers]
+                          newLayers[index] = { ...layer, units: parseInt(e.target.value) }
+                          setData({ ...data, layers: newLayers })
+                        }}
+                        placeholder="Number of units"
+                      />
+                    </div>
+                  )}
+
+                  {layer.type === "Dropout" && (
+                    <div className="space-y-2">
+                      <Label htmlFor={`rate-${index}`}>Rate</Label>
+                      <Input
+                        id={`rate-${index}`}
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="1"
+                        value={(layer as DropoutLayer).rate.toString()}
+                        onChange={(e) => {
+                          const newLayers = [...data.layers]
+                          newLayers[index] = { ...layer, rate: parseFloat(e.target.value) }
+                          setData({ ...data, layers: newLayers })
+                        }}
+                        placeholder="Dropout rate"
+                      />
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <select
-                      value={layer.type}
-                      onChange={(e) => {
-                        const newType = e.target.value
-                        let newLayer: Layer
-
-                        switch (newType) {
-                          case "Dense":
-                            newLayer = { type: "Dense", units: 512, activation: "relu" }
-                            break
-                          case "Dropout":
-                            newLayer = { type: "Dropout", rate: 0.3, activation: "relu" }
-                            break
-                          default:
-                            return
-                        }
-                        const newLayers = [...data.layers]
-                        newLayers[index] = newLayer
-                        setData({ ...data, layers: newLayers })
-                      }}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="Dense">Dense</option>
-                      <option value="Dropout">Dropout</option>
-                    </select>
-
-                    {layer.type === "Dense" && (
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium mb-1">Units</label>
-                        <input
-                          type="number"
-                          value={(layer as DenseLayer).units}
-                          onChange={(e) => {
-                            const newLayers = [...data.layers]
-                            newLayers[index] = { ...layer, units: parseInt(e.target.value) }
-                            setData({ ...data, layers: newLayers })
-                          }}
-                          placeholder="Number of units"
-                          className="w-full p-2 border rounded"
-                        />
-                      </div>
-                    )}
-
-                    {layer.type === "Dropout" && (
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium mb-1">Rate</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="1"
-                          value={(layer as DropoutLayer).rate}
-                          onChange={(e) => {
-                            const newLayers = [...data.layers]
-                            newLayers[index] = { ...layer, rate: parseFloat(e.target.value) }
-                            setData({ ...data, layers: newLayers })
-                          }}
-                          placeholder="Dropout rate"
-                          className="w-full p-2 border rounded"
-                        />
-                      </div>
-                    )}
-
-                    <label className="block text-sm font-medium mb-1">Activation</label>
-                    <select
+                    <Label htmlFor={`activation-${index}`}>Activation</Label>
+                    <Select
                       value={layer.type === "Dense" || layer.type === "Dropout" ? layer.activation : "relu"}
-                      onChange={(e) => {
+                      onValueChange={(value) => {
                         const newLayers = [...data.layers]
                         if (layer.type === "Dense" || layer.type === "Dropout") {
-                          newLayers[index] = { ...layer, activation: e.target.value as ActivationType }
+                          newLayers[index] = { ...layer, activation: value as ActivationType }
                           setData({ ...data, layers: newLayers })
                         }
                       }}
-                      className="w-full p-2 border rounded"
                     >
-                      <option value="relu">ReLU</option>
-                      <option value="softmax">Softmax</option>
-                      <option value="tanh">Tanh</option>
-                    </select>
+                      <SelectTrigger id={`activation-${index}`} className="w-full">
+                        <SelectValue placeholder="Select activation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="relu">ReLU</SelectItem>
+                        <SelectItem value="softmax">Softmax</SelectItem>
+                        <SelectItem value="tanh">Tanh</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
-          <button
+          <Button
+            variant="outline"
+            className="w-full mt-2"
             onClick={() => {
               const newLayer = { type: "Dense", units: 512, activation: "relu" } as DenseLayer
               setData({ ...data, layers: [...data.layers, newLayer] })
             }}
-            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            Add Layer
-          </button>
+            <Plus className="h-4 w-4" /> Add Layer
+          </Button>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Optimizer</label>
-          <select value={data.optimizer} onChange={(e) => setData({ ...data, optimizer: e.target.value })} className="w-full p-2 border rounded">
-            <option value="Adam">Adam</option>
-            <option value="SGD">SGD</option>
-            <option value="RMSprop">RMSprop</option>
-            <option value="Adagrad">Adagrad</option>
-            <option value="Adadelta">Adadelta</option>
-            <option value="Nadam">Nadam</option>
-            <option value="Ftrl">Ftrl</option>
-          </select>
+        <div className="space-y-2">
+          <Label htmlFor="optimizer">Optimizer</Label>
+          <Select value={data.optimizer} onValueChange={(value) => setData({ ...data, optimizer: value })}>
+            <SelectTrigger id="optimizer" className="w-full">
+              <SelectValue placeholder="Select optimizer" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Adam">Adam</SelectItem>
+              <SelectItem value="SGD">SGD</SelectItem>
+              <SelectItem value="RMSprop">RMSprop</SelectItem>
+              <SelectItem value="Adagrad">Adagrad</SelectItem>
+              <SelectItem value="Adadelta">Adadelta</SelectItem>
+              <SelectItem value="Nadam">Nadam</SelectItem>
+              <SelectItem value="Ftrl">Ftrl</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Loss</label>
-          <select value={data.loss} onChange={(e) => setData({ ...data, loss: e.target.value })} className="w-full p-2 border rounded">
-            <option value="categorical_crossentropy">categorical_crossentropy</option>
-          </select>
+        <div className="space-y-2">
+          <Label htmlFor="loss">Loss</Label>
+          <Select value={data.loss} onValueChange={(value) => setData({ ...data, loss: value })}>
+            <SelectTrigger id="loss" className="w-full">
+              <SelectValue placeholder="Select loss function" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="categorical_crossentropy">categorical_crossentropy</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium">Learning Rate:</label>
-            <input type="number" min="0.001" max="0.1" step="0.001" value={data.lr} onChange={(e) => setData({ ...data, lr: parseFloat(e.target.value) })} className="w-20 p-1 border rounded text-right" />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="learning-rate">Learning Rate:</Label>
+            <Input id="learning-rate" type="number" min="0.001" max="0.1" step="0.001" value={data.lr.toString()} onChange={(e) => setData({ ...data, lr: parseFloat(e.target.value) })} className="w-20 text-right" />
           </div>
-          <input type="range" min="0.001" max="0.1" step="0.001" value={data.lr} onChange={(e) => setData({ ...data, lr: parseFloat(e.target.value) })} className="w-full" />
+          <Slider defaultValue={[data.lr]} min={0.001} max={0.1} step={0.001} onValueChange={(value) => setData({ ...data, lr: value[0] })} className="w-full" />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium">Epochs:</label>
-            <input type="number" min="1" max="100" step="1" value={data.epoch} onChange={(e) => setData({ ...data, epoch: parseInt(e.target.value) })} className="w-20 p-1 border rounded text-right" />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="epochs">Epochs:</Label>
+            <Input id="epochs" type="number" min="1" max="100" step="1" value={data.epoch.toString()} onChange={(e) => setData({ ...data, epoch: parseInt(e.target.value) })} className="w-20 text-right" />
           </div>
-          <input type="range" min="1" max="100" step="1" value={data.epoch} onChange={(e) => setData({ ...data, epoch: parseInt(e.target.value) })} className="w-full" />
+          <Slider defaultValue={[data.epoch]} min={1} max={100} step={1} onValueChange={(value) => setData({ ...data, epoch: value[0] })} className="w-full" />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium">Batch Size:</label>
-            <input type="number" min="8" max="256" step="8" value={data.batch_size} onChange={(e) => setData({ ...data, batch_size: parseInt(e.target.value) })} className="w-20 p-1 border rounded text-right" />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="batch-size">Batch Size:</Label>
+            <Input id="batch-size" type="number" min="8" max="256" step="8" value={data.batch_size.toString()} onChange={(e) => setData({ ...data, batch_size: parseInt(e.target.value) })} className="w-20 text-right" />
           </div>
-          <input type="range" min="8" max="256" step="8" value={data.batch_size} onChange={(e) => setData({ ...data, batch_size: parseInt(e.target.value) })} className="w-full" />
+          <Slider defaultValue={[data.batch_size]} min={8} max={256} step={8} onValueChange={(value) => setData({ ...data, batch_size: value[0] })} className="w-full" />
         </div>
       </div>
     </Block>
@@ -606,7 +567,7 @@ export default function TrainingRoute() {
         ]}
         save={saveFunc}
       />
-      <Toaster visibleToasts={10}/>
+      <Toaster visibleToasts={10} />
     </>
   )
 }

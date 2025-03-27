@@ -504,7 +504,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
         {/* Dataset selector */}
         {data.datasets.length > 0 && (
           <div className="flex flex-col space-y-2">
-            <label className="text-xs text-gray-500">Select Dataset</label>
+            <label className="text-xs text-gray-500">Select Class Label</label>
             <div className="flex flex-wrap gap-2">
               {data.datasets.map((dataset) => (
                 <Button key={dataset.id} variant={activeDatasetId === dataset.id ? "default" : "outline"} size="sm" className="text-xs flex items-center gap-1 h-7 px-2" onClick={() => setActiveDatasetId(dataset.id)}>
@@ -527,9 +527,9 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
         {/* Create new dataset */}
         <div className="border-t pt-3 space-y-2">
-          <label className="text-xs text-gray-500">Create New Dataset</label>
+          <label className="text-xs text-gray-500">Create New Class Label</label>
           <div className="flex gap-2">
-            <Input placeholder="Dataset name" value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} className="h-7 text-sm flex-1" />
+            <Input placeholder="Name" value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} className="h-7 text-sm flex-1" />
             <Button variant="outline" size="sm" className="h-7" onClick={createNewDataset} disabled={!newDatasetName.trim()}>
               Add
             </Button>

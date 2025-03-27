@@ -111,7 +111,10 @@ export function BlocksView({ blockRegistry, blocks, setBlocks, onMove, onZoom }:
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Only start panning if not clicking on a block
-    if ((e.target as HTMLElement).closest(".block-item") || dndContext.active) {
+    // Check all .block-item and see if mouse is inside
+    const blockItems = document.querySelectorAll(".block-item")
+    const isInsideBlock = Array.from(blockItems).some((blockItem) => e.clientX > blockItem.getBoundingClientRect().left && e.clientX < blockItem.getBoundingClientRect().right && e.clientY > blockItem.getBoundingClientRect().top && e.clientY < blockItem.getBoundingClientRect().bottom)
+    if (isInsideBlock || dndContext.active) {
       return
     }
 
