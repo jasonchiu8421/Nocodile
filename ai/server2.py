@@ -772,8 +772,8 @@ def test_model(model_path: str, data_path: str):
     accuracy = cnn.test_model(X_test, y_test)
     return accuracy
 
-@app.post("/input_data")
-async def input_data(filename: str):
+@app.post("/upload")
+async def upload(filename: str):
     """
     处理图片上传
     """
@@ -853,7 +853,7 @@ async def predict(request: PredictionRequest):
         )
     
 @app.post("/test")
-async def predict(request: PredictionRequest):
+async def test(request: PredictionRequest):
     """
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
