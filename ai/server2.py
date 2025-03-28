@@ -730,7 +730,7 @@ def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
     预处理图像
     """
     preprocessing = Preprocessing(dataset_path)
-    output_paths = {key: None for key in options.keys()}
+    output_paths = {}
 
     # set save option
     intermediate_save_option = "one image per class" # by default
@@ -753,18 +753,19 @@ def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
             preprocessing.shuffle_data()
 
         # 保存预处理后的图像
-        if intermediate_save_option == "whole dataset":
-            output_path = option + os.path.basename(dataset_path)
-            preprocessing.save_dataset(output_path)
-            output_paths[option] = output_path
-        elif intermediate_save_option == "one image per class":
-            output_path = option + os.path.basename(dataset_path)
-            preprocessing.save_class_example(output_path)
-            output_paths[option] = output_path
+        if option=="grayscale" or option=="resize" or option=="shuffle":
+            if intermediate_save_option == "whole dataset":
+                output_path = option + os.path.basename(dataset_path)
+                preprocessing.save_dataset(output_path)
+                output_paths[option] = output_path
+            elif intermediate_save_option == "one image per class":
+                output_path = option + os.path.basename(dataset_path)
+                preprocessing.save_class_example(output_path)
+                output_paths[option] = output_path
     
     output_path = f"preprocessed_{os.path.basename(dataset_path)}"
     preprocessing.save_dataset(output_path)
-    output_path["output"] = output_path
+    output_paths["output"] = output_path
 
     return output_paths
 
