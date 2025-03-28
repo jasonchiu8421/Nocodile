@@ -1,13 +1,11 @@
-import { cn, encodeImageAsBase64 } from "@/lib/utils"
-import { Database, FileSpreadsheet, Image, X } from "lucide-react"
-import { useEffect, useState } from "react"
+import { FileSpreadsheet, Image, Plus, Trash, Upload, X, Database } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
 import { toast } from "sonner"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
 import { SaveFunction, splitChain } from "./save_alerts"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Progress } from "./ui/progress"
-import { Separator } from "./ui/separator"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
@@ -274,381 +272,395 @@ const EndBlock: BlockType<UploadBlockProps> = {
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 
-type ImageFile = {
-  filename: string
-  base64: string
-}
-
-type Dataset = {
-  label: string
-  images: ImageFile[]
-}
+import { uploadDataset, deleteFile } from "../lib/server_hooks"
+import { Separator } from "./ui/separator"
+import { Label } from "./ui/label"
 
 type ImportDataProps = {
-  datasets: Dataset[]
+  datasetFile: string | null
+}
+
+interface DataRow {
+  label: string
+  image: string // base64 encoded image
 }
 
 function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: CreateBlockElementProps<ImportDataProps>) {
-  const [activeDatasetLabel, setActiveDatasetLabel] = useState<string | null>(null)
-  const [newDatasetName, setNewDatasetName] = useState("")
-  const [isProcessingCSV, setIsProcessingCSV] = useState(false)
+  // File upload states
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  // Get the active dataset
-  const activeDataset = activeDatasetLabel ? data.datasets.find((d) => d.label === activeDatasetLabel) : null
+  // Create in browser states
+  const [createMode, setCreateMode] = useState(false)
+  const [browserDataset, setBrowserDataset] = useState<DataRow[]>([])
+  const [newLabel, setNewLabel] = useState("")
+  const [currentPreviews, setCurrentPreviews] = useState<string[]>([])
 
-  // Create a new dataset
-  const createNewDataset = () => {
-    if (!newDatasetName.trim()) return
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
-    const newDataset: Dataset = {
-      label: newDatasetName.trim(),
-      images: [],
-    }
-
-    setData({
-      ...data,
-      datasets: [...data.datasets, newDataset],
-    })
-
-    setActiveDatasetLabel(newDataset.label)
-    setNewDatasetName("")
-  }
-
-  // Delete a dataset
-  const deleteDataset = (datasetLabel: string) => {
-    setData({
-      ...data,
-      datasets: data.datasets.filter((d) => d.label !== datasetLabel),
-    })
-
-    if (activeDatasetLabel === datasetLabel) {
-      setActiveDatasetLabel(data.datasets.length > 1 ? data.datasets[0].label : null)
-    }
-  }
-
-  // Upload file to the active dataset
-  const asFile: (file: File) => Promise<ImageFile> = async (file: File) => {
-    return encodeImageAsBase64(file).then((base64) => {
-      return {
-        filename: file.name,
-        base64,
-      }
+  // Generate a random UUID
+  const generateUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8)
+      return v.toString(16)
     })
   }
+  
+  // Handler for uploading a CSV file
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
 
-  const handleFileUpload = (files: FileList | null) => {
-    if (!files || files.length === 0 || !activeDataset) return
-
-    // Process each file
-    Promise.all(Array.from(files).map(asFile))
-      .then((files) => {
-        const updatedDatasets = [...data.datasets]
-        const datasetIndex = updatedDatasets.findIndex((d) => d.label === activeDatasetLabel)
-
-        if (datasetIndex === -1) throw new Error("Active dataset not found")
-
-        updatedDatasets[datasetIndex].images = [...updatedDatasets[datasetIndex].images.filter((f) => !files.find((file) => file.filename === f.filename)), ...files]
-
-        setData({ ...data, datasets: updatedDatasets })
-      })
-      .catch((error) => {
-        toast.error("Failed to upload files", {
-          description: `Failed to upload files: ${error.message}`,
-        })
-      })
-  }
-
-  // Drag and drop event handlers
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (activeDataset && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileUpload(e.dataTransfer.files)
-    }
-  }
-
-  // Remove file from dataset
-  const removeFile = (datasetLabel: string, filename: string) => {
-    const updatedDatasets = [...data.datasets]
-    const datasetIndex = updatedDatasets.findIndex((d) => d.label === datasetLabel)
-
-    if (datasetIndex === -1) throw new Error("Active dataset not found")
-
-    const restImages = updatedDatasets[datasetIndex].images.filter((image) => image.filename !== filename)
-
-    updatedDatasets[datasetIndex] = {
-      ...updatedDatasets[datasetIndex],
-      images: restImages,
+    const file = files[0]
+    if (!file.name.endsWith(".csv")) {
+      setError("Only CSV files are allowed")
+      toast.error("Only CSV files are allowed")
+      return
     }
 
-    setData({ ...data, datasets: updatedDatasets })
-  }
+    // Generate random UUID filename
+    const uuid = generateUUID()
+    const fileExtension = file.name.split('.').pop() || 'csv'
+    const renamedFile = new File([file], `${uuid}.${fileExtension}`, { type: file.type })
 
-  // Handle CSV import
-  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const csvFile = e.target.files?.[0]
-    if (!csvFile) return
-
-    setIsProcessingCSV(true)
+    setIsUploading(true)
+    setError(null)
+    setUploadProgress(0)
 
     try {
-      // Read the CSV file
-      const text = await csvFile.text()
-      const lines = text.split("\n").filter((line) => line.trim() !== "")
+      const response = await uploadDataset(renamedFile)
 
-      // Check if file has headers
-      const headers = lines[0].split(",")
-      const labelIndex = headers.findIndex((h) => h.trim().toLowerCase() === "label")
-      const imageIndex = headers.findIndex((h) => h.trim().toLowerCase() === "image")
-
-      // Validate CSV format
-      if (labelIndex === -1 || imageIndex === -1) {
-        throw new Error('CSV must have "label" and "image" columns')
+      if (typeof response === "string") {
+        // Success case, response is the filename
+        setData({ ...data, datasetFile: response })
+        toast.success("Dataset uploaded successfully")
+      } else if ("error" in response) {
+        // Error case
+        setError(response.error || "Failed to upload file")
+        toast.error(response.error || "Failed to upload file")
       }
-
-      // Process the data
-      const dataByLabel = new Map<string, string[]>()
-
-      // Start from 1 to skip header row
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(",")
-        if (values.length <= Math.max(labelIndex, imageIndex)) continue
-
-        const label = values[labelIndex].trim()
-        const imageData = values[imageIndex].trim()
-
-        if (!label || !imageData) continue
-
-        // Group images by label
-        if (!dataByLabel.has(label)) {
-          dataByLabel.set(label, [])
-        }
-
-        dataByLabel.get(label)?.push(imageData)
-      }
-
-      if (dataByLabel.size === 0) {
-        throw new Error("No valid data found in CSV")
-      }
-
-      // Create or update datasets
-      const updatedDatasets = [...data.datasets]
-      let createdCount = 0
-      let updatedCount = 0
-      let imageCount = 0
-      let errorCount = 0
-
-      for (const [label, images] of dataByLabel.entries()) {
-        // Check if dataset with this label already exists
-        const existingDatasetIndex = updatedDatasets.findIndex((d) => d.label === label)
-
-        if (existingDatasetIndex !== -1) {
-          // Update existing dataset
-          for (let i = 0; i < images.length; i++) {
-            const filename = `csv-import-${label}-${i + 1}.jpg`
-
-            // Skip if file with this name already exists
-            if (updatedDatasets[existingDatasetIndex].images.find((f) => f.filename === filename)) continue
-
-            // Create a File object from base64
-            updatedDatasets[existingDatasetIndex].images = [
-              ...updatedDatasets[existingDatasetIndex].images,
-              {
-                filename,
-                base64: images[i],
-              },
-            ]
-
-            imageCount++
-
-            if (i % 100 === 0 || i === images.length - 1) {
-              setData({
-                ...data,
-                datasets: updatedDatasets,
-              })
-            }
-          }
-
-          updatedCount++
-        } else {
-          // Create new dataset
-          const newDataset: Dataset = {
-            label: label,
-            images: [],
-          }
-
-          for (let i = 0; i < images.length; i++) {
-            const filename = `csv-import-${label}-${i + 1}.jpg`
-
-            // Add to new dataset
-            newDataset.images = [
-              ...newDataset.images,
-              {
-                filename,
-                base64: images[i],
-              },
-            ]
-
-            imageCount++
-
-            if (i % 100 === 0 || i === images.length - 1) {
-              setData({
-                ...data,
-                datasets: updatedDatasets,
-              })
-            }
-          }
-
-          updatedDatasets.push(newDataset)
-          createdCount++
-        }
-      }
-
-      // Update state with all changes
-      setData({ ...data, datasets: updatedDatasets })
-
-      // Show success message with error count if any
-      if (errorCount > 0) {
-        toast.success(`CSV Import: ${imageCount} images imported successfully, ${errorCount} failed, across ${createdCount} new and ${updatedCount} existing classes`, { duration: 5000 })
-      } else {
-        toast.success(`CSV Import Successful: ${imageCount} images imported across ${createdCount} new and ${updatedCount} existing classes`, { duration: 5000 })
-      }
-
-      // Clear the file input
-      e.target.value = ""
-
-      // Set the first dataset as active if none is selected
-      if (!activeDatasetLabel && updatedDatasets.length > 0) {
-        setActiveDatasetLabel(updatedDatasets[0].label)
-      }
-    } catch (error) {
-      console.error("CSV import error:", error)
-      toast.error(`CSV Import Failed: ${error instanceof Error ? error.message : "Unknown error"}`)
-      e.target.value = ""
+    } catch (err) {
+      const errorMessage = "An error occurred during upload"
+      setError(errorMessage)
+      toast.error(errorMessage)
+      console.error(err)
     } finally {
-      setIsProcessingCSV(false)
+      setIsUploading(false)
+      setUploadProgress(0)
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
     }
   }
 
-  // Set active dataset when component mounts if there are datasets
-  useEffect(() => {
-    if (data.datasets.length > 0 && !activeDatasetLabel) {
-      setActiveDatasetLabel(data.datasets[0].label)
+  // Handler for deleting the current dataset file
+  const handleDeleteFile = async () => {
+    if (!data.datasetFile) return
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      const response = await deleteFile(data.datasetFile)
+      if ("message" in response) {
+        setData({ ...data, datasetFile: null })
+        toast.success("Dataset deleted successfully")
+      } else if ("error" in response) {
+        setError(response.error || "Failed to delete file")
+        toast.error(response.error || "Failed to delete file")
+      }
+    } catch (err) {
+      const errorMessage = "An error occurred while deleting the file"
+      setError(errorMessage)
+      toast.error(errorMessage)
+      console.error(err)
+    } finally {
+      setIsDeleting(false)
     }
-  }, [data.datasets, activeDatasetLabel, setActiveDatasetLabel])
+  }
 
+  // Handler for handling image uploads for in-browser dataset creation
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    const filesArray = Array.from(files)
+    let filesUploaded = []
+    let completed = 0
+
+    for (const file of filesArray) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (reader.result) {
+          filesUploaded.push(reader.result as string)
+          completed++
+          if (completed === filesArray.length) {
+            setCurrentPreviews(filesUploaded)
+            toast.success("Images uploaded successfully")
+          }
+        }
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Trigger file input click
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
+  }
+
+  // Trigger image input click
+  const triggerImageUpload = () => {
+    if (imageInputRef.current) {
+      imageInputRef.current.click()
+    }
+  }
+
+  // Add a new row to the browser dataset
+  const addDataRow = () => {
+    if (!newLabel || !currentPreviews.length) return
+
+    setBrowserDataset([
+      ...browserDataset,
+      ...currentPreviews.map((preview) => ({
+        label: newLabel,
+        image: preview,
+      })),
+    ])
+
+    // Reset form
+    setNewLabel("")
+    setCurrentPreviews([])
+
+    // Reset the image input
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ""
+    }
+
+    toast.success(`Added new images with label: ${newLabel}`)
+  }
+
+  // Generate CSV from browser dataset and upload
+  const handleCreateDatasetSubmit = async () => {
+    if (browserDataset.length === 0) {
+      const errorMessage = "Please add at least one data row"
+      setError(errorMessage)
+      toast.error(errorMessage)
+      return
+    }
+
+    // Generate CSV content
+    const csvContent = "label,image\n" + browserDataset.map((row) => `${row.label},${row.image}`).join("\n")
+    const csvBlob = new Blob([csvContent], { type: "text/csv" })
+    
+    // Use UUID for filename
+    const uuid = generateUUID()
+    const csvFile = new File([csvBlob], `${uuid}.csv`, { type: "text/csv" })
+
+    setIsUploading(true)
+    setError(null)
+    setUploadProgress(0)
+
+    try {
+      const response = await uploadDataset(csvFile)
+
+      if (typeof response === "string") {
+        // Success case
+        setData({ ...data, datasetFile: response })
+        // Reset create mode and dataset
+        setCreateMode(false)
+        setBrowserDataset([])
+        toast.success(`Created and uploaded dataset: ${response.split('/').pop()}`)
+      } else if ("error" in response) {
+        // Error case
+        setError(response.error || "Failed to upload generated dataset")
+        toast.error(response.error || "Failed to upload generated dataset")
+      }
+    } catch (err) {
+      const errorMessage = "An error occurred during upload"
+      setError(errorMessage)
+      toast.error(errorMessage)
+      console.error(err)
+    } finally {
+      setIsUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
+  // Toggle create mode
+  const toggleCreateMode = () => {
+    setCreateMode(!createMode)
+    setError(null)
+    if (!createMode) {
+      // Reset browser dataset when entering create mode
+      setBrowserDataset([])
+      setNewLabel("")
+      setCurrentPreviews([])
+    }
+  }
+
+  // Remove a row from browser dataset
+  const removeDataRow = (index: number) => {
+    const newDataset = [...browserDataset]
+    newDataset.splice(index, 1)
+    setBrowserDataset(newDataset)
+    toast.success("Removed image from dataset")
+  }
+
+  // Reset browser dataset creation
+  const resetBrowserDataset = () => {
+    setBrowserDataset([])
+    setNewLabel("")
+    setCurrentPreviews([])
+    toast.success("Reset dataset creation")
+  }
+
+  // Render component
   return (
-    <Block id={id} title="Import Data" icon={<Database className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
+    <Block id={id} title="Import Data" icon={<FileSpreadsheet className="w-4 h-4" />} dragHandleProps={dragHandleProps}>
       <div className="space-y-4">
-        {/* Dataset selector */}
-        {data.datasets.length > 0 && (
-          <div className="flex flex-col space-y-2">
-            <label className="text-xs text-gray-500">Select Class Label</label>
-            <div className="flex flex-wrap gap-2">
-              {data.datasets.map((dataset) => (
-                <Button key={dataset.label} variant={activeDatasetLabel === dataset.label ? "default" : "outline"} size="sm" className="text-xs flex items-center gap-1 h-7 px-2" onClick={() => setActiveDatasetLabel(dataset.label)}>
-                  <span className="truncate max-w-[100px]">{dataset.label}</span>
-                  <button
-                    className="ml-1 text-gray-500 hover:text-red-500 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteDataset(dataset.label)
-                    }}
-                    title="Delete dataset"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+        {error && <div className="p-3 mb-3 text-sm font-medium text-red-900 bg-red-100 rounded">{error}</div>}
+
+        {/* Current Dataset Display */}
+        {data.datasetFile ? (
+          <div className="p-3 bg-green-50 border border-green-200 rounded">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Database className="w-4 h-4 text-green-600 shrink-0" />
+                <span className="text-sm text-green-700">Current Dataset: {data.datasetFile}</span>
+              </div>
+              <Button variant="destructive" size="sm" onClick={handleDeleteFile} disabled={isDeleting} className="h-7 px-2">
+                {isDeleting ? "Deleting..." : "Delete"}
+                {!isDeleting && <Trash className="w-3 h-3 ml-2" />}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="datasetFile">Creation Mode</Label>
+
+              {/* Mode Selector */}
+              <div className="flex h-7 items-center space-x-2">
+                <Button variant={!createMode ? "default" : "outline"} size="sm" onClick={() => setCreateMode(false)} className="flex-1">
+                  Upload CSV
                 </Button>
-              ))}
+                <Separator orientation="vertical" />
+                <Button variant={createMode ? "default" : "outline"} size="sm" onClick={() => setCreateMode(true)} className="flex-1">
+                  Create Here
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Create new dataset */}
-        <div className="border-t pt-3 space-y-2">
-          <label className="text-xs text-gray-500">Create New Class Label</label>
-          <div className="flex gap-2">
-            <Input placeholder="Name" value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} className="h-7 text-sm flex-1" />
-            <Button variant="outline" size="sm" className="h-7" onClick={createNewDataset} disabled={!newDatasetName.trim()}>
-              Add
-            </Button>
-          </div>
-        </div>
+            <Separator />
 
-        {/* Image upload area - only show if there's an active dataset */}
-        {activeDataset && (
-          <div className="border-t pt-3">
-            <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center space-y-3" onDragOver={handleDragOver} onDrop={handleDrop}>
-              <p className="text-sm text-gray-500">Drag and drop images here or click to browse</p>
-              <input type="file" className="hidden" id={`${id}-file-input`} multiple accept="image/*" onChange={(e) => handleFileUpload(e.target.files)} />
-              <Button variant="ghost" onClick={() => document.getElementById(`${id}-file-input`)?.click()}>
-                Select Images
-              </Button>
+            {/* Upload CSV Mode */}
+            {!createMode && (
+              <div className="space-y-3">
+                <input type="file" accept=".csv" onChange={handleFileUpload} ref={fileInputRef} className="hidden" disabled={isUploading} />
+                <Button variant="outline" onClick={triggerFileUpload} disabled={isUploading} className="w-full">
+                  {isUploading ? (
+                    <>
+                      <span className="mr-2">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Choose CSV File
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-gray-500">Upload a CSV file with your dataset information. The file should have a column for labels and image paths or data.</p>
+              </div>
+            )}
 
-              {/* Display uploaded images count */}
-              {Object.keys(activeDataset.images).length > 0 && (
-                <>
-                  <Separator />
-                  <p className="text-sm font-medium">
-                    {Object.keys(activeDataset.images).length} image{Object.keys(activeDataset.images).length !== 1 ? "s" : ""} uploaded
-                  </p>
-                  <div className="mt-2 text-left">
-                    <ul className="text-xs text-gray-600 space-y-3">
-                      {activeDataset.images.slice(0, 20).map((image) => {
-                        return (
-                          <li key={image.filename} className="space-y-1">
-                            <div className="flex items-center justify-between truncate">
-                              <span className="truncate">{image.filename}</span>
-                              <button className={cn("text-gray-500 not-disabled:hover:text-red-500 transition-colors ml-2 p-1 disabled:!cursor-default")} onClick={() => removeFile(activeDataset.label, image.filename)} title="Remove image">
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
+            {/* Create in Browser Mode */}
+            {createMode && (
+              <div className="space-y-4">
+                {/* Add New Image Form */}
+                <div className="p-4 border rounded-md space-y-3 shadow-sm">
+                  <h3 className="text-sm font-medium">Add New Images</h3>
 
-                            {/* Fake progress bar */}
-                            <div className="w-full">
-                              <Progress value={100} className="h-1" />
-                            </div>
-                          </li>
-                        )
-                      })}
-                      {Object.keys(activeDataset.images).length > 20 && (
-                        <li className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="truncate">...and {Object.keys(activeDataset.images).length - 20} more</span>
-                          </div>
-                        </li>
-                      )}
-                    </ul>
+                  <div className="space-y-2">
+                    <Label htmlFor="label">Label</Label>
+                    <Input placeholder="Enter label for image" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
                   </div>
-                </>
-              )}
-            </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Images</Label>
+                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} ref={imageInputRef} className="hidden" />
+                    <Button variant="outline" onClick={triggerImageUpload} className="w-full">
+                      <Image className="w-4 h-4 mr-2" />
+                      Select Images
+                    </Button>
+                  </div>
+
+                  {currentPreviews && (
+                    currentPreviews.map((preview, index) => (
+                      <div key={index} className="mt-2">
+                        <div className="relative w-24 h-24 mx-auto">
+                          <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-cover rounded" />
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  <Button onClick={addDataRow} disabled={!newLabel || !currentPreviews.length} className="w-full">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add to Dataset
+                  </Button>
+                </div>
+
+                {/* Dataset Preview */}
+                {browserDataset.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium">Current Dataset ({browserDataset.length} items)</h3>
+                      <Button variant="outline" size="sm" onClick={resetBrowserDataset} className="h-7">
+                        Reset
+                      </Button>
+                    </div>
+
+                    <div className="max-h-40 overflow-y-auto border rounded p-2">
+                      {browserDataset.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between py-1 border-b last:border-0">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 rounded overflow-hidden">
+                              <img src={item.image} alt={item.label} className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-sm">{item.label}</span>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => removeDataRow(index)} className="h-6 w-6 p-0">
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Create Dataset Button */}
+                <Button onClick={handleCreateDatasetSubmit} disabled={browserDataset.length === 0 || isUploading} className="w-full">
+                  {isUploading ? (
+                    <>
+                      <span className="mr-2">Creating Dataset...</span>
+                      <Progress value={uploadProgress} className="h-1 w-12" />
+                    </>
+                  ) : (
+                    "Create and Upload Dataset"
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Show message if no datasets */}
-        {data.datasets.length === 0 && <div className="text-center text-sm text-gray-500 mt-4">Create a dataset to get started</div>}
-
-        {/* CSV Import */}
-        <div className="border-t pt-3 space-y-2">
-          <label className="text-xs text-gray-500">Import from CSV</label>
-          <div className="flex flex-col gap-3">
-            <p className="text-xs text-gray-500">Import a CSV file with columns: "label" and "image" (base64 encoded)</p>
-            <div className="flex gap-2">
-              <input type="file" className="hidden" id={`${id}-csv-input`} accept=".csv" onChange={handleCSVImport} />
-              <Button variant="outline" size="sm" className="h-7 flex items-center gap-2" onClick={() => document.getElementById(`${id}-csv-input`)?.click()} disabled={isProcessingCSV}>
-                <FileSpreadsheet className="w-4 h-4" />
-                {isProcessingCSV ? "Processing..." : "Import CSV"}
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
     </Block>
   )
@@ -659,10 +671,12 @@ const ImportDataBlock: BlockType<ImportDataProps> = {
   hasOutput: true,
   limit: 1,
   title: "Import Data",
-  icon: <Database className="w-5 h-5" />,
+  icon: <FileSpreadsheet className="w-4 h-4" />,
   width: 350,
-  createNew: () => ({ datasets: [] }),
-  block: (props) => <ImportDataBlockComponent {...props} />,
+  createNew: () => ({ datasetFile: null }),
+  block(props) {
+    return <ImportDataBlockComponent {...props} />
+  },
 }
 
 export const ResizeFilterBlock: BlockType<{

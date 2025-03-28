@@ -40,7 +40,6 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -54,9 +53,6 @@ class ImagePreprocessRequest(BaseModel):
         "normalize": 0,
         "save_option": "one image per class"
     }
-
-class TrainRequest(BaseModel):
-    dataset: Dict[str, str]
 
 class TrainingRequest(BaseModel):
     preprocessed_images: List[str]
@@ -98,7 +94,7 @@ class DatasetCreator:
 
     def load_data(self):
         # Load all images into a dataset
-        if self.images == []:  # Load images only once
+        if not self.images:  # Load images only once
             self._load_image_paths_and_labels()  # Load image paths and labels
             for img_path in self.image_paths:
                 image = cv2.imread(img_path)  # Load the image using cv2
@@ -128,7 +124,7 @@ class DatasetCreator:
             file_path = os.path.join(directory, file_name)
         
         # Save dataset
-        if (self.images == None) or (self.labels == None):
+        if (self.images is None) or (self.labels is None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
             dataset = Dataset(self.images, self.labels)
@@ -142,24 +138,25 @@ class Dataset:
         self.filename = None
 
     def save_dataset(self, file_path, images=None, labels=None):
-        if images==None:
+        if images is None:
             images = self.images
-        if labels==None:
+        if labels is None:
             labels = self.labels
 
         # Avoid subscript
         base_name = file_path.split('.')[0]
         if not file_path.endswith('.h5'):
             self.filename = f"{base_name}.h5"
+        else:
+            self.filename = file_path
 
-        if (images == None) or (labels == None):
+        if (images is None) or (labels is None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
             with h5py.File(self.filename, 'w') as h5f:
                 # Save images and labels directly
                 h5f.create_dataset('images', data=images, dtype='float32')
                 h5f.create_dataset('labels', data=labels.astype('S'))
-
         return
 
     def _load_csv(self, filename):
@@ -167,16 +164,6 @@ class Dataset:
         self.images = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
         self.labels = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
         return self.images, self.labels
-
-    def load_images(self, filename):
-        if filename.endswith('.csv'):
-            df = pd.read_csv(filename)
-            images = df['image']
-            self.images = np.array(images)
-        elif filename.endswith(".h5"):
-            with h5py.File(filename, 'r') as h5f:
-                self.images = h5f['images'][:]
-        return self.images
 
     def load_saved_dataset(self, filename):
         if filename.endswith('.csv'):
@@ -240,20 +227,20 @@ class Preprocessing:
         self.X = X
         self.y = y
         # filename = file name of the dataset from current directory
-        if filename != None:
+        if filename is not None:
             dataset_loader = Dataset()
             self.X, self.y = dataset_loader.load_saved_dataset(filename)
-        elif X == None:
+        elif X is None:
             raise ValueError("No filename input or image input found.")
         
-    def get_X(self):
-        if self.X != None:
+    def get_x(self):
+        if self.X is not None:
             return self.X
         else:
             raise ValueError("No images found.")
 
     def get_y(self):
-        if self.y != None:
+        if self.y is not None:
             return self.y
         else:
             raise ValueError("No labels found.")
@@ -696,31 +683,17 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc)},
     )
 
-@app.post("/train")
-async def train(request: TrainRequest):
-    """
-    Train endpoint that accepts:
-    - dataset: Dictionary of image name to URL encoded images
-    """
-    # Save images to datasets folder
-    saved_paths = save_images_to_folder(request.dataset)
-    
-    logger.info(f"Saved images to: {saved_paths}")
-    
-    return {
-        "status": "success",
-        "message": f"Training initiated with {len(request.dataset)} images",
-    }
-
 def upload_csv(file: str):
     """
     处理CSV文件上传并解析为图像和标签
     """
+    decode = lambda x: np.array(Image.open(BytesIO(base64.b64decode(x))))
+
     # read the uploaded file
     data = StringIO(file)
     df = pd.read_csv(data)
     images = df['image']
-    images = np.array(images)  # Fixed: was incorrectly using labels here
+    images = np.array(list(map(decode, images)))
     labels = df['label']
     labels = np.array(labels)
 
@@ -819,7 +792,7 @@ async def upload(file: UploadFile = File(...)):
     h5_filename = f"{base_name}.h5"
     
     # Check if filename already exists
-    if os.path.exists(h5_filename):
+    if os.path.exists("datasets/" + h5_filename):
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"error": f"A file with name '{h5_filename}' already exists. Please use a different filename."}
@@ -834,7 +807,7 @@ async def upload(file: UploadFile = File(...)):
 
     # save as a dataset
     dataset = Dataset(images=images, labels=labels)
-    dataset.save_dataset(h5_filename)
+    dataset.save_dataset("datasets/" + h5_filename)
 
     return h5_filename
 
@@ -843,6 +816,15 @@ async def delete_file(filename: str):
     """
     删除指定的H5文件
     """
+    # Prevent directory traversal
+    if "/" in filename or "\\" in filename or ".." in filename or ".." in filename or "~" in filename:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "Invalid filename"}
+        )
+
+    filename = "datasets/" + filename
+
     # Check if file exists
     if not os.path.exists(filename) or not filename.endswith('.h5'):
         return JSONResponse(
