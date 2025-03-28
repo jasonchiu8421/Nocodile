@@ -341,10 +341,6 @@ class CNN:
         self.batch_size = batch_size
         self.method = method
         self.kFold_k = kFold_k
-        self.loss_graph = []
-        self.accuracy_graph = []
-        self.loss_data = []
-        self.accuracy_data = []
 
     def train_model(self):
         self.y = to_categorical(self.y)
@@ -516,7 +512,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.loss_graph.append(image)
+        self.loss_graph = image
 
         # Create a figure for accuracy
         plt.figure(figsize=(6, 5))
@@ -537,7 +533,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.accuracy_graph.append(image)
+        self.accuracy_graph = image
     
     def _plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
         epochs = range(1, len(avg_loss) + 1)
@@ -575,7 +571,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.loss_graph.append(image)
+        self.loss_graph = image
 
         # Create a figure for accuracy
         plt.figure(figsize=(6, 5))
@@ -596,7 +592,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.accuracy_graph.append(image)
+        self.accuracy_graph = image
 
     def load_model(self, filename):
         self.model = load_model(filename)
@@ -661,6 +657,11 @@ class CNN:
         return accuracy, accuracy_per_class, img
 
     def get_performance_graphs(self):
+        buffered = BytesIO()
+        self.accuracy_graph.save(buffered, format="PNG")
+        self.accuracy_graph = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        self.loss_graph.save(buffered, format="PNG")
+        self.loss_graph = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return self.loss_graph, self.accuracy_graph
 
     def get_performance_data(self):
@@ -730,38 +731,6 @@ def upload_csv(file: str):
     labels = np.array(labels)
 
     return images, labels
-
-def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
-    """
-    训练CNN模型
-    
-    参数:
-    - images: 预处理后的图像路径列表
-    - labels: 对应的标签列表 (0-9)
-    - training_options: 训练参数
-        - learning_rate: 学习率
-        - epochs: 训练轮数
-        - optimizer: 优化器类型 ("sgd", "adam", "adagrad")
-        - batch_size: 批次大小
-    """
-    
-    # load data
-    dataset = Dataset()
-    X, y = dataset.load_saved_dataset(filename)
-
-    # train model
-    cnn = CNN(X, y, training_options)
-    model = cnn.train_model()
-    
-    # 保存模型
-    model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
-    model.save(model_path)
-
-    loss_graph, accuracy_graph = cnn.get_performance_graphs()
-    loss_data, accuracy_data = cnn.get_performance_data()
-    
-    return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
-            "accuracy data": accuracy_data, "loss data": loss_data}
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
@@ -883,20 +852,40 @@ async def preprocess(request: ImagePreprocessRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
+        
 @app.post("/train")
 async def train(request: TrainingRequest):
     """
-    处理模型训练请求
+    训练CNN模型
+    
+    参数:
+    - images: 预处理后的图像路径列表
+    - labels: 对应的标签列表 (0-9)
+    - training_options: 训练参数
+        - learning_rate: 学习率
+        - epochs: 训练轮数
+        - optimizer: 优化器类型 ("sgd", "adam", "adagrad")
+        - batch_size: 批次大小
     """
-    try:
-        result = train_model(
-            request.preprocessed_images,
-            request.labels,
-            request.training_options
-        )
+
+    try:        
+        # load data
+        dataset = Dataset()
+        X, y = dataset.load_saved_dataset(request.dataset_path)
+
+        # train model
+        cnn = CNN(X, y, request.training_options)
+        model = cnn.train_model()
         
-        return result
+        # 保存模型
+        model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
+        model.save(model_path)
+
+        loss_graph, accuracy_graph = cnn.get_performance_graphs()
+        loss_data, accuracy_data = cnn.get_performance_data()
+        
+        return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
+                "accuracy data": accuracy_data, "loss data": loss_data}
 
     except Exception as e:
         return JSONResponse(
