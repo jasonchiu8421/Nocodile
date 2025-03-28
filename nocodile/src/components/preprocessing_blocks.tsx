@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils"
-import { AlertCircle, Database, Image, X } from "lucide-react"
+import { cn, encodeImageAsBase64 } from "@/lib/utils"
+import { Database, FileSpreadsheet, Image, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
@@ -154,7 +154,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockPr
         progress: 100,
       }
       setData({ ...successData })
-      
+
       // Show success toast for this file
       toast.success(`Processed ${filename} successfully`, {
         duration: 2000,
@@ -171,7 +171,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockPr
         error: error instanceof Error ? error.message : "Unknown error",
       }
       setData({ ...errorData })
-      
+
       // Show error toast for this file
       toast.error(`Error processing ${filename}: ${error instanceof Error ? error.message : "Unknown error"}`, {
         duration: 4000,
@@ -183,10 +183,10 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockPr
     if (!importData || !importData.datasets || importData.datasets.length === 0) return
 
     setIsProcessing(true)
-    
+
     // Show toast notification for processing start
     const totalImages = getTotalImagesCount(importData)
-    toast.info(`Processing ${totalImages} image${totalImages !== 1 ? 's' : ''}...`, {
+    toast.info(`Processing ${totalImages} image${totalImages !== 1 ? "s" : ""}...`, {
       duration: 3000,
     })
 
@@ -226,11 +226,11 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockPr
     const fileEntries = Object.entries(filesToProcess)
     let successCount = 0
     let errorCount = 0
-    
+
     for (const [filename, fileData] of fileEntries) {
       if (fileData.status === "pending") {
         await processFile(newData, filename, fileData.path)
-        
+
         // Count successes and errors
         if (newData.files[filename].status === "success") {
           successCount++
@@ -241,7 +241,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockPr
     }
 
     setIsProcessing(false)
-    
+
     // Show summary toast when all processing is complete
     const totalProcessed = successCount + errorCount
     if (totalProcessed > 0) {
@@ -274,18 +274,14 @@ const EndBlock: BlockType<UploadBlockProps> = {
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 
+type ImageFile = {
+  filename: string
+  base64: string
+}
+
 type Dataset = {
-  id: string
   label: string
-  images: Record<
-    string,
-    {
-      path: string
-      status: "uploading" | "success" | "error"
-      progress: number
-      error?: string
-    }
-  >
+  images: ImageFile[]
 }
 
 type ImportDataProps = {
@@ -293,23 +289,20 @@ type ImportDataProps = {
 }
 
 function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: CreateBlockElementProps<ImportDataProps>) {
-  const [activeDatasetId, setActiveDatasetId] = useState<string | null>(null)
+  const [activeDatasetLabel, setActiveDatasetLabel] = useState<string | null>(null)
   const [newDatasetName, setNewDatasetName] = useState("")
-
-  // Generate a unique ID for new datasets
-  const generateId = () => `dataset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  const [isProcessingCSV, setIsProcessingCSV] = useState(false)
 
   // Get the active dataset
-  const activeDataset = activeDatasetId ? data.datasets.find((d) => d.id === activeDatasetId) : null
+  const activeDataset = activeDatasetLabel ? data.datasets.find((d) => d.label === activeDatasetLabel) : null
 
   // Create a new dataset
   const createNewDataset = () => {
     if (!newDatasetName.trim()) return
 
     const newDataset: Dataset = {
-      id: generateId(),
       label: newDatasetName.trim(),
-      images: {},
+      images: [],
     }
 
     setData({
@@ -317,146 +310,52 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       datasets: [...data.datasets, newDataset],
     })
 
-    setActiveDatasetId(newDataset.id)
+    setActiveDatasetLabel(newDataset.label)
     setNewDatasetName("")
   }
 
   // Delete a dataset
-  const deleteDataset = (datasetId: string) => {
+  const deleteDataset = (datasetLabel: string) => {
     setData({
       ...data,
-      datasets: data.datasets.filter((d) => d.id !== datasetId),
+      datasets: data.datasets.filter((d) => d.label !== datasetLabel),
     })
 
-    if (activeDatasetId === datasetId) {
-      setActiveDatasetId(data.datasets.length > 1 ? data.datasets[0].id : null)
+    if (activeDatasetLabel === datasetLabel) {
+      setActiveDatasetLabel(data.datasets.length > 1 ? data.datasets[0].label : null)
     }
   }
 
   // Upload file to the active dataset
-  const uploadFile = async (file: File) => {
-    if (!activeDataset) return
-
-    // Initialize file in the data structure with uploading status
-    const updatedDatasets = [...data.datasets]
-    const datasetIndex = updatedDatasets.findIndex((d) => d.id === activeDatasetId)
-
-    if (datasetIndex === -1) return
-
-    updatedDatasets[datasetIndex] = {
-      ...updatedDatasets[datasetIndex],
-      images: {
-        ...updatedDatasets[datasetIndex].images,
-        [file.name]: {
-          path: "",
-          status: "uploading",
-          progress: 0,
-        },
-      },
-    }
-
-    setData({ ...data, datasets: updatedDatasets })
-
-    // Create form data for the file
-    const formData = new FormData()
-    formData.append("file", file)
-
-    try {
-      // Use XMLHttpRequest to track upload progress
-      const xhr = new XMLHttpRequest()
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100)
-          const progressDatasets = [...data.datasets]
-          const dsIndex = progressDatasets.findIndex((d) => d.id === activeDatasetId)
-
-          if (dsIndex !== -1 && progressDatasets[dsIndex].images[file.name]) {
-            progressDatasets[dsIndex] = {
-              ...progressDatasets[dsIndex],
-              images: {
-                ...progressDatasets[dsIndex].images,
-                [file.name]: {
-                  ...progressDatasets[dsIndex].images[file.name],
-                  progress,
-                },
-              },
-            }
-            setData({ ...data, datasets: progressDatasets })
-          }
-        }
-      })
-
-      // Create a promise to handle the XHR response
-      const uploadPromise = new Promise<{ status: string; file_path: string; message: string }>((resolve, reject) => {
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const response = JSON.parse(xhr.responseText)
-            resolve(response)
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`))
-          }
-        }
-        xhr.onerror = () => reject(new Error("Network error"))
-      })
-
-      // Open and send the request
-      xhr.open("POST", "http://localhost:8888/upload")
-      xhr.send(formData)
-
-      // Wait for the upload to complete
-      const response = await uploadPromise
-
-      // Update the data with the successful upload
-      const successDatasets = [...data.datasets]
-      const dsIndex = successDatasets.findIndex((d) => d.id === activeDatasetId)
-
-      if (dsIndex !== -1) {
-        successDatasets[dsIndex] = {
-          ...successDatasets[dsIndex],
-          images: {
-            ...successDatasets[dsIndex].images,
-            [file.name]: {
-              path: response.file_path,
-              status: "success",
-              progress: 100,
-            },
-          },
-        }
-        setData({ ...data, datasets: successDatasets })
+  const asFile: (file: File) => Promise<ImageFile> = async (file: File) => {
+    return encodeImageAsBase64(file).then((base64) => {
+      return {
+        filename: file.name,
+        base64,
       }
-    } catch (error) {
-      console.error(`Error uploading ${file.name}:`, error)
-
-      // Update the data with the error
-      const errorDatasets = [...data.datasets]
-      const dsIndex = errorDatasets.findIndex((d) => d.id === activeDatasetId)
-
-      if (dsIndex !== -1) {
-        errorDatasets[dsIndex] = {
-          ...errorDatasets[dsIndex],
-          images: {
-            ...errorDatasets[dsIndex].images,
-            [file.name]: {
-              path: "",
-              status: "error",
-              progress: 0,
-              error: error instanceof Error ? error.message : "Unknown error",
-            },
-          },
-        }
-        setData({ ...data, datasets: errorDatasets })
-      }
-    }
+    })
   }
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files || files.length === 0 || !activeDataset) return
 
     // Process each file
-    Array.from(files).forEach((file) => {
-      uploadFile(file)
-    })
+    Promise.all(Array.from(files).map(asFile))
+      .then((files) => {
+        const updatedDatasets = [...data.datasets]
+        const datasetIndex = updatedDatasets.findIndex((d) => d.label === activeDatasetLabel)
+
+        if (datasetIndex === -1) throw new Error("Active dataset not found")
+
+        updatedDatasets[datasetIndex].images = [...updatedDatasets[datasetIndex].images.filter((f) => !files.find((file) => file.filename === f.filename)), ...files]
+
+        setData({ ...data, datasets: updatedDatasets })
+      })
+      .catch((error) => {
+        toast.error("Failed to upload files", {
+          description: `Failed to upload files: ${error.message}`,
+        })
+      })
   }
 
   // Drag and drop event handlers
@@ -475,13 +374,13 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
   }
 
   // Remove file from dataset
-  const removeFile = (datasetId: string, filename: string) => {
+  const removeFile = (datasetLabel: string, filename: string) => {
     const updatedDatasets = [...data.datasets]
-    const datasetIndex = updatedDatasets.findIndex((d) => d.id === datasetId)
+    const datasetIndex = updatedDatasets.findIndex((d) => d.label === datasetLabel)
 
-    if (datasetIndex === -1) return
+    if (datasetIndex === -1) throw new Error("Active dataset not found")
 
-    const { [filename]: _, ...restImages } = updatedDatasets[datasetIndex].images
+    const restImages = updatedDatasets[datasetIndex].images.filter((image) => image.filename !== filename)
 
     updatedDatasets[datasetIndex] = {
       ...updatedDatasets[datasetIndex],
@@ -491,12 +390,158 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     setData({ ...data, datasets: updatedDatasets })
   }
 
+  // Handle CSV import
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const csvFile = e.target.files?.[0]
+    if (!csvFile) return
+
+    setIsProcessingCSV(true)
+
+    try {
+      // Read the CSV file
+      const text = await csvFile.text()
+      const lines = text.split("\n").filter((line) => line.trim() !== "")
+
+      // Check if file has headers
+      const headers = lines[0].split(",")
+      const labelIndex = headers.findIndex((h) => h.trim().toLowerCase() === "label")
+      const imageIndex = headers.findIndex((h) => h.trim().toLowerCase() === "image")
+
+      // Validate CSV format
+      if (labelIndex === -1 || imageIndex === -1) {
+        throw new Error('CSV must have "label" and "image" columns')
+      }
+
+      // Process the data
+      const dataByLabel = new Map<string, string[]>()
+
+      // Start from 1 to skip header row
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",")
+        if (values.length <= Math.max(labelIndex, imageIndex)) continue
+
+        const label = values[labelIndex].trim()
+        const imageData = values[imageIndex].trim()
+
+        if (!label || !imageData) continue
+
+        // Group images by label
+        if (!dataByLabel.has(label)) {
+          dataByLabel.set(label, [])
+        }
+
+        dataByLabel.get(label)?.push(imageData)
+      }
+
+      if (dataByLabel.size === 0) {
+        throw new Error("No valid data found in CSV")
+      }
+
+      // Create or update datasets
+      const updatedDatasets = [...data.datasets]
+      let createdCount = 0
+      let updatedCount = 0
+      let imageCount = 0
+      let errorCount = 0
+
+      for (const [label, images] of dataByLabel.entries()) {
+        // Check if dataset with this label already exists
+        const existingDatasetIndex = updatedDatasets.findIndex((d) => d.label === label)
+
+        if (existingDatasetIndex !== -1) {
+          // Update existing dataset
+          for (let i = 0; i < images.length; i++) {
+            const filename = `csv-import-${label}-${i + 1}.jpg`
+
+            // Skip if file with this name already exists
+            if (updatedDatasets[existingDatasetIndex].images.find((f) => f.filename === filename)) continue
+
+            // Create a File object from base64
+            updatedDatasets[existingDatasetIndex].images = [
+              ...updatedDatasets[existingDatasetIndex].images,
+              {
+                filename,
+                base64: images[i],
+              },
+            ]
+
+            imageCount++
+
+            if (i % 100 === 0 || i === images.length - 1) {
+              setData({
+                ...data,
+                datasets: updatedDatasets,
+              })
+            }
+          }
+
+          updatedCount++
+        } else {
+          // Create new dataset
+          const newDataset: Dataset = {
+            label: label,
+            images: [],
+          }
+
+          for (let i = 0; i < images.length; i++) {
+            const filename = `csv-import-${label}-${i + 1}.jpg`
+
+            // Add to new dataset
+            newDataset.images = [
+              ...newDataset.images,
+              {
+                filename,
+                base64: images[i],
+              },
+            ]
+
+            imageCount++
+
+            if (i % 100 === 0 || i === images.length - 1) {
+              setData({
+                ...data,
+                datasets: updatedDatasets,
+              })
+            }
+          }
+
+          updatedDatasets.push(newDataset)
+          createdCount++
+        }
+      }
+
+      // Update state with all changes
+      setData({ ...data, datasets: updatedDatasets })
+
+      // Show success message with error count if any
+      if (errorCount > 0) {
+        toast.success(`CSV Import: ${imageCount} images imported successfully, ${errorCount} failed, across ${createdCount} new and ${updatedCount} existing classes`, { duration: 5000 })
+      } else {
+        toast.success(`CSV Import Successful: ${imageCount} images imported across ${createdCount} new and ${updatedCount} existing classes`, { duration: 5000 })
+      }
+
+      // Clear the file input
+      e.target.value = ""
+
+      // Set the first dataset as active if none is selected
+      if (!activeDatasetLabel && updatedDatasets.length > 0) {
+        setActiveDatasetLabel(updatedDatasets[0].label)
+      }
+    } catch (error) {
+      console.error("CSV import error:", error)
+      toast.error(`CSV Import Failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      e.target.value = ""
+    } finally {
+      setIsProcessingCSV(false)
+    }
+  }
+
   // Set active dataset when component mounts if there are datasets
   useEffect(() => {
-    if (data.datasets.length > 0 && !activeDatasetId) {
-      setActiveDatasetId(data.datasets[0].id)
+    if (data.datasets.length > 0 && !activeDatasetLabel) {
+      setActiveDatasetLabel(data.datasets[0].label)
     }
-  }, [data.datasets, activeDatasetId])
+  }, [data.datasets, activeDatasetLabel, setActiveDatasetLabel])
 
   return (
     <Block id={id} title="Import Data" icon={<Database className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
@@ -507,13 +552,13 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
             <label className="text-xs text-gray-500">Select Class Label</label>
             <div className="flex flex-wrap gap-2">
               {data.datasets.map((dataset) => (
-                <Button key={dataset.id} variant={activeDatasetId === dataset.id ? "default" : "outline"} size="sm" className="text-xs flex items-center gap-1 h-7 px-2" onClick={() => setActiveDatasetId(dataset.id)}>
+                <Button key={dataset.label} variant={activeDatasetLabel === dataset.label ? "default" : "outline"} size="sm" className="text-xs flex items-center gap-1 h-7 px-2" onClick={() => setActiveDatasetLabel(dataset.label)}>
                   <span className="truncate max-w-[100px]">{dataset.label}</span>
                   <button
                     className="ml-1 text-gray-500 hover:text-red-500 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation()
-                      deleteDataset(dataset.id)
+                      deleteDataset(dataset.label)
                     }}
                     title="Delete dataset"
                   >
@@ -551,45 +596,34 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                 <>
                   <Separator />
                   <p className="text-sm font-medium">
-                    {Object.keys(activeDataset.images).length} image{Object.keys(activeDataset.images).length !== 1 ? 's' : ''} uploaded
+                    {Object.keys(activeDataset.images).length} image{Object.keys(activeDataset.images).length !== 1 ? "s" : ""} uploaded
                   </p>
                   <div className="mt-2 text-left">
                     <ul className="text-xs text-gray-600 space-y-3">
-                      {Object.keys(activeDataset.images).map((filename) => {
-                        const fileData = activeDataset.images[filename]
+                      {activeDataset.images.slice(0, 20).map((image) => {
                         return (
-                          <li key={filename} className="space-y-1">
+                          <li key={image.filename} className="space-y-1">
                             <div className="flex items-center justify-between truncate">
-                              <span className="truncate">{filename}</span>
-                              <button
-                                className={cn("text-gray-500 not-disabled:hover:text-red-500 transition-colors ml-2 p-1 disabled:!cursor-default")}
-                                onClick={() => removeFile(activeDataset.id, filename)}
-                                title="Remove image"
-                                disabled={fileData.status !== "error" && fileData.status !== "success"}
-                              >
+                              <span className="truncate">{image.filename}</span>
+                              <button className={cn("text-gray-500 not-disabled:hover:text-red-500 transition-colors ml-2 p-1 disabled:!cursor-default")} onClick={() => removeFile(activeDataset.label, image.filename)} title="Remove image">
                                 <X className="h-3 w-3" />
                               </button>
                             </div>
 
-                            {/* Progress bar */}
+                            {/* Fake progress bar */}
                             <div className="w-full">
-                              <Progress value={fileData.progress} className="h-1" />
-                            </div>
-
-                            {/* Status indicator */}
-                            <div className="flex items-center text-xs">
-                              {fileData.status === "uploading" && <span className="text-blue-500">Uploading... {fileData.progress}%</span>}
-                              {fileData.status === "success" && <span className="text-green-500">Uploaded successfully</span>}
-                              {fileData.status === "error" && (
-                                <div className="flex items-center text-red-500 gap-1">
-                                  <AlertCircle className="h-3 w-3" />
-                                  <span>{fileData.error || "Upload failed"}</span>
-                                </div>
-                              )}
+                              <Progress value={100} className="h-1" />
                             </div>
                           </li>
                         )
                       })}
+                      {Object.keys(activeDataset.images).length > 20 && (
+                        <li className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">...and {Object.keys(activeDataset.images).length - 20} more</span>
+                          </div>
+                        </li>
+                      )}
                     </ul>
                   </div>
                 </>
@@ -600,6 +634,21 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
         {/* Show message if no datasets */}
         {data.datasets.length === 0 && <div className="text-center text-sm text-gray-500 mt-4">Create a dataset to get started</div>}
+
+        {/* CSV Import */}
+        <div className="border-t pt-3 space-y-2">
+          <label className="text-xs text-gray-500">Import from CSV</label>
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-gray-500">Import a CSV file with columns: "label" and "image" (base64 encoded)</p>
+            <div className="flex gap-2">
+              <input type="file" className="hidden" id={`${id}-csv-input`} accept=".csv" onChange={handleCSVImport} />
+              <Button variant="outline" size="sm" className="h-7 flex items-center gap-2" onClick={() => document.getElementById(`${id}-csv-input`)?.click()} disabled={isProcessingCSV}>
+                <FileSpreadsheet className="w-4 h-4" />
+                {isProcessingCSV ? "Processing..." : "Import CSV"}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </Block>
   )
