@@ -843,7 +843,7 @@ async def preprocess(request: ImagePreprocessRequest):
         
         output_path = f"preprocessed_{os.path.basename(dataset_path)}"
         preprocessing.save_dataset(output_path)
-        output_path["output"] = output_path
+        output_paths["output"] = output_path
 
         return output_paths
 
