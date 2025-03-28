@@ -11,15 +11,12 @@ import numpy as np
 import cv2
 from PIL import Image
 import pandas as pd
-import io
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torchvision import transforms
+from io import StringIO, BytesIO
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch.nn.functional as F
 import h5py
 import matplotlib.pyplot as plt
+from brokenaxes import brokenaxes
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, Activation, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
@@ -29,7 +26,6 @@ from tensorflow.keras.optimizers import Adam, SGD, RMSprop, Adagrad, Adadelta, N
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
-from io import BytesIO
 from PIL import Image
 from sklearn.metrics import accuracy_score
 
@@ -78,7 +74,7 @@ class TrainingRequest(BaseModel):
 
 class PredictionRequest(BaseModel):
     model_path: str
-    data_path: str
+    input_data: str
 
 class DatasetCreator:
     def __init__(self, base_folder):
@@ -123,12 +119,6 @@ class DatasetCreator:
         self.images = np.array(images_array)
         return self.images
         
-    def load_images(self, file_path):
-        # Create an HDF5 file
-        with h5py.File(file_path, 'w') as h5_file:                    
-            # Create a dataset in the HDF5 file
-            h5_file.create_dataset(file_path, data=self.images)
-
     def save_dataset(self, file_path=None):
         # Create dataset filename if not specified
         if file_path is None or file_path.strip() == "":
@@ -140,8 +130,8 @@ class DatasetCreator:
         if (self.images == None) or (self.labels == None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
-            datasetloader = Dataset(self.images, self.labels)
-            datasetloader.save_dataset(file_path)
+            dataset = Dataset(self.images, self.labels)
+            dataset.save_dataset(file_path)
             return file_path
 
 class Dataset:
@@ -149,13 +139,13 @@ class Dataset:
         self.images = images
         self.labels = labels
         self.filename = None
-    
+
     def save_dataset(self, file_path, images=None, labels=None):
         if images==None:
             images = self.images
         if labels==None:
             labels = self.labels
-        
+
         # Avoid subscript
         base_name = file_path.split('.')[0]
         if not file_path.endswith('.h5'):
@@ -168,26 +158,25 @@ class Dataset:
                 # Save images and labels directly
                 h5f.create_dataset('images', data=images, dtype='float32')
                 h5f.create_dataset('labels', data=labels.astype('S'))
-                print(f"Dataset saved at {file_path}.")
+            
+        return 
 
     def _load_csv(self, filename):
         self.dataset = pd.read_csv(filename)
         self.images = (self.dataset.iloc[:,1:].values).astype('float32') # all pixel values
         self.labels = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
         return self.images, self.labels
-    
+
     def load_images(self, filename):
         if filename.endswith('.csv'):
-            images = pd.read_csv(images)
+            df = pd.read_csv(filename)
+            images = df['image']
             self.images = np.array(images)
         elif filename.endswith(".h5"):
             with h5py.File(filename, 'r') as h5f:
                 self.images = h5f['images'][:]
         return self.images
-
-    def get_filename(self):
-        return self.filename
-
+    
     def load_saved_dataset(self, filename):
         if filename.endswith('.csv'):
             return self._load_csv(filename)
@@ -592,16 +581,64 @@ class CNN:
     def load_model(self, filename):
         self.model = load_model(filename)
       
-    def run_model(self, X_test):
-        X_test = X_test.reshape(len(X_test), 28, 28, 1).astype('float32')
-        predictions = self.model.predict(X_test, verbose=1)
+    def run_model(self, image):
+        # Run model to predict the result of one image
+        predictions = self.model.predict(image, verbose=1)
         predicted_class = np.argmax(predictions, axis=1)
-        return predicted_class
+        confidence = np.max(predictions, axis=1)
+
+        return predicted_class, confidence
     
     def test_model(self, X_test, y_test):
+        # Predict on testing data
         y_predict = self.run_model(X_test)
         accuracy = accuracy_score(y_test, y_predict)
-        return accuracy
+
+        # Find accuracy per class
+        unique_labels = set(y_test)
+        data_per_class =  {label: 0 for label in unique_labels}
+        true_data_per_class = {label: 0 for label in unique_labels}
+
+        for i in range(len(y_test)):
+            data_per_class[y_test[i]] += 1
+            if y_test[i] == y_predict[i]:
+                true_data_per_class[y_test[i]] += 1
+
+        accuracy_per_class = {key: true_data_per_class[key] / data_per_class[key] for key in data_per_class}
+
+        # Plotting with broken axis
+        fig = plt.figure(figsize=(8, 5))
+        range_val = max(accuracy_per_class.values()) - min(accuracy_per_class.values())
+        break_upperbound = min(accuracy_per_class.values()) - range_val * 0.2
+
+        if break_upperbound > range_val * 0.5:
+            bax = brokenaxes(ylims=((0, range_val * 0.1), (break_upperbound, 1.0 + range_val * 0.3)), hspace=.05)
+        else:
+            bax = brokenaxes(ylims=((0, 1.0)), hspace=.05)
+
+        # Create the bar plot
+        bars = bax.bar(accuracy_per_class.keys(), accuracy_per_class.values(), color='skyblue')
+        bax.set_title('Division Result of Dictionary Values with Y-axis Break')
+        bax.set_xlabel('Labels')
+        bax.set_ylabel('Result')
+        bax.grid(axis='y')
+
+        # Adding values on top of the bars
+        for i, value in enumerate(accuracy_per_class.values()):
+            bax.text(i, value, f'{value:.3f}', ha='center', va='bottom')
+
+        # Save plot to a BytesIO object
+        buf = BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+
+        # Encode the image to base64
+        img = base64.b64encode(buf.read()).decode('utf-8')
+
+        # Close the plot
+        plt.close(fig)
+
+        return accuracy, accuracy_per_class, img
 
     def get_performance_graphs(self):
         return self.loss_graph, self.accuracy_graph
@@ -674,12 +711,19 @@ async def train(request: TrainRequest):
         "message": f"Training initiated with {len(request.dataset)} images",
     }
 
-def create_dataset(directory_path: str):
-    datasetcreator = DatasetCreator(directory_path)
-    datasetcreator.load_data()
-    dataset_path = datasetcreator.save_dataset()
-
-    return dataset_path
+def upload_csv(file: str):
+    """
+    处理图片上传
+    """
+    # read the uploaded file
+    data = StringIO(file)
+    df = pd.read_csv(data)
+    images = df['image']
+    images = np.array(labels)
+    labels = df['label']
+    labels = np.array(labels)
+    
+    return images, labels
 
 def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
     """
@@ -707,7 +751,7 @@ def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
 
         if option=="shuffle":
             preprocessing.shuffle_data()
-    
+
         # 保存预处理后的图像
         if intermediate_save_option == "whole dataset":
             output_path = option + os.path.basename(dataset_path)
@@ -756,51 +800,70 @@ def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
     return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
             "accuracy data": accuracy_data, "loss data": loss_data}
 
-def predict(model_path: str, data_path: str):
-    cnn = CNN()
-    cnn.load_model(model_path)
-    dataset = Dataset()
-    X_test = dataset.load_images(data_path)
-    predictions = cnn.run_model(X_test)
-    return predictions
-
-def test_model(model_path: str, data_path: str):
-    cnn = CNN()
-    cnn.load_model(model_path)
-    dataset = Dataset()
-    X_test, y_test = dataset.load_saved_dataset(data_path)
-    accuracy = cnn.test_model(X_test, y_test)
-    return accuracy
-
 @app.post("/upload")
-async def upload(filename: str):
+async def upload(file: str):
     """
     处理图片上传
     """
-    dataset_path = create_dataset(filename)
+    images, labels = upload_csv(file)
+
+    # ensure filename is unique
+    filename = "dataset.h5"
+    if os.path.exists(filename):
+        name, ext = os.path.splitext(filename)
+        filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
+
+    # save as a dataset
+    dataset = Dataset(images=images, labels=labels)
+    dataset.save_dataset(filename)
     
-    return {
-        "status": "success",
-        "dataset_path": dataset_path,
-        "message": f"Successfully saved to {dataset_path}"
-    }
+    return filename
 
 @app.post("/preprocess")
 async def preprocess(request: ImagePreprocessRequest):
-    """
-    处理图像预处理请求
-    """
-    try:
-        preprocessed_path = preprocess_image(request.dataset_path, request.options)
+    try: 
+        dataset_path = request.dataset_path
+        options = request.options
+
+        preprocessing = Preprocessing(dataset_path)
+        output_paths = {key: None for key in options.keys()}
+
+        # set save option
+        intermediate_save_option = "one image per class" # by default
+        if options.get("save_option"):
+            intermediate_save_option = options["save_option"]
         
-        # 读取预处理后的图像并转换为base64
-        # with open(preprocessed_path, "rb") as img_file:
-        #    img_data = base64.b64encode(img_file.read()).decode()
+        # 根据选项进行预处理
+        for option in options:
+            if option=="resize":
+                size = options["resize"]
+                preprocessing.resize((size, size))
+            
+            if option=="grayscale":
+                preprocessing.convert_to_grayscale()
+            
+            if option=="normalize":
+                preprocessing.normalize()
+
+            if option=="shuffle":
+                preprocessing.shuffle_data()
+
+            # 保存预处理后的图像
+            if intermediate_save_option == "whole dataset":
+                output_path = option + os.path.basename(dataset_path)
+                preprocessing.save_dataset(output_path)
+                output_paths[option] = output_path
+            elif intermediate_save_option == "one image per class":
+                output_path = option + os.path.basename(dataset_path)
+                preprocessing.save_class_example(output_path)
+                output_paths[option] = output_path
         
-        return {
-            "status": "success",
-            "preprocessed_path": preprocessed_path
-        }
+        output_path = f"preprocessed_{os.path.basename(dataset_path)}"
+        preprocessing.save_dataset(output_path)
+        output_path["output"] = output_path
+
+        return output_paths
+    
     except Exception as e:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -819,14 +882,8 @@ async def train(request: TrainingRequest):
             request.training_options
         )
         
-        return {
-            "status": "success",
-            "model_path": result["model_path"],
-            "accuracies": result["accuracies"],
-            "losses": result["losses"],
-            "final_accuracy": result["final_accuracy"],
-            "training_options": result["training_options"]
-        }
+        return result
+    
     except Exception as e:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -839,12 +896,11 @@ async def predict(request: PredictionRequest):
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
-        accuracy = test_model(request.model_path, request.data_path)
+        cnn = CNN()
+        cnn.load_model(request.model_path)
+        prediction, confidence = cnn.run_model(request.input_data)
         
-        return {
-            "status": "success",
-            "model accuracy": accuracy
-            }
+        return {"predicted class": prediction, "confidence level": confidence}
         
     except Exception as e:
         return JSONResponse(
@@ -853,17 +909,17 @@ async def predict(request: PredictionRequest):
         )
     
 @app.post("/test")
-async def test(request: PredictionRequest):
+async def test_model(request: PredictionRequest):
     """
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
-        predicted_class = predict(request.model_path, request.data_path)
-        
-        return {
-            "status": "success",
-            "predicted_class": predicted_class
-            }
+        cnn = CNN()
+        cnn.load_model(request.model_path)
+        images, labels = upload_csv(request.input_data)
+        accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
+
+        return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image}
         
     except Exception as e:
         return JSONResponse(
