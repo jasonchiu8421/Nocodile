@@ -72,6 +72,20 @@ class TrainingRequest(BaseModel):
 class PredictionRequest(BaseModel):
     model_path: str
     input_data: str
+    preprocessing_options: Dict[str, Any] = {
+        "resize": (28,28),
+        "rgb2gray": 0,
+        "save_option": "one image per class"
+    }
+
+class TestingRequest(BaseModel):
+    model_path: str
+    dataset_path: str
+    preprocessing_options: Dict[str, Any] = {
+        "resize": (28,28),
+        "rgb2gray": 0,
+        "save_option": "one image per class"
+    }
 
 class DatasetCreator:
     def __init__(self, base_folder):
@@ -258,10 +272,14 @@ class Preprocessing:
         self.y = y
         # filename = file name of the dataset from current directory
         if filename is not None:
-            dataset_loader = Dataset()
-            self.X, self.y = dataset_loader.load_saved_dataset(filename)
+            dataset = Dataset()
+            self.X, self.y = dataset.load_saved_dataset(filename)
         elif X is None:
             raise ValueError("No filename input or image input found.")
+        if self.X.ndim == 2:
+            self.X = [self.X]
+        if self.y.ndim == 2:
+            self.y = [self.y]
         
     def get_x(self):
         if self.X is not None:
@@ -806,10 +824,9 @@ async def delete_file(filename: str):
 @app.post("/preprocess")
 async def preprocess(request: ImagePreprocessRequest):
     try:
-        dataset_path = request.dataset_path
         options = request.options
 
-        preprocessing = Preprocessing(dataset_path)
+        preprocessing = Preprocessing(filename=request.dataset_path)
         output_paths = {}
 
         # set save option
@@ -899,11 +916,33 @@ async def predict(request: PredictionRequest):
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
+        preprocessing = Preprocessing(X=request.input_data)
+        options = request.preprocessing_options
+        output_paths = {}
+        for option in options:
+            if option=="resize":
+                size = options["resize"]
+                preprocessing.resize((size, size))
+
+            if option=="grayscale":
+                preprocessing.convert_to_grayscale()
+
+            if option=="resize" or option=="grayscale":
+                # 保存预处理后的图像
+                if options["save_option"] == "whole dataset":
+                    output_path = option + os.path.basename(uuid.uuid4().hex[:8])
+                    preprocessing.save_dataset(output_path)
+                    output_paths[option] = output_path
+                elif options["save_option"] == "one image per class":
+                    output_paths[option] = preprocessing.return_class_example()
+        
+        image = np.array(preprocessing.get_x())
+        
         cnn = CNN()
         cnn.load_model(request.model_path)
-        prediction, confidence = cnn.run_model(request.input_data)
+        prediction, confidence = cnn.run_model(image)
         
-        return {"predicted class": prediction, "confidence level": confidence}
+        return {"predicted class": prediction, "confidence level": confidence, "intermediates": output_paths}
         
     except Exception as e:
         return JSONResponse(
@@ -912,23 +951,40 @@ async def predict(request: PredictionRequest):
         )
     
 @app.post("/test")
-async def test_model(request: PredictionRequest):
+async def test(request: TestingRequest):
     """
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
+        preprocessing = Preprocessing(filename=request.dataset_path)
+        options = request.preprocessing_options
+        output_paths = {}
+        for option in options:
+            if option=="resize":
+                size = options["resize"]
+                preprocessing.resize((size, size))
+
+            if option=="grayscale":
+                preprocessing.convert_to_grayscale()
+
+            if option=="resize" or option=="grayscale":
+                # 保存预处理后的图像
+                if options["save_option"] == "whole dataset":
+                    output_path = option + os.path.basename(uuid.uuid4().hex[:8])
+                    preprocessing.save_dataset(output_path)
+                    output_paths[option] = output_path
+                elif options["save_option"] == "one image per class":
+                    output_paths[option] = preprocessing.return_class_example()
+
+        images = np.array(preprocessing.get_x())
+        labels = np.array(preprocessing.get_y())
+        
         cnn = CNN()
-        cnn.load_model(request.model_path)
-        images, labels = upload_csv(request.input_data)
+        cnn.load_model(request.model_path)        
         accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
 
-        return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image}
+        return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}
 
-    except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
 
 if __name__ == "__main__":
     import uvicorn
