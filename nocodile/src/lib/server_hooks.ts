@@ -1,207 +1,238 @@
 /**
- * Server API hooks for calling the backend API
+ * api.ts
+ * Example TypeScript functions to call your FastAPI routes.
  */
 
-// Base server URL
-const SERVER_URL = "http://localhost:8888"
+const baseURL = "http://localhost:8888";
+// Adjust to match wherever your FastAPI app is hosted
+
+// ------------------ Interfaces for request bodies ------------------ //
+
+export interface TrainRequestFirst {
+  dataset: Record<string, string>;
+  // i.e. { "imageName.png": "base64string", ... }
+}
+
+export interface ImagePreprocessRequest {
+  dataset_path: string;
+  options: {
+    resize?: [number, number];
+    rgb2gray?: number;
+    grayscale?: number;         // Depending on whether you use "grayscale" or "rgb2gray"
+    shuffle?: number;
+    normalize?: number;
+    save_option?: string;       // "whole dataset" | "one image per class"
+  };
+}
+
+export interface TrainingRequestSecond {
+  preprocessed_images: string[];  // e.g. ["preprocessed_dataset1.h5", ...]
+  labels: number[];               // e.g. [0,1,2,3,...]
+  training_options: {
+    method?: "train_test" | "train_test_val" | "kFold_val";
+    layers?: Array<Record<string, any>>;
+    optimizer?: string;
+    loss?: string;
+    metrics?: string[];
+    lr?: number;
+    epochs?: number;
+    batch_size?: number;
+    kFold_k?: number;
+  };
+}
+
+export interface PredictionRequest {
+  model_path: string;
+  input_data: string;  // e.g. Base64 data or entire CSV file contents
+}
+
+// ------------------ Interfaces for response bodies ------------------ //
+
+export interface TrainResponseFirst {
+  status: string;    // e.g. "success"
+  message: string;   // e.g. "Training initiated with N images"
+}
+
+export type UploadResponse = string | { error: string };
+
+export type DeleteFileResponse = { message: string } | { error: string };
+
+/** The endpoint returns an object of { [optionName]: string | null }
+ *  plus a final 'output' key.
+ */
+export type PreprocessResponse = Record<string, string | null>;
+
+export interface TrainResponseSecond {
+  // Example structure that your snippet returns:
+  "model path": string;
+  "accuracy graph": any;   // Possibly base64 or some image structure
+  "loss graph": any;
+  "accuracy data": any;    // Possibly an array or object with numeric logs
+  "loss data": any;
+}
+
+export interface PredictResponse {
+  "predicted class": number[];   // The class index
+  "confidence level": number[];  // The max probability
+}
+
+export interface TestModelResponse {
+  accuracy: number;
+  "accuracy per class": Record<string, number>;
+  "accuracy per class graph": string; // base64-encoded image
+}
+
+// ------------------ Actual TS functions to call each route ------------------ //
+
 
 /**
- * Upload a CSV file
- * @param file The CSV file to upload
+ * Calls the /train endpoint (app.post("/train") that expects TrainRequest).
+ * This is the one that returns status+message, not the entire training logs.
  */
-export const uploadCSV = async (file: File): Promise<any> => {
-  const formData = new FormData()
-  formData.append("file", file)
+export const trainRoute = async (
+    trainRequest: TrainRequestFirst
+): Promise<TrainResponseFirst> => {
+  const response = await fetch(`${baseURL}/train`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(trainRequest),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error! Status: ${response.status}`);
+  }
+  return response.json() as Promise<TrainResponseFirst>;
+};
 
-  const response = await fetch(`${SERVER_URL}/upload`, {
+
+/**
+ * Calls /upload endpoint
+ * Expects a CSV file as a single string in the "file" field.
+ * Returns a filename string, e.g. "dataset_abc123.h5"
+ */
+export const uploadDataset = async (csvFile: File): Promise<UploadResponse> => {
+  // Construct a FormData object to send the file as multipart form data
+  const formData = new FormData();
+  formData.append("file", csvFile);
+
+  // Make the request
+  const response = await fetch(`${baseURL}/upload`, {
     method: "POST",
     body: formData,
-  })
+  });
 
+  // If not okay, parse the error content
   if (!response.ok) {
-    throw new Error(`Upload failed: ${response.statusText}`)
+    // e.g. { "error": "Only CSV files are accepted" } or some other error content
+    return await response.json();
   }
 
-  return response.json()
-}
+  // On success, the FastAPI code returns the string h5_filename
+  // Usually this is just a string, e.g. "mydataset.h5"
+  return await response.json();
+};
+
 
 /**
- * Delete a dataset
- * @param datasetPath Path to the dataset to delete
+ * Calls the DELETE /delete/{filename} route to remove a .h5 file on the server.
  */
-export const deleteDataset = async (datasetPath: string): Promise<any> => {
-  const response = await fetch(`${SERVER_URL}/delete`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ dataset_path: datasetPath }),
-  })
+export async function deleteFile(filename: string): Promise<DeleteFileResponse> {
+    // Safely encode the filename in case it has special characters
+    const encodedFilename = encodeURIComponent(filename);
 
-  if (!response.ok) {
-    throw new Error(`Delete failed: ${response.statusText}`)
-  }
+    // Make the DELETE request
+    const response = await fetch(`${baseURL}/delete/${encodedFilename}`, {
+        method: "DELETE",
+    });
 
-  return response.json()
+    // Parse the JSON body
+    const data = await response.json();
+
+    // If the response is not OK, return the error
+    if (!response.ok) {
+        return {
+            error: data.error ?? "Unknown error occurred while deleting the file",
+        };
+    }
+
+    // Otherwise, return the success message
+    return {
+        message: data.message,
+    };
 }
 
+
 /**
- * Preprocess a dataset
- * @param datasetPath Path to the dataset
- * @param options Preprocessing options
+ * Calls /preprocess endpoint
+ * Takes an ImagePreprocessRequest.
+ * Returns a record with paths for each step + a final 'output' path.
  */
 export const preprocessDataset = async (
-  datasetPath: string,
-  options: {
-    resize?: [number, number]
-    rgb2gray?: number
-    shuffle?: number
-    normalize?: number
-    save_option?: string
-  } = {}
-): Promise<any> => {
-  const defaultOptions = {
-    resize: [28, 28],
-    rgb2gray: 0,
-    shuffle: 0,
-    normalize: 0,
-    save_option: "one image per class",
-  }
-
-  const response = await fetch(`${SERVER_URL}/preprocess`, {
+    preprocessRequest: ImagePreprocessRequest
+): Promise<PreprocessResponse> => {
+  const response = await fetch(`${baseURL}/preprocess`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      dataset_path: datasetPath,
-      options: { ...defaultOptions, ...options },
-    }),
-  })
-
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(preprocessRequest),
+  });
   if (!response.ok) {
-    throw new Error(`Preprocessing failed: ${response.statusText}`)
+    throw new Error(`HTTP error! Status: ${response.status}`);
   }
+  return response.json() as Promise<PreprocessResponse>;
+};
 
-  return response.json()
-}
 
 /**
- * Train a model
- * @param preprocessedImages Array of preprocessed image paths
- * @param labels Array of labels for the images
- * @param trainingOptions Options for model training
+ * Calls the SECOND /train endpoint (app.post("/train") that expects TrainingRequest).
+ * This is the route that returns model path, accuracy graph, etc.
  */
-export const trainModel = async (
-  preprocessedImages: string[],
-  labels: number[],
-  trainingOptions: {
-    method?: string
-    layers?: Array<any>
-    optimizer?: string
-    loss?: string
-    metrics?: string[]
-    lr?: number
-    epochs?: number
-    batch_size?: number
-    kFold_k?: number
-  } = {}
-): Promise<any> => {
-  const defaultTrainingOptions = {
-    method: "train_test_val",
-    layers: [{ type: "Flatten" }, { type: "Dense", units: 512, activation: "relu" }, { type: "Dense", units: 10, activation: "softmax" }],
-    optimizer: "Adam",
-    loss: "categorical_crossentropy",
-    metrics: ["accuracy"],
-    lr: 0.01,
-    epochs: 10,
-    batch_size: 64,
-    kFold_k: 5,
-  }
-
-  const response = await fetch(`${SERVER_URL}/train_model`, {
+export const trainSecondRoute = async (
+    trainRequest: TrainingRequestSecond
+): Promise<TrainResponseSecond> => {
+  const response = await fetch(`${baseURL}/train`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      preprocessed_images: preprocessedImages,
-      labels: labels,
-      training_options: { ...defaultTrainingOptions, ...trainingOptions },
-    }),
-  })
-
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(trainRequest),
+  });
   if (!response.ok) {
-    throw new Error(`Model training failed: ${response.statusText}`)
+    throw new Error(`HTTP error! Status: ${response.status}`);
   }
+  return response.json() as Promise<TrainResponseSecond>;
+};
 
-  return response.json()
-}
 
 /**
- * Make predictions using a trained model
- * @param modelPath Path to the trained model
- * @param dataPath Path to the data for prediction
- * @param options Preprocessing options for the prediction data
+ * Calls /predict endpoint
+ * Returns predicted class array and confidence level array.
  */
 export const predict = async (
-  modelPath: string,
-  dataPath: string,
-  options: {
-    resize?: [number, number]
-    rgb2gray?: number
-    shuffle?: number
-    normalize?: number
-    save_option?: string
-  } = {}
-): Promise<any> => {
-  const defaultOptions = {
-    resize: [28, 28],
-    rgb2gray: 0,
-    shuffle: 0,
-    normalize: 0,
-    save_option: "one image per class",
-  }
-
-  const response = await fetch(`${SERVER_URL}/predict`, {
+    predictRequest: PredictionRequest
+): Promise<PredictResponse> => {
+  const response = await fetch(`${baseURL}/predict`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model_path: modelPath,
-      data_path: dataPath,
-      options: { ...defaultOptions, ...options },
-    }),
-  })
-
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(predictRequest),
+  });
   if (!response.ok) {
-    throw new Error(`Prediction failed: ${response.statusText}`)
+    throw new Error(`HTTP error! Status: ${response.status}`);
   }
+  return response.json() as Promise<PredictResponse>;
+};
 
-  return response.json()
-}
 
 /**
- * Test a model on a dataset with labels
- * @param modelPath Path to the trained model
- * @param dataPath Path to the test data with labels
+ * Calls /test endpoint
+ * Returns overall accuracy, per-class accuracy, plus a base64-encoded plot.
  */
-export const testModel = async (modelPath: string, dataPath: string): Promise<any> => {
-  const response = await fetch(`${SERVER_URL}/test`, {
+export const testModel = async (
+    testRequest: PredictionRequest
+): Promise<TestModelResponse> => {
+  const response = await fetch(`${baseURL}/test`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model_path: modelPath,
-      data_path: dataPath,
-    }),
-  })
-
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(testRequest),
+  });
   if (!response.ok) {
-    throw new Error(`Model testing failed: ${response.statusText}`)
+    throw new Error(`HTTP error! Status: ${response.status}`);
   }
-
-  return response.json()
-}
+  return response.json() as Promise<TestModelResponse>;
+};

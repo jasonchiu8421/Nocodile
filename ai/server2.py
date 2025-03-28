@@ -714,13 +714,13 @@ async def train(request: TrainRequest):
 
 def upload_csv(file: str):
     """
-    处理图片上传
+    处理CSV文件上传并解析为图像和标签
     """
     # read the uploaded file
     data = StringIO(file)
     df = pd.read_csv(data)
     images = df['image']
-    images = np.array(labels)
+    images = np.array(images)  # Fixed: was incorrectly using labels here
     labels = df['label']
     labels = np.array(labels)
 
@@ -802,23 +802,66 @@ def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
             "accuracy data": accuracy_data, "loss data": loss_data}
 
 @app.post("/upload")
-async def upload(file: str):
+async def upload(file: UploadFile = File(...)):
     """
-    处理图片上传
+    处理CSV文件上传，使用上传的文件名
     """
-    images, labels = upload_csv(file)
-
-    # ensure filename is unique
-    filename = "dataset.h5"
-    if os.path.exists(filename):
-        name, ext = os.path.splitext(filename)
-        filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
+    # Verify file type
+    if file.content_type != "text/csv":
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "Only CSV files are accepted"}
+        )
+        
+    # Get original filename and create .h5 filename
+    original_filename = file.filename
+    base_name = os.path.splitext(original_filename)[0]
+    h5_filename = f"{base_name}.h5"
+    
+    # Check if filename already exists
+    if os.path.exists(h5_filename):
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"error": f"A file with name '{h5_filename}' already exists. Please use a different filename."}
+        )
+    
+    # Read file content
+    file_content = await file.read()
+    file_content_str = file_content.decode('utf-8')
+    
+    # Process CSV data
+    images, labels = upload_csv(file_content_str)
 
     # save as a dataset
     dataset = Dataset(images=images, labels=labels)
-    dataset.save_dataset(filename)
+    dataset.save_dataset(h5_filename)
 
-    return filename
+    return h5_filename
+
+@app.delete("/delete/{filename}")
+async def delete_file(filename: str):
+    """
+    删除指定的H5文件
+    """
+    # Check if file exists
+    if not os.path.exists(filename) or not filename.endswith('.h5'):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"error": f"File '{filename}' not found or not a valid H5 file"}
+        )
+    
+    # Delete the file
+    try:
+        os.remove(filename)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"message": f"File '{filename}' successfully deleted"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": f"Failed to delete file: {str(e)}"}
+        )
 
 @app.post("/preprocess")
 async def preprocess(request: ImagePreprocessRequest):
