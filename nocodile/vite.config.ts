@@ -16,7 +16,12 @@ export default defineConfig({
     postcss: {
       plugins:[
         postcssPresetEnv({
-          browsers: ["supports css-matches-pseudo and > 0.1% and not op_mini all and not dead"]
+          browsers: ["defaults and supports css-matches-pseudo"],
+          features: {
+            'is-pseudo-class': false,
+            'nesting-rules': true,
+          },
+          stage: 1
         })
       ]
     }
