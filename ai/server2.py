@@ -725,50 +725,6 @@ def upload_csv(file: str):
     
     return images, labels
 
-def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
-    """
-    预处理图像
-    """
-    preprocessing = Preprocessing(dataset_path)
-    output_paths = {}
-
-    # set save option
-    intermediate_save_option = "one image per class" # by default
-    if options.get("save_option"):
-        intermediate_save_option = options["save_option"]
-    
-    # 根据选项进行预处理
-    for option in options:
-        if option=="resize":
-            size = options["resize"]
-            preprocessing.resize((size, size))
-        
-        if option=="grayscale":
-            preprocessing.convert_to_grayscale()
-        
-        if option=="normalize":
-            preprocessing.normalize()
-
-        if option=="shuffle":
-            preprocessing.shuffle_data()
-
-        # 保存预处理后的图像
-        if option=="grayscale" or option=="resize" or option=="shuffle":
-            if intermediate_save_option == "whole dataset":
-                output_path = option + os.path.basename(dataset_path)
-                preprocessing.save_dataset(output_path)
-                output_paths[option] = output_path
-            elif intermediate_save_option == "one image per class":
-                output_path = option + os.path.basename(dataset_path)
-                preprocessing.save_class_example(output_path)
-                output_paths[option] = output_path
-    
-    output_path = f"preprocessed_{os.path.basename(dataset_path)}"
-    preprocessing.save_dataset(output_path)
-    output_paths["output"] = output_path
-
-    return output_paths
-
 def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
     """
     训练CNN模型
