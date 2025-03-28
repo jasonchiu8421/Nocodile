@@ -157,6 +157,7 @@ class Dataset:
                 # Save images and labels directly
                 h5f.create_dataset('images', data=images, dtype='float32')
                 h5f.create_dataset('labels', data=labels.astype('S'))
+        
         return self.filename
 
     def _load_csv(self, filename):
@@ -221,6 +222,35 @@ class Dataset:
             label_list.append(random_image['label'])
 
         return label_list, image_list
+    
+    def encode_b64(self):
+        b64_images = []
+
+        for image in self.images:
+            image_array = np.resize(image,(28,28)).astype('uint8')
+            image = Image.fromarray(image_array)
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            b64_images.append(img_str)
+
+        self.images = np.array(b64_images)
+
+        return self.images
+
+    def decode_b64(self):
+        images = []
+
+        for b64_image in self.images:
+            img_data = base64.b64decode(b64_image)
+            buffered = BytesIO(img_data)
+            image = Image.open(buffered)
+            image = np.array(image)
+            images.append(image)
+
+        self.images = images
+
+        return images
 
 class Preprocessing:
     def __init__(self, filename=None, X=None, y=None):
@@ -287,10 +317,12 @@ class Preprocessing:
         dataset = Dataset(self.X, self.y)
         dataset.save_dataset(filename)
 
-    def save_class_example(self, filename):
+    def return_class_example(self, filename):
         dataset = Dataset(self.X, self.y)
         images, labels = dataset.find_random_image_per_class()
-        dataset.save_dataset(filename, images, labels)
+        images = dataset.encode_b64()
+        class_example = {label: image for label, image in zip(labels, images)}
+        return class_example
 
 class CNN:
     def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
@@ -699,6 +731,49 @@ def upload_csv(file: str):
 
     return images, labels
 
+def preprocess_image(dataset_path: str, options: Dict[str, any]) -> List:
+    """
+    预处理图像
+    """
+    preprocessing = Preprocessing(dataset_path)
+    output_paths = {key: None for key in options.keys()}
+
+    # set save option
+    intermediate_save_option = "one image per class" # by default
+    if options.get("save_option"):
+        intermediate_save_option = options["save_option"]
+    
+    # 根据选项进行预处理
+    for option in options:
+        if option=="resize":
+            size = options["resize"]
+            preprocessing.resize((size, size))
+        
+        if option=="grayscale":
+            preprocessing.convert_to_grayscale()
+        
+        if option=="normalize":
+            preprocessing.normalize()
+
+        if option=="shuffle":
+            preprocessing.shuffle_data()
+
+        # 保存预处理后的图像
+        if intermediate_save_option == "whole dataset":
+            output_path = option + os.path.basename(dataset_path)
+            preprocessing.save_dataset(output_path)
+            output_paths[option] = output_path
+        elif intermediate_save_option == "one image per class":
+            output_path = option + os.path.basename(dataset_path)
+            preprocessing.save_class_example(output_path)
+            output_paths[option] = output_path
+    
+    output_path = f"preprocessed_{os.path.basename(dataset_path)}"
+    preprocessing.save_dataset(output_path)
+    output_path["output"] = output_path
+
+    return output_paths
+
 def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
     """
     训练CNN模型
@@ -809,7 +884,7 @@ async def preprocess(request: ImagePreprocessRequest):
         options = request.options
 
         preprocessing = Preprocessing(dataset_path)
-        output_paths = {key: None for key in options.keys()}
+        output_paths = {}
 
         # set save option
         intermediate_save_option = "one image per class" # by default
@@ -831,15 +906,14 @@ async def preprocess(request: ImagePreprocessRequest):
             if option=="shuffle":
                 preprocessing.shuffle_data()
 
-            # 保存预处理后的图像
-            if intermediate_save_option == "whole dataset":
-                output_path = option + os.path.basename(dataset_path)
-                preprocessing.save_dataset(output_path)
-                output_paths[option] = output_path
-            elif intermediate_save_option == "one image per class":
-                output_path = option + os.path.basename(dataset_path)
-                preprocessing.save_class_example(output_path)
-                output_paths[option] = output_path
+            if option=="resize" or option=="grayscale":
+                # 保存预处理后的图像
+                if intermediate_save_option == "whole dataset":
+                    output_path = option + os.path.basename(dataset_path)
+                    preprocessing.save_dataset(output_path)
+                    output_paths[option] = output_path
+                elif intermediate_save_option == "one image per class":
+                    output_paths[option] = preprocessing.return_class_example()
         
         output_path = f"preprocessed_{os.path.basename(dataset_path)}"
         preprocessing.save_dataset(output_path)
