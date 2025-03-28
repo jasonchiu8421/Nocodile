@@ -157,7 +157,7 @@ class Dataset:
                 # Save images and labels directly
                 h5f.create_dataset('images', data=images, dtype='float32')
                 h5f.create_dataset('labels', data=labels.astype('S'))
-        return
+        return self.filename
 
     def _load_csv(self, filename):
         self.dataset = pd.read_csv(filename)
