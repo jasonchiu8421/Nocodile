@@ -852,13 +852,13 @@ async def preprocess(request: ImagePreprocessRequest):
             if option=="resize" or option=="grayscale":
                 # 保存预处理后的图像
                 if intermediate_save_option == "whole dataset":
-                    output_path = option + os.path.basename(dataset_path)
+                    output_path = option + os.path.basename(request.dataset_path)
                     preprocessing.save_dataset("datasets/" + output_path)
                     output_paths[option] = output_path
                 elif intermediate_save_option == "one image per class":
                     output_paths[option] = preprocessing.return_class_example()
         
-        output_path = f"preprocessed_{os.path.basename(dataset_path)}"
+        output_path = f"preprocessed_{os.path.basename(request.dataset_path)}"
         preprocessing.save_dataset("datasets/" + output_path)
         output_paths["output"] = output_path
 
@@ -984,6 +984,11 @@ async def test(request: TestingRequest):
         accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
 
         return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 
 if __name__ == "__main__":

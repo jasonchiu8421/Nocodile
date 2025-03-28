@@ -39,8 +39,7 @@ const StartBlock: BlockType<{}> = {
 }
 
 const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
-  const { id, data, setData, chain, blocks, dragHandleProps } = props
-  // We use setIsProcessing but not isProcessing directly in JSX
+  const { id, chain, blocks, dragHandleProps } = props
   const [isProcessing, setIsProcessing] = useState(false)
   const [importData, setImportData] = useState<ImportDataProps | null>(null)
   const [options, setOptions] = useState<Record<string, any>>({})
@@ -75,7 +74,14 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
   }, [chain])
 
   const startProcessing = async () => {
-    if (isProcessing || !importData || !importData.datasetFile) return
+    if (isProcessing) return
+    if (!importData) {
+      toast.error("Please attach an import data block to this block!")
+      return
+    } else if (!importData.datasetFile) {
+      toast.error("Please first finish importing the dataset!")
+      return
+    }
 
     setIsProcessing(true)
 
