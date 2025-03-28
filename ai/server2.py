@@ -280,7 +280,7 @@ class Preprocessing:
             self.X = [self.X]
         if self.y.ndim == 2:
             self.y = [self.y]
-        
+
     def get_x(self):
         if self.X is not None:
             return self.X
@@ -826,7 +826,7 @@ async def preprocess(request: ImagePreprocessRequest):
     try:
         options = request.options
 
-        preprocessing = Preprocessing(filename=request.dataset_path)
+        preprocessing = Preprocessing(filename="datasets/" + request.dataset_path)
         output_paths = {}
 
         # set save option
@@ -837,8 +837,8 @@ async def preprocess(request: ImagePreprocessRequest):
         # 根据选项进行预处理
         for option in options:
             if option=="resize":
-                size = options["resize"]
-                preprocessing.resize((size, size))
+                width, height = options["resize"]
+                preprocessing.resize(width, height)
 
             if option=="grayscale":
                 preprocessing.convert_to_grayscale()
@@ -853,13 +853,13 @@ async def preprocess(request: ImagePreprocessRequest):
                 # 保存预处理后的图像
                 if intermediate_save_option == "whole dataset":
                     output_path = option + os.path.basename(dataset_path)
-                    preprocessing.save_dataset(output_path)
+                    preprocessing.save_dataset("datasets/" + output_path)
                     output_paths[option] = output_path
                 elif intermediate_save_option == "one image per class":
                     output_paths[option] = preprocessing.return_class_example()
         
         output_path = f"preprocessed_{os.path.basename(dataset_path)}"
-        preprocessing.save_dataset(output_path)
+        preprocessing.save_dataset("datasets/" + output_path)
         output_paths["output"] = output_path
 
         return output_paths
@@ -935,9 +935,9 @@ async def predict(request: PredictionRequest):
                     output_paths[option] = output_path
                 elif options["save_option"] == "one image per class":
                     output_paths[option] = preprocessing.return_class_example()
-        
+
         image = np.array(preprocessing.get_x())
-        
+
         cnn = CNN()
         cnn.load_model(request.model_path)
         prediction, confidence = cnn.run_model(image)
@@ -978,9 +978,9 @@ async def test(request: TestingRequest):
 
         images = np.array(preprocessing.get_x())
         labels = np.array(preprocessing.get_y())
-        
+
         cnn = CNN()
-        cnn.load_model(request.model_path)        
+        cnn.load_model(request.model_path)
         accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
 
         return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}

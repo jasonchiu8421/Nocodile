@@ -38,21 +38,12 @@ const StartBlock: BlockType<{}> = {
   },
 }
 
-const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockProps>) => {
+const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
   const { id, data, setData, chain, blocks, dragHandleProps } = props
   // We use setIsProcessing but not isProcessing directly in JSX
   const [isProcessing, setIsProcessing] = useState(false)
   const [importData, setImportData] = useState<ImportDataProps | null>(null)
-  const [options, setOptions] = useState<object>({})
-
-  // Helper function to count total images across all datasets
-  const getTotalImagesCount = (importData: ImportDataProps | null): number => {
-    if (!importData || !importData.datasets || importData.datasets.length === 0) return 0
-
-    return importData.datasets.reduce((total, dataset) => {
-      return total + Object.keys(dataset.images).length
-    }, 0)
-  }
+  const [options, setOptions] = useState<Record<string, any>>({})
 
   useEffect(() => {
     setImportData(null)
@@ -83,196 +74,48 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<UploadBlockPr
     setOptions(options)
   }, [chain])
 
-  const processFile = async (data: UploadBlockProps, filename: string, filePath: string) => {
-    // Update status to processing
-    const updatedData = { ...data }
-    updatedData.files[filename] = {
-      path: filePath,
-      status: "processing",
-      progress: 0,
-    }
-    setData({ ...updatedData })
-
-    try {
-      // Use XMLHttpRequest to track processing progress
-      const xhr = new XMLHttpRequest()
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100)
-          const progressData = { ...data }
-          if (progressData.files[filename]) {
-            progressData.files[filename] = {
-              ...progressData.files[filename],
-              progress,
-            }
-            setData({ ...progressData })
-          }
-        }
-      })
-
-      // Set up promise to handle response
-      const promise = new Promise<any>((resolve, reject) => {
-        xhr.onreadystatechange = () => {
-          if (xhr.readyState === 4) {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const response = JSON.parse(xhr.responseText)
-                resolve(response)
-              } catch (e) {
-                reject(new Error("Invalid response format"))
-              }
-            } else {
-              reject(new Error(`Processing failed with status ${xhr.status}`))
-            }
-          }
-        }
-        xhr.onerror = () => reject(new Error("Network error"))
-      })
-
-      // Prepare request data as JSON
-      const requestData = JSON.stringify({
-        image_path: filePath,
-        options,
-      })
-
-      // Open and send the request
-      xhr.open("POST", "http://localhost:8888/preprocess")
-      xhr.setRequestHeader("Content-Type", "application/json")
-      xhr.send(requestData)
-
-      // Wait for the response
-      const response = await promise
-
-      // Update the data with success
-      const successData = { ...data }
-      successData.files[filename] = {
-        path: response.processed_path || filePath,
-        status: "success",
-        progress: 100,
-      }
-      setData({ ...successData })
-
-      // Show success toast for this file
-      toast.success(`Processed ${filename} successfully`, {
-        duration: 2000,
-      })
-    } catch (error) {
-      console.error(`Error processing ${filename}:`, error)
-
-      // Update the data with the error
-      const errorData = { ...data }
-      errorData.files[filename] = {
-        path: filePath,
-        status: "error",
-        progress: 0,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }
-      setData({ ...errorData })
-
-      // Show error toast for this file
-      toast.error(`Error processing ${filename}: ${error instanceof Error ? error.message : "Unknown error"}`, {
-        duration: 4000,
-      })
-    }
-  }
-
   const startProcessing = async () => {
-    if (!importData || !importData.datasets || importData.datasets.length === 0) return
+    if (isProcessing || !importData || !importData.datasetFile) return
 
     setIsProcessing(true)
 
-    // Show toast notification for processing start
-    const totalImages = getTotalImagesCount(importData)
-    toast.info(`Processing ${totalImages} image${totalImages !== 1 ? "s" : ""}...`, {
-      duration: 3000,
+    preprocessDataset({
+      dataset_path: importData.datasetFile,
+      options: {
+        ...(options["resize"] ? { resize: [options["resize"] as number, options["resize"] as number] } : {}),
+        ...(options["grayscale"] ? { grayscale: true } : {}),
+        ...(options["normalize"] ? { normalize: true } : {}),
+        ...(options["shuffling"] ? { shuffle: true } : {}),
+      },
     })
-
-    // Initialize files from import data if not already present
-    const filesToProcess = { ...data.files }
-
-    // Add any new files from import that aren't already in our data
-    // and reset any errored files to pending status
-    importData.datasets.forEach((dataset) => {
-      Object.entries(dataset.images).forEach(([filename, fileData]: [string, any]) => {
-        if (fileData.status === "success" && fileData.path) {
-          // If file doesn't exist in our data yet, add it
-          if (!filesToProcess[filename]) {
-            filesToProcess[filename] = {
-              path: fileData.path,
-              status: "pending",
-              progress: 0,
-            }
-          }
-          // If file exists but had an error, reset it to pending
-          else if (filesToProcess[filename].status === "error") {
-            filesToProcess[filename] = {
-              path: fileData.path,
-              status: "pending",
-              progress: 0,
-            }
-          }
+      .then((response) => {
+        if (response.output) {
+          setImportData(null)
+          setIsProcessing(false)
         }
       })
-    })
-
-    // Update data with the initialized files
-    const newData = { files: filesToProcess }
-    setData(newData)
-
-    // Process each file
-    const fileEntries = Object.entries(filesToProcess)
-    let successCount = 0
-    let errorCount = 0
-
-    for (const [filename, fileData] of fileEntries) {
-      if (fileData.status === "pending") {
-        await processFile(newData, filename, fileData.path)
-
-        // Count successes and errors
-        if (newData.files[filename].status === "success") {
-          successCount++
-        } else if (newData.files[filename].status === "error") {
-          errorCount++
-        }
-      }
-    }
-
-    setIsProcessing(false)
-
-    // Show summary toast when all processing is complete
-    const totalProcessed = successCount + errorCount
-    if (totalProcessed > 0) {
-      if (errorCount === 0) {
-        toast.success(`All ${totalProcessed} images processed successfully!`, {
-          duration: 5000,
+      .catch((error) => {
+        toast.error("Failed to preprocess dataset", {
+          description: error.message,
         })
-      } else if (successCount === 0) {
-        toast.error(`Failed to process all ${totalProcessed} images.`, {
-          duration: 5000,
-        })
-      } else {
-        toast(`Processing complete: ${successCount} successful, ${errorCount} failed`, {
-          duration: 5000,
-        })
-      }
-    }
+        setIsProcessing(false)
+      })
   }
 
   return <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allBlocks} step={startProcessing} id={id} blocks={blocks} data={{}} chain={chain} setData={() => {}} dragHandleProps={dragHandleProps} />
 }
 
-const EndBlock: BlockType<UploadBlockProps> = {
+const EndBlock: BlockType<{}> = {
   hasInput: true,
   title: "End",
   icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
   limit: 1,
   immortal: true,
-  createNew: () => ({ files: {} }),
+  createNew: () => ({}),
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 
-import { uploadDataset, deleteFile } from "../lib/server_hooks"
+import { uploadDataset, deleteFile, preprocessDataset } from "../lib/server_hooks"
 import { Separator } from "./ui/separator"
 import { Label } from "./ui/label"
 
@@ -289,6 +132,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
   // File upload states
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [fakeProgress, setFakeProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -304,12 +148,35 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
   // Generate a random UUID
   const generateUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0,
+        v = c === "x" ? r : (r & 0x3) | 0x8
       return v.toString(16)
     })
   }
-  
+
+  // Effect for fake progress bar
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+
+    if (isUploading && fakeProgress < 95) {
+      interval = setInterval(() => {
+        setFakeProgress((prev) => {
+          // Slow down as we approach higher percentages
+          const increment = prev < 40 ? 1.5 : prev < 60 ? 1 : prev < 80 ? 3 / 5.0 : 1 / 5.0
+          return Math.min(prev + increment, 97)
+        })
+      }, 20)
+    }
+
+    return () => {
+      clearInterval(interval)
+      if (!isUploading) {
+        setFakeProgress(0)
+      }
+    }
+  }, [isUploading, fakeProgress])
+
   // Handler for uploading a CSV file
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -324,7 +191,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
     // Generate random UUID filename
     const uuid = generateUUID()
-    const fileExtension = file.name.split('.').pop() || 'csv'
+    const fileExtension = file.name.split(".").pop() || "csv"
     const renamedFile = new File([file], `${uuid}.${fileExtension}`, { type: file.type })
 
     setIsUploading(true)
@@ -459,7 +326,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     // Generate CSV content
     const csvContent = "label,image\n" + browserDataset.map((row) => `${row.label},${row.image}`).join("\n")
     const csvBlob = new Blob([csvContent], { type: "text/csv" })
-    
+
     // Use UUID for filename
     const uuid = generateUUID()
     const csvFile = new File([csvBlob], `${uuid}.csv`, { type: "text/csv" })
@@ -477,7 +344,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
         // Reset create mode and dataset
         setCreateMode(false)
         setBrowserDataset([])
-        toast.success(`Created and uploaded dataset: ${response.split('/').pop()}`)
+        toast.success(`Created and uploaded dataset: ${response.split("/").pop()}`)
       } else if ("error" in response) {
         // Error case
         setError(response.error || "Failed to upload generated dataset")
@@ -549,11 +416,11 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
               {/* Mode Selector */}
               <div className="flex h-7 items-center space-x-2">
-                <Button variant={!createMode ? "default" : "outline"} size="sm" onClick={() => setCreateMode(false)} className="flex-1">
+                <Button variant={!createMode ? "default" : "outline"} size="sm" onClick={() => createMode && toggleCreateMode()} className="flex-1">
                   Upload CSV
                 </Button>
                 <Separator orientation="vertical" />
-                <Button variant={createMode ? "default" : "outline"} size="sm" onClick={() => setCreateMode(true)} className="flex-1">
+                <Button variant={createMode ? "default" : "outline"} size="sm" onClick={() => !createMode && toggleCreateMode()} className="flex-1">
                   Create Here
                 </Button>
               </div>
@@ -577,7 +444,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                     </>
                   )}
                 </Button>
-                <p className="text-xs text-gray-500">Upload a CSV file with your dataset information. The file should have a column for labels and image paths or data.</p>
+                {isUploading ? <Progress value={fakeProgress} className="h-2 w-full" /> : <p className="text-xs text-gray-500">Upload a CSV file with your dataset information. The file should have a column for labels and image paths or data.</p>}
               </div>
             )}
 
@@ -602,15 +469,14 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                     </Button>
                   </div>
 
-                  {currentPreviews && (
+                  {currentPreviews &&
                     currentPreviews.map((preview, index) => (
                       <div key={index} className="mt-2">
                         <div className="relative w-24 h-24 mx-auto">
                           <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-cover rounded" />
                         </div>
                       </div>
-                    ))
-                  )}
+                    ))}
 
                   <Button onClick={addDataRow} disabled={!newLabel || !currentPreviews.length} className="w-full">
                     <Plus className="w-4 h-4 mr-2" />
@@ -736,18 +602,6 @@ export const ShufflingFilterBlock: BlockType<{}> = {
   block({ id, dragHandleProps }) {
     return <Block id={id} title="Shuffling Filter" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
   },
-}
-
-type UploadBlockProps = {
-  files: Record<
-    string,
-    {
-      path: string
-      status: "pending" | "processing" | "success" | "error"
-      progress: number
-      error?: string
-    }
-  >
 }
 
 // Block registry

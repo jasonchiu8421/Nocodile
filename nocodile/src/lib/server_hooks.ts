@@ -3,106 +3,82 @@
  * Example TypeScript functions to call your FastAPI routes.
  */
 
-const baseURL = "http://localhost:8888";
+const baseURL = "http://localhost:8888"
 // Adjust to match wherever your FastAPI app is hosted
 
 // ------------------ Interfaces for request bodies ------------------ //
 
-export interface TrainRequestFirst {
-  dataset: Record<string, string>;
-  // i.e. { "imageName.png": "base64string", ... }
-}
-
 export interface ImagePreprocessRequest {
-  dataset_path: string;
+  dataset_path: string
   options: {
-    resize?: [number, number];
-    rgb2gray?: number;
-    grayscale?: number;         // Depending on whether you use "grayscale" or "rgb2gray"
-    shuffle?: number;
-    normalize?: number;
-    save_option?: string;       // "whole dataset" | "one image per class"
-  };
+    resize?: [number, number]
+    grayscale?: boolean
+    shuffle?: boolean
+    normalize?: boolean
+    save_option?: "whole dataset" | "one image per class"
+  }
 }
 
-export interface TrainingRequestSecond {
-  preprocessed_images: string[];  // e.g. ["preprocessed_dataset1.h5", ...]
-  labels: number[];               // e.g. [0,1,2,3,...]
+export interface TrainingRequest {
+  preprocessed_images: string[] // e.g. ["preprocessed_dataset1.h5", ...]
+  labels: number[] // e.g. [0,1,2,3,...]
   training_options: {
-    method?: "train_test" | "train_test_val" | "kFold_val";
-    layers?: Array<Record<string, any>>;
-    optimizer?: string;
-    loss?: string;
-    metrics?: string[];
-    lr?: number;
-    epochs?: number;
-    batch_size?: number;
-    kFold_k?: number;
-  };
+    method?: "train_test" | "train_test_val" | "kFold_val"
+    layers?: Array<Record<string, any>>
+    optimizer?: string
+    loss?: string
+    metrics?: string[]
+    lr?: number
+    epochs?: number
+    batch_size?: number
+    kFold_k?: number
+  }
 }
 
 export interface PredictionRequest {
-  model_path: string;
-  input_data: string;  // e.g. Base64 data or entire CSV file contents
+  model_path: string
+  input_data: string // e.g. Base64 data or entire CSV file contents
 }
 
 // ------------------ Interfaces for response bodies ------------------ //
 
 export interface TrainResponseFirst {
-  status: string;    // e.g. "success"
-  message: string;   // e.g. "Training initiated with N images"
+  status: string // e.g. "success"
+  message: string // e.g. "Training initiated with N images"
 }
 
-export type UploadResponse = string | { error: string };
+export type UploadResponse = string | { error: string }
 
-export type DeleteFileResponse = { message: string } | { error: string };
+export type DeleteFileResponse = { message: string } | { error: string }
 
 /** The endpoint returns an object of { [optionName]: string | null }
  *  plus a final 'output' key.
  */
-export type PreprocessResponse = Record<string, string | null>;
+export type PreprocessResponse = {
+  output: string
+}
 
-export interface TrainResponseSecond {
+export interface TrainResponse {
   // Example structure that your snippet returns:
-  "model path": string;
-  "accuracy graph": any;   // Possibly base64 or some image structure
-  "loss graph": any;
-  "accuracy data": any;    // Possibly an array or object with numeric logs
-  "loss data": any;
+  "model path": string
+  "accuracy graph": any // Possibly base64 or some image structure
+  "loss graph": any
+  "accuracy data": any // Possibly an array or object with numeric logs
+  "loss data": any
 }
 
 export interface PredictResponse {
-  "predicted class": number[];   // The class index
-  "confidence level": number[];  // The max probability
+  "predicted class": number[] // The class index
+  "confidence level": number[] // The max probability
 }
 
 export interface TestModelResponse {
-  accuracy: number;
-  "accuracy per class": Record<string, number>;
-  "accuracy per class graph": string; // base64-encoded image
+  accuracy: number
+  "accuracy per class": Record<string, number>
+  "accuracy per class graph": string // base64-encoded image
 }
 
 // ------------------ Actual TS functions to call each route ------------------ //
-
-
-/**
- * Calls the /train endpoint (app.post("/train") that expects TrainRequest).
- * This is the one that returns status+message, not the entire training logs.
- */
-export const trainRoute = async (
-    trainRequest: TrainRequestFirst
-): Promise<TrainResponseFirst> => {
-  const response = await fetch(`${baseURL}/train`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(trainRequest),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP error! Status: ${response.status}`);
-  }
-  return response.json() as Promise<TrainResponseFirst>;
-};
-
 
 /**
  * Calls /upload endpoint
@@ -111,128 +87,120 @@ export const trainRoute = async (
  */
 export const uploadDataset = async (csvFile: File): Promise<UploadResponse> => {
   // Construct a FormData object to send the file as multipart form data
-  const formData = new FormData();
-  formData.append("file", csvFile);
+  const formData = new FormData()
+  formData.append("file", csvFile)
 
   // Make the request
   const response = await fetch(`${baseURL}/upload`, {
     method: "POST",
     body: formData,
-  });
+  })
 
   // If not okay, parse the error content
   if (!response.ok) {
     // e.g. { "error": "Only CSV files are accepted" } or some other error content
-    return await response.json();
+    return await response.json()
   }
 
   // On success, the FastAPI code returns the string h5_filename
   // Usually this is just a string, e.g. "mydataset.h5"
-  return await response.json();
-};
-
+  return await response.json()
+}
 
 /**
  * Calls the DELETE /delete/{filename} route to remove a .h5 file on the server.
  */
 export async function deleteFile(filename: string): Promise<DeleteFileResponse> {
-    // Safely encode the filename in case it has special characters
-    const encodedFilename = encodeURIComponent(filename);
+  // Safely encode the filename in case it has special characters
+  const encodedFilename = encodeURIComponent(filename)
 
-    // Make the DELETE request
-    const response = await fetch(`${baseURL}/delete/${encodedFilename}`, {
-        method: "DELETE",
-    });
+  // Make the DELETE request
+  const response = await fetch(`${baseURL}/delete/${encodedFilename}`, {
+    method: "DELETE",
+  })
 
-    // Parse the JSON body
-    const data = await response.json();
+  // Parse the JSON body
+  const data = await response.json()
 
-    // If the response is not OK, return the error
-    if (!response.ok) {
-        return {
-            error: data.error ?? "Unknown error occurred while deleting the file",
-        };
-    }
-
-    // Otherwise, return the success message
+  // If the response is not OK, return the error
+  if (!response.ok) {
     return {
-        message: data.message,
-    };
-}
+      error: data.error ?? "Unknown error occurred while deleting the file",
+    }
+  }
 
+  // Otherwise, return the success message
+  return {
+    message: data.message,
+  }
+}
 
 /**
  * Calls /preprocess endpoint
  * Takes an ImagePreprocessRequest.
  * Returns a record with paths for each step + a final 'output' path.
  */
-export const preprocessDataset = async (
-    preprocessRequest: ImagePreprocessRequest
-): Promise<PreprocessResponse> => {
+export const preprocessDataset = async (preprocessRequest: ImagePreprocessRequest): Promise<PreprocessResponse> => {
   const response = await fetch(`${baseURL}/preprocess`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(preprocessRequest),
-  });
+  })
+
+  // Parse the JSON body
+  const data = await response.json()
+
+  // If the response is not OK, return the error
   if (!response.ok) {
-    throw new Error(`HTTP error! Status: ${response.status}`);
+    throw new Error(data.error ?? "Unknown error occurred while deleting the file")
   }
-  return response.json() as Promise<PreprocessResponse>;
-};
 
-
-/**
- * Calls the SECOND /train endpoint (app.post("/train") that expects TrainingRequest).
- * This is the route that returns model path, accuracy graph, etc.
- */
-export const trainSecondRoute = async (
-    trainRequest: TrainingRequestSecond
-): Promise<TrainResponseSecond> => {
-  const response = await fetch(`${baseURL}/train`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(trainRequest),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP error! Status: ${response.status}`);
-  }
-  return response.json() as Promise<TrainResponseSecond>;
-};
-
+  // Otherwise, return the success message
+  return data as PreprocessResponse
+}
 
 /**
  * Calls /predict endpoint
  * Returns predicted class array and confidence level array.
  */
-export const predict = async (
-    predictRequest: PredictionRequest
-): Promise<PredictResponse> => {
+export const predict = async (predictRequest: PredictionRequest): Promise<PredictResponse> => {
   const response = await fetch(`${baseURL}/predict`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(predictRequest),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP error! Status: ${response.status}`);
-  }
-  return response.json() as Promise<PredictResponse>;
-};
+  })
 
+  // Parse the JSON body
+  const data = await response.json()
+
+  // If the response is not OK, return the error
+  if (!response.ok) {
+    throw new Error(data.error ?? "Unknown error occurred while deleting the file")
+  }
+
+  // Otherwise, return the success message
+  return data as PredictResponse
+}
 
 /**
  * Calls /test endpoint
  * Returns overall accuracy, per-class accuracy, plus a base64-encoded plot.
  */
-export const testModel = async (
-    testRequest: PredictionRequest
-): Promise<TestModelResponse> => {
+export const testModel = async (testRequest: PredictionRequest): Promise<TestModelResponse> => {
   const response = await fetch(`${baseURL}/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(testRequest),
-  });
+  })
+  
+  // Parse the JSON body
+  const data = await response.json()
+
+  // If the response is not OK, return the error
   if (!response.ok) {
-    throw new Error(`HTTP error! Status: ${response.status}`);
+    throw new Error(data.error ?? "Unknown error occurred while deleting the file")
   }
-  return response.json() as Promise<TestModelResponse>;
-};
+
+  // Otherwise, return the success message
+  return data as TestModelResponse
+}
