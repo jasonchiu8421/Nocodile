@@ -96,7 +96,6 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
     })
       .then((response) => {
         if (response.output) {
-          setImportData(null)
           setIsProcessing(false)
         }
       })
