@@ -257,8 +257,8 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
     const file = files[0]
     if (!file.name.endsWith(".csv")) {
-      setError("Only CSV files are allowed")
-      toast.error("Only CSV files are allowed")
+      setError(`Only CSV files are allowed (${file.name})`)
+      toast.error(`Only CSV files are allowed (${file.name})`)
       return
     }
 
@@ -472,17 +472,17 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
         {/* Current Dataset Display */}
         {data.datasetFile ? (
-          <div className="p-3 bg-green-50 border border-green-200 rounded">
-            <div className="flex items-center justify-between">
+          <div className="p-3 bg-zinc-50 border border-zinc-200 rounded">
+            <div className="flex items-center justify-between gap-1">
               <div className="flex items-center space-x-2">
-                <Database className="w-4 h-4 text-green-600 shrink-0" />
-                <span className="text-sm text-green-700 font-medium">
+                <Database className="w-4 h-4 shrink-0" />
+                <span className="text-sm font-medium">
                   Dataset path: <span className="font-normal">{data.datasetFile}</span>
                 </span>
               </div>
               <Button variant="destructive" size="sm" onClick={handleDeleteFile} disabled={isDeleting} className="h-7 px-2">
                 {isDeleting ? "Deleting..." : "Delete"}
-                {!isDeleting && <Trash className="w-3 h-3 ml-2" />}
+                {!isDeleting && <Trash className="w-3 h-3" />}
               </Button>
             </div>
           </div>

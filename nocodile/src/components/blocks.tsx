@@ -113,19 +113,20 @@ export function EndBlockComponent({
   allBlocks,
   step,
   children,
-  buttonText = (complete: boolean) => (complete ? "Run Again" : "Run"),
+  buttonText,
 }: Omit<CreateBlockElementProps<{}>, "dragging"> & {
   saveFunc: SaveFunction
   stage: ProgressStep
   allBlocks: BlockRegistry
   step?: () => void
   children?: ReactNode
-  buttonText: string | ((complete: boolean) => string)
+  buttonText?: string | ((complete: boolean) => string)
 }) {
   const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore()
   const saveFuncResult = blocks ? saveFunc.save(allBlocks, blocks) : null
   const canRun = saveFuncResult?.type === "success" && isStepAvailable(stage)
   const isCompleted = isStepCompleted(stage)
+  const buttonTextFunc = buttonText ?? ((complete: boolean) => (complete ? "Run Again" : "Run"))
 
   return (
     <Block id={id} title="End" color={isCompleted ? "bg-green-100" : "bg-red-100"} icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : "bg-red-500"}`} />} dragHandleProps={dragHandleProps}>
@@ -143,7 +144,7 @@ export function EndBlockComponent({
             completeStep(stage)
           }}
         >
-          {typeof buttonText === "function" ? buttonText(isCompleted) : buttonText}
+          {typeof buttonTextFunc === "function" ? buttonTextFunc(isCompleted) : buttonTextFunc}
         </Button>
         {children}
       </div>
