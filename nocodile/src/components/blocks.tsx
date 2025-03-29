@@ -20,6 +20,7 @@ export type CreateBlockElementProps<T> = {
   dragHandleProps?: any
   chain?: BlockChainProps
   blocks?: BlockInstance[]
+  dragging: boolean
 }
 
 export type BlockType<T> = {
@@ -111,11 +112,15 @@ export function EndBlockComponent({
   stage,
   allBlocks,
   step,
-}: CreateBlockElementProps<{}> & {
+  children,
+  buttonText = (complete: boolean) => (complete ? "Run Again" : "Run"),
+}: Omit<CreateBlockElementProps<{}>, "dragging"> & {
   saveFunc: SaveFunction
   stage: ProgressStep
   allBlocks: BlockRegistry
   step?: () => void
+  children?: ReactNode
+  buttonText: string | ((complete: boolean) => string)
 }) {
   const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore()
   const saveFuncResult = blocks ? saveFunc.save(allBlocks, blocks) : null
@@ -138,8 +143,9 @@ export function EndBlockComponent({
             completeStep(stage)
           }}
         >
-          {isCompleted ? "Run Again" : "Run"}
+          {typeof buttonText === "function" ? buttonText(isCompleted) : buttonText}
         </Button>
+        {children}
       </div>
     </Block>
   )

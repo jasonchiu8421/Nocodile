@@ -40,12 +40,30 @@ type ActiveDragItem = {
   inputSnapTo: string | null
   outputSnapTo: string | null
   bounds: { width: number; height: number } | null
+  blockElement: ReactNode
 }
 
 export function DndLayout({ title, description, sidebarContent, blockRegistry, blocks, setBlocks, defaultBlocks, save }: DndLayoutProps) {
   const [activeDragItem, setActiveDragItem] = useState<ActiveDragItem | null>(null)
   const [viewPosition, setViewPosition] = useState({ x: 0, y: 0 })
   const [viewZoom, setViewZoom] = useState(1)
+
+  const updateActiveDragItemData = useCallback(
+    (data: any) => {
+      if (!activeDragItem || !activeDragItem.id || !activeDragItem.blockType) return
+      setActiveDragItem({
+        ...activeDragItem,
+        data,
+        blockElement: blockRegistry[activeDragItem.blockType].block({
+          data,
+          id: activeDragItem.id,
+          setData: updateActiveDragItemData,
+          dragging: true,
+        }),
+      })
+    },
+    [activeDragItem]
+  )
 
   const nextBlockId = useCallback(() => {
     return (
@@ -195,6 +213,12 @@ export function DndLayout({ title, description, sidebarContent, blockRegistry, b
             outputSnapTo: null,
             bounds: { width: blockRegistry[event.active.data.current.blockType]?.width ?? 200, height: 0 },
             data: blockRegistry[event.active.data.current.blockType].createNew(),
+            blockElement: blockRegistry[event.active.data.current.blockType].block({
+              data: blockRegistry[event.active.data.current.blockType].createNew(),
+              id: event.active.data.current.blockId,
+              setData: updateActiveDragItemData,
+              dragging: true,
+            }),
           })
         } else if (event.active.data.current?.origin === "canvas") {
           const element = document.getElementById(`draggable/block/${event.active.id}`)
@@ -217,6 +241,12 @@ export function DndLayout({ title, description, sidebarContent, blockRegistry, b
             outputSnapTo: null,
             bounds: { width: rect.width, height: rect.height },
             data: event.active.data.current.data,
+            blockElement: blockRegistry[event.active.data.current.blockType].block({
+              data: event.active.data.current.data,
+              id: event.active.data.current.blockId,
+              setData: updateActiveDragItemData,
+              dragging: true,
+            }),
           })
 
           setBlocks(
@@ -358,13 +388,6 @@ export function DndLayout({ title, description, sidebarContent, blockRegistry, b
   // Convert blocks to the format expected by BlocksView
   const blockViewItems = blocks
     .map((block) => {
-      const blockElement = blockRegistry[block.type]?.block({
-        data: block.data,
-        id: block.id,
-        setData: (d) => {},
-      })
-      if (!blockElement) return null
-
       return {
         ...block,
         visible: block.id !== activeDragItem?.id,
@@ -428,11 +451,7 @@ export function DndLayout({ title, description, sidebarContent, blockRegistry, b
                   output: activeDragItem.outputSnapTo !== null,
                 }}
               >
-                {blockRegistry[activeDragItem.blockType].block({
-                  data: activeDragItem.data ?? blockRegistry[activeDragItem.blockType].createNew(),
-                  id: "drag-overlay",
-                  setData: () => {},
-                })}
+                {activeDragItem.blockElement}
               </BlockIO>
             </div>
           )}

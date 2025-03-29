@@ -1,11 +1,15 @@
-import { FileSpreadsheet, Image, Plus, Trash, Upload, X, Database } from "lucide-react"
-import { useState, useRef, useEffect } from "react"
+import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { deleteFile, preprocessDataset, uploadDataset } from "../lib/server_hooks"
+import { usePreprocessingStore } from "../store/usePreprocessingStore"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
 import { SaveFunction, splitChain } from "./save_alerts"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
+import { Label } from "./ui/label"
 import { Progress } from "./ui/progress"
+import { Separator } from "./ui/separator"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
@@ -38,11 +42,20 @@ const StartBlock: BlockType<{}> = {
   },
 }
 
-const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
-  const { id, chain, blocks, dragHandleProps } = props
+type EndBlockData = {
+  preprocessedPath?: string
+  processedForPath?: string
+  processedWithOptions?: string
+}
+
+const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>) => {
+  const { id, chain, blocks, dragHandleProps, data, setData, dragging } = props
   const [isProcessing, setIsProcessing] = useState(false)
   const [importData, setImportData] = useState<ImportDataProps | null>(null)
   const [options, setOptions] = useState<Record<string, any>>({})
+
+  // Use the Zustand store for tracking deletion state
+  const { isDeleting, startDeleting, finishDeleting } = usePreprocessingStore()
 
   useEffect(() => {
     setImportData(null)
@@ -84,6 +97,11 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
     }
 
     setIsProcessing(true)
+    setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+    await sleep(500)
 
     preprocessDataset({
       dataset_path: importData.datasetFile,
@@ -96,7 +114,14 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
     })
       .then((response) => {
         if (response.output) {
+          setData({
+            ...data,
+            preprocessedPath: response.output,
+            processedForPath: importData.datasetFile ?? undefined,
+            processedWithOptions: JSON.stringify(options),
+          })
           setIsProcessing(false)
+          toast.success("Dataset preprocessed successfully")
         }
       })
       .catch((error) => {
@@ -107,22 +132,65 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
       })
   }
 
-  return <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allBlocks} step={startProcessing} id={id} blocks={blocks} data={{}} chain={chain} setData={() => {}} dragHandleProps={dragHandleProps} />
+  // Function to handle deletion of preprocessed file
+  const handleDeletePreprocessedFile = async (pathToDelete: string) => {
+    if (isDeleting(pathToDelete)) return // Prevent multiple simultaneous deletion attempts
+    if (dragging) return
+
+    startDeleting(pathToDelete)
+    try {
+      const response = await deleteFile(pathToDelete)
+      if ("message" in response) {
+        toast.success("Preprocessed file deleted successfully")
+      } else if ("error" in response) {
+        toast.error(response.error || "Failed to delete file")
+      }
+    } catch (error) {
+      // If deletion fails, we still want to clear the local state
+      console.error("Failed to delete preprocessed file:", error)
+    } finally {
+      finishDeleting(pathToDelete)
+    }
+  }
+
+  useEffect(() => {
+    const currentDatasetPath = importData?.datasetFile || null
+    const optionsString = JSON.stringify(options)
+
+    if (data.preprocessedPath && data.processedForPath && data.processedWithOptions && (currentDatasetPath !== data.processedForPath || optionsString !== data.processedWithOptions) && !isDeleting(data.preprocessedPath)) {
+      const pathToDelete = data.preprocessedPath
+
+      setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
+
+      handleDeletePreprocessedFile(pathToDelete)
+    }
+  }, [importData, options, data, setData, isDeleting, startDeleting, finishDeleting, dragging])
+
+  return (
+    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps}
+      buttonText={"Preprocess Dataset"}
+    >
+      <div className={`overflow-hidden transition-all duration-400 ${data.preprocessedPath && !dragging ? "max-h-20 mt-2" : "max-h-0 -mt-4"}`}>
+        <div className="p-2 bg-green-50 rounded border border-green-200">
+          <p className="text-sm font-medium">
+            Preprocessed path: <span className="font-normal">{data.preprocessedPath}</span>
+          </p>
+        </div>
+      </div>
+    </EndBlockComponent>
+  )
 }
 
-const EndBlock: BlockType<{}> = {
+const EndBlock: BlockType<EndBlockData> = {
   hasInput: true,
   title: "End",
   icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
   limit: 1,
+  width: 300,
   immortal: true,
   createNew: () => ({}),
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
-
-import { uploadDataset, deleteFile, preprocessDataset } from "../lib/server_hooks"
-import { Separator } from "./ui/separator"
-import { Label } from "./ui/label"
 
 type ImportDataProps = {
   datasetFile: string | null
@@ -218,7 +286,9 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     } catch (err) {
       const errorMessage = "An error occurred during upload"
       setError(errorMessage)
-      toast.error(errorMessage)
+      toast.error(errorMessage, {
+        description: (err as Error).message,
+      })
       console.error(err)
     } finally {
       setIsUploading(false)
@@ -406,7 +476,9 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Database className="w-4 h-4 text-green-600 shrink-0" />
-                <span className="text-sm text-green-700">Current Dataset: {data.datasetFile}</span>
+                <span className="text-sm text-green-700 font-medium">
+                  Dataset path: <span className="font-normal">{data.datasetFile}</span>
+                </span>
               </div>
               <Button variant="destructive" size="sm" onClick={handleDeleteFile} disabled={isDeleting} className="h-7 px-2">
                 {isDeleting ? "Deleting..." : "Delete"}

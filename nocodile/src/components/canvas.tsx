@@ -357,7 +357,8 @@ function BlockFunction({type, block, blocks, chains, setBlocks, props}: {
       after: chain.slice(chain.findIndex(b => b.id === block.id) + 1),
     } : undefined,
     blocks,
-    dragHandleProps: { ...props }
+    dragHandleProps: { ...props },
+    dragging: false,
   })
 }
 
