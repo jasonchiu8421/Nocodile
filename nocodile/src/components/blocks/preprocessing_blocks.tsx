@@ -29,8 +29,20 @@ export const saveFunc = SaveFunction.requireChainCount(1).then(
     return { type: "success" }
   })
 )
+// Keep them duplicated cause it needs different Uhh behavior for each step supposedly but take that time, corners are cut
+const StartBlock: BlockType<{}> = {
+  hasOutput: true,
+  title: "Start",
+  icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({}),
+  block({ id, dragHandleProps }) {
+      return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
+  },
+  }
 
-type EndBlockData = {
+export type EndBlockData = {
   preprocessedPath?: string
   processedForPath?: string
   processedWithOptions?: string
@@ -671,6 +683,7 @@ export const ShufflingFilterBlock: BlockType<{}> = {
 
 // Block registry
 const allPpBlocks: BlockRegistry = {
+  start: StartBlock,
   import: ImportDataBlock,
   resize: ResizeFilterBlock,
   grayscale: GrayscaleFilterBlock,

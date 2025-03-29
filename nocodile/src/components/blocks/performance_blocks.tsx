@@ -3,7 +3,9 @@ import {Image} from "lucide-react"
 import { BlockType } from "@/components/blocks/blocks"
 import { Block } from "@/components/blocks/blocks"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
-import { EndBlockComponent } from "@/components/blocks/blocks"
+
+// Are you sure
+import {EndBlockData} from "@/components/blocks/preprocessing_blocks"
 
 // Can this be centralized?
 export const saveFunc = SaveFunction.requireChainCount(1).then(
@@ -25,29 +27,43 @@ export const saveFunc = SaveFunction.requireChainCount(1).then(
     })
 )
 
-// Keep them duplicated cause it needs different Uhh behavior for each step supposedly but take that time, corners are cut
+// Keep them duplicated cause it needs different behavior for each step supposedly but take that time, corners are cut
 const StartBlock: BlockType<{}> = {
-hasOutput: true,
-title: "Start",
-icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
-limit: 1,
-immortal: true,
-createNew: () => ({}),
-block({ id, dragHandleProps }) {
-    return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
-},
+  hasOutput: true,
+  title: "Start",
+  icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({}),
+  block({ id, dragHandleProps }) {
+      return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
+  },
 }
 
-const EndBlock: BlockType<{}> = {
-hasInput: true,
-title: "End",
-icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
-limit: 1,
-immortal: true,
-createNew: () => ({}),
-block: (props) => <EndBlockComponent stage="training" saveFunc={saveFunc} allBlocks={allPerformanceBlocks} {...props} />,
+/*
+const EndBlock: BlockType<EndBlockData> = {
+  hasInput: true,
+  title: "End",
+  icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({}),
+  block: (props) => <EndBlockComponent stage="performance" saveFunc={saveFunc} allBlocks={allPerformanceBlocks} {...props}>
+    <p>Yee yee yee</p>
+  </EndBlockComponent>,
 }
-  
+*/
+const PerfResultsBlock: BlockType<EndBlockData> = {
+  hasInput: true,
+  title: "Test Results",
+  icon: <div className="w-4 h-4 rounded-full bg-red-500"/>,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({}),
+  block({ id, dragHandleProps }) {
+    return <Block id={id} title="Test Results" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
+},
+}
 const DataBlock: BlockType<{}> = {
     hasInput: true,
     hasOutput: true,
@@ -56,13 +72,13 @@ const DataBlock: BlockType<{}> = {
     icon: <Image className="w-5 h-5" />,
     createNew: () => ({}),
     block({ id, dragHandleProps }) {
-      return <Block id={id} title="Data Block" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
+      return <Block id={id} title="Data Block (WHERE PATH)" icon={<Image className="w-5 h-5" />} dragHandleProps={dragHandleProps} />
     },
   }
 
 const allPerformanceBlocks: BlockRegistry = {
   start: StartBlock,
-  end: EndBlock,
+  end: PerfResultsBlock,
   dataBlock: DataBlock
 }
 

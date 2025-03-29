@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { Database, Plus } from "lucide-react"
+import { Database, Plus, Trash } from "lucide-react"
 
 // Layer types
 type KernelSize = [number, number]
@@ -193,7 +193,7 @@ const ConvolutionBlock: BlockType<{
                       }}
                       className="h-7 px-2 py-1 text-xs"
                     >
-                      Remove
+                      <Trash />
                     </Button>
                   </div>
                 </AccordionTrigger>
@@ -348,7 +348,7 @@ const ClassificationBlock: BlockType<{
                       }}
                       className="h-7 px-2 py-1 text-xs"
                     >
-                      Remove
+                      <Trash />
                     </Button>
                   </div>
                 </AccordionTrigger>
