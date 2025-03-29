@@ -262,10 +262,10 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       return
     }
 
-    // Generate random UUID filename
+    // Generate random UUID filename, change to text/csv
     const uuid = generateUUID()
     const fileExtension = file.name.split(".").pop() || "csv"
-    const renamedFile = new File([file], `${uuid}.${fileExtension}`, { type: file.type })
+    const renamedFile = new File([file], `${uuid}.${fileExtension}`, { type: "text/csv" })
 
     setIsUploading(true)
     setError(null)
