@@ -47,7 +47,7 @@ const EndBlock: BlockType<{}> = {
   immortal: true,
   width: 100,
   createNew: () => ({}),
-  block: (props) => <EndBlockComponent stage="testing" saveFunc={saveFunc} allBlocks={allBlocks} {...props} />,
+  block: (props) => <EndBlockComponent stage="testing" saveFunc={saveFunc} allBlocks={allTestingBlocks} {...props} />,
 }
 
 // DoodlePad Block
@@ -201,7 +201,7 @@ const DoodlePadBlock: BlockType<DoodlePadProps> = {
 };
 
 // Block registry
-const allBlocks: BlockRegistry = {
+const allTestingBlocks: BlockRegistry = {
   start: StartBlock,
   doodlePad: DoodlePadBlock,
   resize: ResizeFilterBlock,
@@ -211,4 +211,4 @@ const allBlocks: BlockRegistry = {
   end: EndBlock,
 }
 
-export default allBlocks
+export default allTestingBlocks

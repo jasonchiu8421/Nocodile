@@ -30,18 +30,6 @@ export const saveFunc = SaveFunction.requireChainCount(1).then(
   })
 )
 
-const StartBlock: BlockType<{}> = {
-  hasOutput: true,
-  title: "Start",
-  icon: <div className="w-4 h-4 rounded-full bg-green-500" />,
-  limit: 1,
-  immortal: true,
-  createNew: () => ({}),
-  block({ id, dragHandleProps }) {
-    return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
-  },
-}
-
 type EndBlockData = {
   preprocessedPath?: string
   processedForPath?: string
@@ -167,7 +155,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
   }, [importData, options, data, setData, isDeleting, startDeleting, finishDeleting, dragging])
 
   return (
-    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps}
+    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allPpBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps}
       buttonText={"Preprocess Dataset"}
     >
       <div className={`overflow-hidden transition-all duration-400 ${data.preprocessedPath && !dragging ? "max-h-20 mt-2" : "max-h-0 -mt-4"}`}>
@@ -682,8 +670,7 @@ export const ShufflingFilterBlock: BlockType<{}> = {
 }
 
 // Block registry
-const allBlocks: BlockRegistry = {
-  start: StartBlock,
+const allPpBlocks: BlockRegistry = {
   import: ImportDataBlock,
   resize: ResizeFilterBlock,
   grayscale: GrayscaleFilterBlock,
@@ -692,4 +679,4 @@ const allBlocks: BlockRegistry = {
   end: EndBlock,
 }
 
-export default allBlocks
+export default allPpBlocks
