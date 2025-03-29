@@ -1,4 +1,4 @@
-import { BlockIO, BlockRegistry, BlockViewItem } from "@/components/blocks"
+import { BlockIO, BlockRegistry, BlockViewItem } from "@/components/blocks/blocks"
 import { RouteBreadcrumb } from "@/components/routes_breadcrumb"
 import { Sidebar, SidebarContent, SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { DndContext, DragEndEvent, DragMoveEvent, DragOverlay, DragStartEvent, Modifier } from "@dnd-kit/core"
@@ -135,7 +135,7 @@ export function DndLayout({ title, description, sidebarContent, blockRegistry, b
         const connectorBlockId = connectorId.substring(0, connectorId.lastIndexOf("/"))
         if (connectorBlockId === activeBlockId) continue
 
-        console.log("considering", connectorBlockId)
+        //console.log("considering", connectorBlockId)
 
         const rect = element.getBoundingClientRect()
 

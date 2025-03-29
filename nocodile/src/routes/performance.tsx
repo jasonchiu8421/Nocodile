@@ -1,4 +1,4 @@
-import { Block, BlockRegistry, CreateBlockElementProps, BlockType } from "@/components/blocks"
+import { Block, BlockRegistry, CreateBlockElementProps, BlockType } from "@/components/blocks/blocks"
 import { BlockDrawer, calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance, DndLayout } from "@/components/dnd_layout"
 import { SaveFunction } from "@/components/save_alerts"

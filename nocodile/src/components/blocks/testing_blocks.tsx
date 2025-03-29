@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils"
 import { Pencil } from "lucide-react"
 import { useEffect, useState, useRef } from "react"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
-import { Button } from "./ui/button"
-import { SaveFunction, splitChain } from "./save_alerts"
+import { Button } from "@/components/ui/button"
+import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { EndBlockComponent } from "./blocks"
 import { 
   ResizeFilterBlock, 

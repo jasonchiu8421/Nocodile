@@ -1,4 +1,4 @@
-import { Block, BlockRegistry, BlockType, EndBlockComponent } from "@/components/blocks"
+import { Block, BlockRegistry, BlockType, EndBlockComponent } from "@/components/blocks/blocks"
 import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
 import { SaveFunction, splitChain } from "@/components/save_alerts"

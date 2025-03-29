@@ -1,6 +1,6 @@
 import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
-import allBlocks, { saveFunc } from "@/components/preprocessing_blocks"
+import allBlocks, { saveFunc } from "@/components/blocks/preprocessing_blocks"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
 import { defaultPreprocessingBlocks } from "@/store/useBlocksStore"
@@ -17,7 +17,15 @@ export default function Preprocessing() {
 
   return (
     <>
-      <DndLayout title="Data Preprocessing" sidebarContent={sidebarContent} blockRegistry={allBlocks} blocks={preprocessingBlocks} setBlocks={setPreprocessingBlocks} save={saveFunc} defaultBlocks={defaultPreprocessingBlocks} />
+      <DndLayout 
+      title="Data Preprocessing" 
+      sidebarContent={sidebarContent} 
+      blockRegistry={allBlocks} 
+      blocks={preprocessingBlocks} 
+      setBlocks={setPreprocessingBlocks} 
+      save={saveFunc} 
+      defaultBlocks={defaultPreprocessingBlocks} 
+      />
       <Toaster visibleToasts={10}/>
     </>
   )

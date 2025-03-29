@@ -1,6 +1,6 @@
 import { BlockDrawer, calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance, DndLayout } from "@/components/dnd_layout"
-import allBlocks, { saveFunc } from "@/components/testing_blocks"
+import allBlocks, { saveFunc } from "@/components/blocks/testing_blocks"
 import { Toaster } from "@/components/ui/sonner"
 import { useState, useEffect } from "react"
 

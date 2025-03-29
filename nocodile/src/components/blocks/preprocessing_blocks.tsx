@@ -1,15 +1,15 @@
 import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { deleteFile, preprocessDataset, uploadDataset } from "../lib/server_hooks"
-import { usePreprocessingStore } from "../store/usePreprocessingStore"
+import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
+import { usePreprocessingStore } from "@/store/usePreprocessingStore"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
-import { SaveFunction, splitChain } from "./save_alerts"
-import { Button } from "./ui/button"
-import { Input } from "./ui/input"
-import { Label } from "./ui/label"
-import { Progress } from "./ui/progress"
-import { Separator } from "./ui/separator"
+import { SaveFunction, splitChain } from "@/components/save_alerts"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {

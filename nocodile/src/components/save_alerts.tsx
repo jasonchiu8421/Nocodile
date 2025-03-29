@@ -8,7 +8,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import { BlockRegistry } from "@/components/blocks"
+import { BlockRegistry } from "@/components/blocks/blocks"
 import { BlockInstance } from "@/components/dnd_layout"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"

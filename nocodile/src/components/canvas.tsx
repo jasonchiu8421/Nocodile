@@ -2,10 +2,10 @@ import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { RotateCcw, ZoomIn, ZoomOut } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState, WheelEvent } from "react"
-import { BlockIO, BlockRegistry, BlockType, BlockViewItem } from "./blocks"
-import { BlockInstance } from "./dnd_layout"
-import { Button } from "./ui/button"
-import { BlockChain, splitChain } from "./save_alerts"
+import { BlockIO, BlockRegistry, BlockType, BlockViewItem } from "@/components/blocks/blocks"
+import { BlockInstance } from "@/components/dnd_layout"
+import { Button } from "@/components/ui/button"
+import { BlockChain, splitChain } from "@/components/save_alerts"
 
 // Draggable block component for the canvas
 export function DraggableBlock({ block, children }: { block: BlockViewItem; children: (dragHandleProps: any) => React.ReactNode }) {

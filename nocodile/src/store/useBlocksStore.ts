@@ -1,6 +1,6 @@
 import { calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance } from "@/components/dnd_layout"
-import allBlocks from "@/components/preprocessing_blocks"
+import allBlocks from "@/components/blocks/preprocessing_blocks"
 import { allTrainingBlocks } from "@/routes/training"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"

@@ -2,10 +2,11 @@ import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { ChevronRight } from "lucide-react"
 import React, { ReactNode } from "react"
-import { BlockInstance } from "./dnd_layout"
-import { BlockChain, SaveFunction } from "./save_alerts"
-import { ProgressStep, useProgressStore } from "@/store/useProgressStore"
-import { Button } from "./ui/button"
+import { BlockInstance } from "@/components/dnd_layout"
+import { BlockChain, SaveFunction } from "@/components/save_alerts"
+import {useProgressStore } from "@/store/useProgressStore"
+import {ProgressStep} from "@/components/blocks/common_blocks"
+import { Button } from "@/components/ui/button"
 
 type BlockChainProps = {
   entire: BlockChain

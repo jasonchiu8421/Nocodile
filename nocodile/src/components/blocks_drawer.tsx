@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
-import { BlockRegistry, BlockType } from "./blocks"
+import { BlockRegistry, BlockType } from "@/components/blocks/blocks"
 import { BlockInstance } from "./dnd_layout"
 import { Card } from "./ui/card"
 import { Separator } from "./ui/separator"
