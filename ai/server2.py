@@ -992,5 +992,8 @@ async def test(request: TestingRequest):
 
 
 if __name__ == "__main__":
+    # create datasets folder if it doesn't exist
+    os.makedirs("datasets", exist_ok=True)
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8888)
