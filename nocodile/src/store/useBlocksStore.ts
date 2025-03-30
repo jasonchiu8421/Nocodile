@@ -1,23 +1,27 @@
-import { calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance } from "@/components/dnd_layout"
-import allPpBlocks from "@/components/blocks/preprocessing_blocks"
-import { allTrainingBlocks } from "@/routes/training"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import allPerformanceBlocks from "@/components/blocks/performance_blocks"
+
+type PreprocessingData = {
+  uploadPath: string | null
+  preprocessedPath: string | null
+}
 
 interface BlocksState {
   preprocessingBlocks: BlockInstance[]
-  inactivePreprocessingBlocks: string[]
   setPreprocessingBlocks: (blocks: BlockInstance[]) => void
 
   trainingBlocks: BlockInstance[]
-  inactiveTrainingBlocks: string[]
   setTrainingBlocks: (blocks: BlockInstance[]) => void
 
-  performanceBlocks: BlockInstance[]
-  inactivePerformanceBlocks: string[]
-  setPerformanceBlocks: (blocks: BlockInstance[]) => void
+  predictingBlocks: BlockInstance[]
+  setPredictingBlocks: (blocks: BlockInstance[]) => void
+
+  testingBlocks: BlockInstance[]
+  setTestingBlocks: (blocks: BlockInstance[]) => void
+
+  preprocessingData: PreprocessingData
+  setPreprocessingData: (data: PreprocessingData | ((prev: PreprocessingData) => PreprocessingData)) => void
 }
 
 export function defaultPreprocessingBlocks() {
@@ -62,7 +66,28 @@ export function defaultTrainingBlocks() {
   ]
 }
 
-export function defaultPerformanceBlocks() {
+export function defaultPredictingBlocks() {
+  return [
+    {
+      id: "block-1",
+      type: "start",
+      data: {},
+      position: { x: 64, y: 81 },
+      input: null,
+      output: "block-2",
+    },
+    {
+      id: "block-2",
+      type: "end",
+      data: {},
+      position: { x: 280, y: 81 },
+      input: "block-1",
+      output: null,
+    },
+  ]
+}
+
+export function defaultTestingBlocks() {
   return [
     {
       id: "block-1",
@@ -87,30 +112,37 @@ export const useBlocksStore = create<BlocksState>()(
   persist(
     (set) => ({
       preprocessingBlocks: defaultPreprocessingBlocks(),
-      inactivePreprocessingBlocks: calculateInactiveBlocks(allPpBlocks, []),
-
       setPreprocessingBlocks: (blocks) =>
         set(() => ({
           preprocessingBlocks: blocks,
-          inactivePreprocessingBlocks: calculateInactiveBlocks(allPpBlocks, blocks),
         })),
 
       trainingBlocks: defaultTrainingBlocks(),
-      inactiveTrainingBlocks: calculateInactiveBlocks(allTrainingBlocks, []),
-
       setTrainingBlocks: (blocks) =>
         set(() => ({
           trainingBlocks: blocks,
-          inactiveTrainingBlocks: calculateInactiveBlocks(allTrainingBlocks, blocks),
         })),
 
-      performanceBlocks: defaultPerformanceBlocks(),
-      inactivePerformanceBlocks: calculateInactiveBlocks(allPerformanceBlocks, []),
-
-      setPerformanceBlocks: (blocks) =>
+      predictingBlocks: defaultPredictingBlocks(),
+      setPredictingBlocks: (blocks) =>
         set(() => ({
-          performanceBlocks: blocks,
-          inactivePerformanceBlocks: calculateInactiveBlocks(allPerformanceBlocks, blocks),
+          predictingBlocks: blocks,
+        })),
+
+      testingBlocks: defaultTestingBlocks(),
+      setTestingBlocks: (blocks) =>
+        set(() => ({
+          testingBlocks: blocks,
+        })),
+
+      preprocessingData: {
+        uploadPath: null,
+        preprocessedPath: null,
+      },
+
+      setPreprocessingData: (data) =>
+        set((state) => ({
+          preprocessingData: typeof data === "function" ? data(state.preprocessingData) : data,
         })),
     }),
     {

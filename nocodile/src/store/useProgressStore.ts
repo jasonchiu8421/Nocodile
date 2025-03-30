@@ -1,14 +1,16 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { ProgressStep } from "@/components/blocks/common_blocks"
+import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
-type Step = "preprocessing" | "training" | "performance" | "testing";
+export const COMPLETABLE_STEPS = ["preprocessing", "training"]
+export type CompletableStep = (typeof COMPLETABLE_STEPS)[number]
 
 interface ProgressState {
-  completedSteps: Record<Step, boolean>;
-  isStepCompleted: (step: Step) => boolean;
-  isStepAvailable: (step: Step) => boolean;
-  completeStep: (step: Step) => void;
-  resetStep: (step: Step) => void;
+  completedSteps: Record<CompletableStep, boolean>
+  isStepCompleted: (step: CompletableStep) => boolean
+  isStepAvailable: (step: ProgressStep) => boolean
+  completeStep: (step: CompletableStep) => void
+  resetStep: (step: CompletableStep) => void
 }
 
 export const useProgressStore = create<ProgressState>()(
@@ -17,26 +19,23 @@ export const useProgressStore = create<ProgressState>()(
       completedSteps: {
         preprocessing: false,
         training: false,
-        performance: false,
-        testing: false,
       },
-      isStepCompleted: (step: Step) => get().completedSteps[step],
-      isStepAvailable: (step: Step) => {
-        const { completedSteps } = get();
-        if (step === "preprocessing") return true;
-        if (step === "training") return completedSteps.preprocessing;
-        if (step === "performance") return completedSteps.training;
-        if (step === "testing") return completedSteps.performance;
-        return false;
+      isStepCompleted: (step: CompletableStep) => get().completedSteps[step],
+      isStepAvailable: (step: ProgressStep) => {
+        const { completedSteps } = get()
+        if (step === "preprocessing") return true
+        if (step === "training") return completedSteps.preprocessing
+        if (step === "predicting" || step === "testing") return completedSteps.training
+        return false
       },
-      completeStep: (step: Step) =>
+      completeStep: (step: CompletableStep) =>
         set((state) => ({
           completedSteps: {
             ...state.completedSteps,
             [step]: true,
           },
         })),
-      resetStep: (step: Step) =>
+      resetStep: (step: CompletableStep) =>
         set((state) => ({
           completedSteps: {
             ...state.completedSteps,
@@ -48,4 +47,4 @@ export const useProgressStore = create<ProgressState>()(
       name: "nocodile-progress-storage",
     }
   )
-);
+)

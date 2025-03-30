@@ -1,15 +1,17 @@
-import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { toast } from "sonner"
-import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
-import { usePreprocessingStore } from "@/store/usePreprocessingStore"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
+import { useBlocksStore } from "@/store/useBlocksStore"
+import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
+import Papa from "papaparse"
+import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
+import { EndBlockComponent } from "./common_blocks"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
@@ -37,9 +39,9 @@ const StartBlock: BlockType<{}> = {
   immortal: true,
   createNew: () => ({}),
   block({ id, dragHandleProps }) {
-      return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
+    return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
   },
-  }
+}
 
 export type EndBlockData = {
   preprocessedPath?: string
@@ -53,8 +55,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
   const [importData, setImportData] = useState<ImportDataProps | null>(null)
   const [options, setOptions] = useState<Record<string, any>>({})
 
-  // Use the Zustand store for tracking deletion state
-  const { isDeleting, startDeleting, finishDeleting } = usePreprocessingStore()
+  const { setPreprocessingData } = useBlocksStore()
 
   useEffect(() => {
     setImportData(null)
@@ -102,6 +103,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
     // Save the dataset file path to localStorage for later use
     localStorage.setItem('lastUsedDatasetFile', importData.datasetFile);
     setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
+    setPreprocessingData((prev) => ({ ...prev, preprocessedPath: null }))
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -115,45 +117,40 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
         ...(options["normalize"] ? { normalize: true } : {}),
         ...(options["shuffling"] ? { shuffle: true } : {}),
       },
-    })
-      .then((response) => {
-        if (response.output) {
-          setData({
-            ...data,
-            preprocessedPath: response.output,
-            processedForPath: importData.datasetFile ?? undefined,
-            processedWithOptions: JSON.stringify(options),
-          })
-          setIsProcessing(false)
-          toast.success("Dataset preprocessed successfully")
-        }
-      })
-      .catch((error) => {
+    }).then((response) => {
+      if (response.success) {
+        setData({
+          ...data,
+          preprocessedPath: response.data.output,
+          processedForPath: importData.datasetFile ?? undefined,
+          processedWithOptions: JSON.stringify(options),
+        })
+        setPreprocessingData((prev) => ({ ...prev, preprocessedPath: response.data.output }))
+        setIsProcessing(false)
+        toast.success("Dataset preprocessed successfully")
+      } else {
         toast.error("Failed to preprocess dataset", {
-          description: error.message,
+          description: response.error,
         })
         setIsProcessing(false)
-      })
+      }
+    })
   }
 
   // Function to handle deletion of preprocessed file
   const handleDeletePreprocessedFile = async (pathToDelete: string) => {
-    if (isDeleting(pathToDelete)) return // Prevent multiple simultaneous deletion attempts
     if (dragging) return
 
-    startDeleting(pathToDelete)
     try {
       const response = await deleteFile(pathToDelete)
-      if ("message" in response) {
+      if (response.success) {
         toast.success("Preprocessed file deleted successfully")
-      } else if ("error" in response) {
+      } else {
         toast.error(response.error || "Failed to delete file")
       }
     } catch (error) {
       // If deletion fails, we still want to clear the local state
       console.error("Failed to delete preprocessed file:", error)
-    } finally {
-      finishDeleting(pathToDelete)
     }
   }
 
@@ -161,20 +158,19 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
     const currentDatasetPath = importData?.datasetFile || null
     const optionsString = JSON.stringify(options)
 
-    if (data.preprocessedPath && data.processedForPath && data.processedWithOptions && (currentDatasetPath !== data.processedForPath || optionsString !== data.processedWithOptions) && !isDeleting(data.preprocessedPath)) {
+    if (data.preprocessedPath && data.processedForPath && data.processedWithOptions && (currentDatasetPath !== data.processedForPath || optionsString !== data.processedWithOptions)) {
       const pathToDelete = data.preprocessedPath
 
       setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
+      setPreprocessingData((prev) => ({ ...prev, preprocessedPath: null }))
 
       handleDeletePreprocessedFile(pathToDelete)
     }
-  }, [importData, options, data, setData, isDeleting, startDeleting, finishDeleting, dragging])
+  }, [importData, options, data, setData, dragging])
 
   //console.log(data.preprocessedPath);
   return (
-    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allPpBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps}
-      buttonText={"Preprocess Dataset"}
-    >
+    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allPpBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps} buttonText={"Preprocess Dataset"}>
       <div className={`overflow-hidden transition-all duration-400 ${data.preprocessedPath && !dragging ? "max-h-20 mt-2" : "max-h-0 -mt-4"}`}>
         <div className="p-2 bg-green-50 rounded border border-green-200">
           <p className="text-sm font-medium">
@@ -206,7 +202,9 @@ interface DataRow {
   image: string // base64 encoded image
 }
 
-function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: CreateBlockElementProps<ImportDataProps>) {
+function ImportDataBlockComponent({ data, id, setData, dragHandleProps, shouldSetPreprocessingData }: CreateBlockElementProps<ImportDataProps> & {
+  shouldSetPreprocessingData: boolean
+}) {
   // File upload states
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -223,6 +221,8 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const { setPreprocessingData } = useBlocksStore()
 
   // Generate a random UUID
   const generateUUID = () => {
@@ -279,11 +279,14 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     try {
       const response = await uploadDataset(renamedFile)
 
-      if (typeof response === "string") {
+      if (response.success) {
         // Success case, response is the filename
-        setData({ ...data, datasetFile: response })
+        setData({ ...data, datasetFile: response.data })
+        if (shouldSetPreprocessingData) {
+          setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
+        }
         toast.success("Dataset uploaded successfully")
-      } else if ("error" in response) {
+      } else {
         // Error case
         setError(response.error || "Failed to upload file")
         toast.error(response.error || "Failed to upload file")
@@ -314,10 +317,13 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
     try {
       const response = await deleteFile(data.datasetFile)
-      if ("message" in response) {
+      if (response.success) {
         setData({ ...data, datasetFile: null })
+        if (shouldSetPreprocessingData) {
+          setPreprocessingData((prev) => ({ ...prev, uploadPath: null }))
+        }
         toast.success("Dataset deleted successfully")
-      } else if ("error" in response) {
+      } else {
         setError(response.error || "Failed to delete file")
         toast.error(response.error || "Failed to delete file")
       }
@@ -344,7 +350,11 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       const reader = new FileReader()
       reader.onload = () => {
         if (reader.result) {
-          filesUploaded.push(reader.result as string)
+          let image = reader.result as string
+          if (image.startsWith("data:image/png;base64,")) {
+            image = image.replace("data:image/png;base64,", "")
+          }
+          filesUploaded.push(image)
           completed++
           if (completed === filesArray.length) {
             setCurrentPreviews(filesUploaded)
@@ -403,8 +413,11 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       return
     }
 
-    // Generate CSV content
-    const csvContent = "label,image\n" + browserDataset.map((row) => `${row.label},${row.image}`).join("\n")
+    // Generate CSV content with proper escaping using PapaParse
+    const csvContent = Papa.unparse({
+      fields: ["label", "image"],
+      data: browserDataset.map(row => [row.label, row.image])
+    })
     const csvBlob = new Blob([csvContent], { type: "text/csv" })
 
     // Use UUID for filename
@@ -418,14 +431,17 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     try {
       const response = await uploadDataset(csvFile)
 
-      if (typeof response === "string") {
+      if (response.success) {
         // Success case
-        setData({ ...data, datasetFile: response })
+        setData({ ...data, datasetFile: response.data })
+        if (shouldSetPreprocessingData) {
+          setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
+        }
         // Reset create mode and dataset
         setCreateMode(false)
         setBrowserDataset([])
-        toast.success(`Created and uploaded dataset: ${response.split("/").pop()}`)
-      } else if ("error" in response) {
+        toast.success(`Created and uploaded dataset: ${response.data.split("/").pop()}`)
+      } else {
         // Error case
         setError(response.error || "Failed to upload generated dataset")
         toast.error(response.error || "Failed to upload generated dataset")
@@ -555,7 +571,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                     currentPreviews.map((preview, index) => (
                       <div key={index} className="mt-2">
                         <div className="relative w-24 h-24 mx-auto">
-                          <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-cover rounded" />
+                          <img src={`data:image/png;base64,${preview}`} alt={`Preview ${index}`} className="w-full h-full object-cover rounded" />
                         </div>
                       </div>
                     ))}
@@ -581,7 +597,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                         <div key={index} className="flex items-center justify-between py-1 border-b last:border-0">
                           <div className="flex items-center space-x-2">
                             <div className="w-8 h-8 rounded overflow-hidden">
-                              <img src={item.image} alt={item.label} className="w-full h-full object-cover" />
+                              <img src={`data:image/png;base64,${item.image}`} alt={item.label} className="w-full h-full object-cover" />
                             </div>
                             <span className="text-sm">{item.label}</span>
                           </div>
@@ -614,7 +630,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
   )
 }
 
-const ImportDataBlock: BlockType<ImportDataProps> = {
+export const ImportDataBlock: BlockType<ImportDataProps> = {
   hasInput: true,
   hasOutput: true,
   limit: 1,
@@ -623,7 +639,7 @@ const ImportDataBlock: BlockType<ImportDataProps> = {
   width: 350,
   createNew: () => ({ datasetFile: null }),
   block(props) {
-    return <ImportDataBlockComponent {...props} />
+    return <ImportDataBlockComponent {...props} shouldSetPreprocessingData={true} />
   },
 }
 
