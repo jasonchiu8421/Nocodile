@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
+import { cn } from "@/lib/utils"
 import { useBlocksStore } from "@/store/useBlocksStore"
 import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
 import Papa from "papaparse"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { ButtonGroup } from "../ui/button-group"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
 import { EndBlockComponent } from "./common_blocks"
 
@@ -507,19 +508,15 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps, shouldSe
             <div className="space-y-2">
               <Label htmlFor="datasetFile">Creation Mode</Label>
 
-              {/* Mode Selector */}
-              <div className="flex h-7 items-center space-x-2">
-                <Button variant={!createMode ? "default" : "outline"} size="sm" onClick={() => createMode && toggleCreateMode()} className="flex-1">
+              <ButtonGroup>
+                <Button variant="outline" size="sm" onClick={() => createMode && toggleCreateMode()} className={cn("flex-1 hover:bg-secondary/80", !createMode && "bg-secondary text-secondary-foreground")}>
                   Upload CSV
                 </Button>
-                <Separator orientation="vertical" />
-                <Button variant={createMode ? "default" : "outline"} size="sm" onClick={() => !createMode && toggleCreateMode()} className="flex-1">
+                <Button variant="outline" size="sm" onClick={() => !createMode && toggleCreateMode()} className={cn("flex-1 hover:bg-secondary/80", createMode && "bg-secondary text-secondary-foreground")}>
                   Create Here
                 </Button>
-              </div>
+              </ButtonGroup>
             </div>
-
-            <Separator />
 
             {/* Upload CSV Mode */}
             {!createMode && (
