@@ -7,16 +7,17 @@ import { Separator } from "./ui/separator"
 
 type BlockDrawerProps = {
   blockRegistry: BlockRegistry
-  inactiveBlocks: string[]
+  blocks: BlockInstance[]
   className?: string
 }
 
 export function calculateInactiveBlocks(
-  blockRegistry: BlockRegistry,
+  blockRegistry: () => BlockRegistry,
   blocks: BlockInstance[]
 ): string[] {
-  return Object.keys(blockRegistry).filter((blockType) => {
-    const blockInfo = blockRegistry[blockType]
+  if (!blocks) return []
+  return Object.keys(blockRegistry()).filter((blockType) => {
+    const blockInfo = blockRegistry()[blockType]
     const blockCount = blocks.filter((b) => b.type === blockType).length
     return blockInfo.limit && blockCount >= blockInfo.limit
   })
@@ -24,9 +25,11 @@ export function calculateInactiveBlocks(
 
 export function BlockDrawer({
   blockRegistry,
-  inactiveBlocks,
+  blocks,
   className,
 }: BlockDrawerProps) {
+  const inactiveBlocks = calculateInactiveBlocks(() => blockRegistry, blocks)
+
   const { setNodeRef } = useDroppable({
     id: "blocks-drawer",
   })

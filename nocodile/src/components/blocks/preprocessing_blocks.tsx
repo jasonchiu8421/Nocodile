@@ -1,15 +1,15 @@
-import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { toast } from "sonner"
-import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
-import { usePreprocessingStore } from "@/store/usePreprocessingStore"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
+import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
+import { useBlocksStore } from "@/store/useBlocksStore"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
@@ -38,9 +38,9 @@ const StartBlock: BlockType<{}> = {
   immortal: true,
   createNew: () => ({}),
   block({ id, dragHandleProps }) {
-      return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
+    return <Block id={id} title="Start" icon={<div className="w-4 h-4 rounded-full bg-green-500" />} color="bg-green-50" dragHandleProps={dragHandleProps} />
   },
-  }
+}
 
 export type EndBlockData = {
   preprocessedPath?: string
@@ -54,8 +54,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
   const [importData, setImportData] = useState<ImportDataProps | null>(null)
   const [options, setOptions] = useState<Record<string, any>>({})
 
-  // Use the Zustand store for tracking deletion state
-  const { isDeleting, startDeleting, finishDeleting } = usePreprocessingStore()
+  const { setPreprocessingData } = useBlocksStore()
 
   useEffect(() => {
     setImportData(null)
@@ -98,6 +97,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
 
     setIsProcessing(true)
     setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
+    setPreprocessingData((prev) => ({ ...prev, preprocessedPath: null }))
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -111,45 +111,40 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
         ...(options["normalize"] ? { normalize: true } : {}),
         ...(options["shuffling"] ? { shuffle: true } : {}),
       },
-    })
-      .then((response) => {
-        if (response.output) {
-          setData({
-            ...data,
-            preprocessedPath: response.output,
-            processedForPath: importData.datasetFile ?? undefined,
-            processedWithOptions: JSON.stringify(options),
-          })
-          setIsProcessing(false)
-          toast.success("Dataset preprocessed successfully")
-        }
-      })
-      .catch((error) => {
+    }).then((response) => {
+      if (response.success) {
+        setData({
+          ...data,
+          preprocessedPath: response.data.output,
+          processedForPath: importData.datasetFile ?? undefined,
+          processedWithOptions: JSON.stringify(options),
+        })
+        setPreprocessingData((prev) => ({ ...prev, preprocessedPath: response.data.output }))
+        setIsProcessing(false)
+        toast.success("Dataset preprocessed successfully")
+      } else {
         toast.error("Failed to preprocess dataset", {
-          description: error.message,
+          description: response.error,
         })
         setIsProcessing(false)
-      })
+      }
+    })
   }
 
   // Function to handle deletion of preprocessed file
   const handleDeletePreprocessedFile = async (pathToDelete: string) => {
-    if (isDeleting(pathToDelete)) return // Prevent multiple simultaneous deletion attempts
     if (dragging) return
 
-    startDeleting(pathToDelete)
     try {
       const response = await deleteFile(pathToDelete)
-      if ("message" in response) {
+      if (response.success) {
         toast.success("Preprocessed file deleted successfully")
-      } else if ("error" in response) {
+      } else {
         toast.error(response.error || "Failed to delete file")
       }
     } catch (error) {
       // If deletion fails, we still want to clear the local state
       console.error("Failed to delete preprocessed file:", error)
-    } finally {
-      finishDeleting(pathToDelete)
     }
   }
 
@@ -157,19 +152,18 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
     const currentDatasetPath = importData?.datasetFile || null
     const optionsString = JSON.stringify(options)
 
-    if (data.preprocessedPath && data.processedForPath && data.processedWithOptions && (currentDatasetPath !== data.processedForPath || optionsString !== data.processedWithOptions) && !isDeleting(data.preprocessedPath)) {
+    if (data.preprocessedPath && data.processedForPath && data.processedWithOptions && (currentDatasetPath !== data.processedForPath || optionsString !== data.processedWithOptions)) {
       const pathToDelete = data.preprocessedPath
 
       setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
+      setPreprocessingData((prev) => ({ ...prev, preprocessedPath: null }))
 
       handleDeletePreprocessedFile(pathToDelete)
     }
-  }, [importData, options, data, setData, isDeleting, startDeleting, finishDeleting, dragging])
+  }, [importData, options, data, setData, dragging])
 
   return (
-    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allPpBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps}
-      buttonText={"Preprocess Dataset"}
-    >
+    <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allPpBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps} buttonText={"Preprocess Dataset"}>
       <div className={`overflow-hidden transition-all duration-400 ${data.preprocessedPath && !dragging ? "max-h-20 mt-2" : "max-h-0 -mt-4"}`}>
         <div className="p-2 bg-green-50 rounded border border-green-200">
           <p className="text-sm font-medium">
@@ -218,6 +212,8 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const { setPreprocessingData } = useBlocksStore()
 
   // Generate a random UUID
   const generateUUID = () => {
@@ -274,11 +270,12 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     try {
       const response = await uploadDataset(renamedFile)
 
-      if (typeof response === "string") {
+      if (response.success) {
         // Success case, response is the filename
-        setData({ ...data, datasetFile: response })
+        setData({ ...data, datasetFile: response.data })
+        setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
         toast.success("Dataset uploaded successfully")
-      } else if ("error" in response) {
+      } else {
         // Error case
         setError(response.error || "Failed to upload file")
         toast.error(response.error || "Failed to upload file")
@@ -309,10 +306,11 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
 
     try {
       const response = await deleteFile(data.datasetFile)
-      if ("message" in response) {
+      if (response.success) {
         setData({ ...data, datasetFile: null })
+        setPreprocessingData((prev) => ({ ...prev, uploadPath: null }))
         toast.success("Dataset deleted successfully")
-      } else if ("error" in response) {
+      } else {
         setError(response.error || "Failed to delete file")
         toast.error(response.error || "Failed to delete file")
       }
@@ -413,14 +411,15 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
     try {
       const response = await uploadDataset(csvFile)
 
-      if (typeof response === "string") {
+      if (response.success) {
         // Success case
-        setData({ ...data, datasetFile: response })
+        setData({ ...data, datasetFile: response.data })
+        setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
         // Reset create mode and dataset
         setCreateMode(false)
         setBrowserDataset([])
-        toast.success(`Created and uploaded dataset: ${response.split("/").pop()}`)
-      } else if ("error" in response) {
+        toast.success(`Created and uploaded dataset: ${response.data.split("/").pop()}`)
+      } else {
         // Error case
         setError(response.error || "Failed to upload generated dataset")
         toast.error(response.error || "Failed to upload generated dataset")

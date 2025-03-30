@@ -1,23 +1,24 @@
-import { calculateInactiveBlocks } from "@/components/blocks_drawer"
 import { BlockInstance } from "@/components/dnd_layout"
-import allPpBlocks from "@/components/blocks/preprocessing_blocks"
-import { allTrainingBlocks } from "@/routes/training"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import allPerformanceBlocks from "@/components/blocks/performance_blocks"
+
+type PreprocessingData = {
+  uploadPath: string | null
+  preprocessedPath: string | null
+}
 
 interface BlocksState {
   preprocessingBlocks: BlockInstance[]
-  inactivePreprocessingBlocks: string[]
   setPreprocessingBlocks: (blocks: BlockInstance[]) => void
 
   trainingBlocks: BlockInstance[]
-  inactiveTrainingBlocks: string[]
   setTrainingBlocks: (blocks: BlockInstance[]) => void
 
   performanceBlocks: BlockInstance[]
-  inactivePerformanceBlocks: string[]
   setPerformanceBlocks: (blocks: BlockInstance[]) => void
+
+  preprocessingData: PreprocessingData
+  setPreprocessingData: (data: PreprocessingData | ((prev: PreprocessingData) => PreprocessingData)) => void
 }
 
 export function defaultPreprocessingBlocks() {
@@ -87,30 +88,31 @@ export const useBlocksStore = create<BlocksState>()(
   persist(
     (set) => ({
       preprocessingBlocks: defaultPreprocessingBlocks(),
-      inactivePreprocessingBlocks: calculateInactiveBlocks(allPpBlocks, []),
-
       setPreprocessingBlocks: (blocks) =>
         set(() => ({
           preprocessingBlocks: blocks,
-          inactivePreprocessingBlocks: calculateInactiveBlocks(allPpBlocks, blocks),
         })),
 
       trainingBlocks: defaultTrainingBlocks(),
-      inactiveTrainingBlocks: calculateInactiveBlocks(allTrainingBlocks, []),
-
       setTrainingBlocks: (blocks) =>
         set(() => ({
           trainingBlocks: blocks,
-          inactiveTrainingBlocks: calculateInactiveBlocks(allTrainingBlocks, blocks),
         })),
 
       performanceBlocks: defaultPerformanceBlocks(),
-      inactivePerformanceBlocks: calculateInactiveBlocks(allPerformanceBlocks, []),
-
       setPerformanceBlocks: (blocks) =>
         set(() => ({
           performanceBlocks: blocks,
-          inactivePerformanceBlocks: calculateInactiveBlocks(allPerformanceBlocks, blocks),
+        })),
+
+      preprocessingData: {
+        uploadPath: null,
+        preprocessedPath: null,
+      },
+
+      setPreprocessingData: (data) =>
+        set((state) => ({
+          preprocessingData: typeof data === "function" ? data(state.preprocessingData) : data,
         })),
     }),
     {

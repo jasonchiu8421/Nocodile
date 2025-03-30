@@ -29,6 +29,9 @@ from tensorflow.keras.utils import to_categorical
 from PIL import Image
 from sklearn.metrics import accuracy_score
 from typing import Any, Dict
+import traceback
+
+ENABLE_TRACEBACK = True
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,8 +58,7 @@ class ImagePreprocessRequest(BaseModel):
     }
 
 class TrainingRequest(BaseModel):
-    preprocessed_images: List[str]
-    labels: List[int]
+    dataset_path: str
     training_options: Dict[str, Any] = {
         "method": "train_test_val",
         "layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}],
@@ -729,6 +731,9 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unexpected error: {str(exc)}")
     logger.error(f"Request body: {body[:100]}")
     
+    if ENABLE_TRACEBACK:
+        logger.error(traceback.format_exc())
+    
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": str(exc)},
@@ -816,6 +821,8 @@ async def delete_file(filename: str):
             content={"message": f"File '{filename}' successfully deleted"}
         )
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": f"Failed to delete file: {str(e)}"}
@@ -865,6 +872,8 @@ async def preprocess(request: ImagePreprocessRequest):
         return output_paths
 
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -888,7 +897,7 @@ async def train(request: TrainingRequest):
     try:        
         # load data
         dataset = Dataset()
-        X, y = dataset.load_saved_dataset(request.dataset_path)
+        X, y = dataset.load_saved_dataset("datasets/" + request.dataset_path)
 
         # train model
         cnn = CNN(X, y, request.training_options)
@@ -905,6 +914,8 @@ async def train(request: TrainingRequest):
                 "accuracy data": accuracy_data, "loss data": loss_data}
 
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -945,6 +956,8 @@ async def predict(request: PredictionRequest):
         return {"predicted class": prediction, "confidence level": confidence, "intermediates": output_paths}
         
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -985,6 +998,8 @@ async def test(request: TestingRequest):
 
         return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}

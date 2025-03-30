@@ -1,6 +1,6 @@
-import { Block, BlockRegistry, BlockType, EndBlockComponent } from "@/components/blocks/blocks"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "@/components/blocks/blocks"
 import { BlockDrawer } from "@/components/blocks_drawer"
-import { DndLayout } from "@/components/dnd_layout"
+import { BlockInstance, DndLayout } from "@/components/dnd_layout"
 import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
@@ -9,8 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Toaster } from "@/components/ui/sonner"
+import { trainModel } from "@/lib/server_hooks"
 import { useBlocksStore } from "@/store"
 import { Database, Plus, Trash } from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 // Layer types
 type KernelSize = [number, number]
@@ -73,6 +76,22 @@ interface DenseLayer extends BaseLayer {
 
 type Layer = ActivationLayer | Conv2DLayer | MaxPooling2DLayer | GlobalMaxPooling2DLayer | AveragePooling2DLayer | GlobalAveragePooling2DLayer | BatchNormalizationLayer | FlattenLayer | DropoutLayer | DenseLayer
 
+type ConvolutionBlockProps = {
+  approach: "train_test" | "train_test_val" | "kFold_val"
+  isKFold: boolean
+  kFold_k: number
+  layers: Layer[]
+}
+
+type ClassificationBlockProps = {
+  layers: Layer[]
+  optimizer: "Adam" | "SGD" | "RMSprop" | "Adagrad" | "Adadelta" | "Nadam" | "Ftrl"
+  loss: string
+  lr: number
+  epoch: number
+  batch_size: number
+}
+
 const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
     const chain = splitChain(blocks)
@@ -107,6 +126,70 @@ const StartBlock: BlockType<{}> = {
   },
 }
 
+const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
+  const { chain } = props
+  const [isTraining, setIsTraining] = useState(false)
+  const [convolution, setConvolution] = useState<ConvolutionBlockProps | null>(null)
+  const [classification, setClassification] = useState<ClassificationBlockProps | null>(null)
+
+  const { preprocessingData } = useBlocksStore()
+
+  useEffect(() => {
+    let convolutionBlock: BlockInstance | null = null
+    let classificationBlock: BlockInstance | null = null
+
+    if (chain) {
+      convolutionBlock = chain.before.find((block) => block.type === "convolution") || null
+      classificationBlock = chain.before.find((block) => block.type === "classification") || null
+    }
+
+    setConvolution(convolutionBlock?.data || null)
+    setClassification(classificationBlock?.data || null)
+  }, [chain])
+
+  const startTraining = async () => {
+    if (isTraining) return
+    if (!convolution || !classification) {
+      toast.error("Please attach a convolution and classification block to this block!")
+      return
+    } else if (!preprocessingData?.preprocessedPath && !preprocessingData?.uploadPath) {
+      toast.error("Please first import and preprocess the dataset!")
+      return
+    }
+
+    setIsTraining(true)
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+    await sleep(500)
+
+    trainModel({
+      dataset_path: preprocessingData?.preprocessedPath || preprocessingData?.uploadPath || "",
+      training_options: {
+        method: convolution.approach,
+        layers: [...classification.layers, ...convolution.layers],
+        optimizer: classification.optimizer,
+        loss: classification.loss,
+        lr: classification.lr,
+        epochs: classification.epoch,
+        batch_size: classification.batch_size,
+        kFold_k: convolution.kFold_k,
+      },
+    }).then(response => {
+      if (response.success) {
+        toast.success("Model trained successfully")
+      } else {
+        toast.error("Failed to train model", {
+          description: response.error,
+        })
+      }
+      setIsTraining(false)
+    })
+  }
+
+  return <EndBlockComponent stage="training" saveFunc={saveFunc} allBlocks={allTrainingBlocks} {...props} step={startTraining} />
+}
+
 const EndBlock: BlockType<{}> = {
   hasInput: true,
   title: "End",
@@ -114,16 +197,11 @@ const EndBlock: BlockType<{}> = {
   limit: 1,
   immortal: true,
   createNew: () => ({}),
-  block: (props) => <EndBlockComponent stage="training" saveFunc={saveFunc} allBlocks={allTrainingBlocks} {...props} />,
+  block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 
 // Convolution
-const ConvolutionBlock: BlockType<{
-  approach: string
-  isKFold: boolean
-  kFold_k: number
-  layers: Layer[]
-}> = {
+const ConvolutionBlock: BlockType<ConvolutionBlockProps> = {
   hasInput: true,
   hasOutput: true,
   title: "Convolution",
@@ -134,28 +212,14 @@ const ConvolutionBlock: BlockType<{
     approach: "train_test",
     isKFold: false,
     kFold_k: 5,
-    layers: [
-      {
-        type: "Conv2D",
-        filters: 32,
-        kernelSize: [3, 3],
-        activation: "relu",
-      },
-      {
-        type: "MaxPooling2D",
-        poolSize: [2, 2],
-      },
-      {
-        type: "Flatten",
-      },
-    ],
+    layers: [],
   }),
   block: ({ id, data, setData, dragHandleProps }) => (
     <Block id={id} title="Convolution" icon={<Database className="w-5 h-5" />} dragHandleProps={dragHandleProps}>
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="approach">Approach</Label>
-          <Select value={data.approach} onValueChange={(value) => setData({ ...data, approach: value })}>
+          <Select value={data.approach} onValueChange={(value) => setData({ ...data, approach: value as ConvolutionBlockProps["approach"] })}>
             <SelectTrigger id="approach" className="w-full">
               <SelectValue placeholder="Select approach" />
             </SelectTrigger>
@@ -293,14 +357,7 @@ const ConvolutionBlock: BlockType<{
 }
 
 // Classification
-const ClassificationBlock: BlockType<{
-  layers: Layer[]
-  optimizer: string
-  loss: string
-  lr: number
-  epoch: number
-  batch_size: number
-}> = {
+const ClassificationBlock: BlockType<ClassificationBlockProps> = {
   hasInput: true,
   hasOutput: true,
   title: "Classification",
@@ -308,18 +365,7 @@ const ClassificationBlock: BlockType<{
   width: 320,
   limit: 1,
   createNew: () => ({
-    layers: [
-      {
-        type: "Dense",
-        units: 512,
-        activation: "relu",
-      },
-      {
-        type: "Dropout",
-        rate: 0.3,
-        activation: "relu",
-      },
-    ],
+    layers: [],
     optimizer: "Adam",
     loss: "categorical_crossentropy",
     lr: 0.01,
@@ -353,7 +399,7 @@ const ClassificationBlock: BlockType<{
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-3 space-y-2">
-                <Label htmlFor={`layer-type-${index}`}>Type</Label>
+                  <Label htmlFor={`layer-type-${index}`}>Type</Label>
                   <Select
                     value={layer.type}
                     onValueChange={(value) => {
@@ -460,7 +506,7 @@ const ClassificationBlock: BlockType<{
 
         <div className="space-y-2">
           <Label htmlFor="optimizer">Optimizer</Label>
-          <Select value={data.optimizer} onValueChange={(value) => setData({ ...data, optimizer: value })}>
+          <Select value={data.optimizer} onValueChange={(value) => setData({ ...data, optimizer: value as ClassificationBlockProps["optimizer"] })}>
             <SelectTrigger id="optimizer" className="w-full">
               <SelectValue placeholder="Select optimizer" />
             </SelectTrigger>

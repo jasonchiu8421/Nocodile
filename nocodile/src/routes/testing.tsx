@@ -109,13 +109,6 @@ export default function Testing() {
     ];
   });
 
-  const [inactiveBlocks, setInactiveBlocks] = useState<string[]>([]);
-
-  // Update inactive blocks when blocks change
-  useEffect(() => {
-    setInactiveBlocks(calculateInactiveBlocks(allBlocks, blocks));
-  }, [blocks]);
-
   // Save blocks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("testingLayout", JSON.stringify(blocks));
@@ -131,7 +124,7 @@ export default function Testing() {
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-semibold mb-4">Testing Blocks</h2>
-      <BlockDrawer blockRegistry={allBlocks} inactiveBlocks={inactiveBlocks} className="flex-1" />
+      <BlockDrawer blockRegistry={allBlocks} blocks={blocks} className="flex-1" />
     </div>
   );
 
