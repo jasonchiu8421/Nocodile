@@ -1,6 +1,7 @@
 import { SaveFunction, splitChain } from "@/components/save_alerts"
 import { filterOutKeys } from "@/lib/utils"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
+import { EndBlockComponent } from "./common_blocks"
 import { GrayscaleFilterBlock, ImportDataBlock, NormalizeFilterBlock, ResizeFilterBlock, ShufflingFilterBlock } from "./preprocessing_blocks"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(

@@ -10,7 +10,8 @@ import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide
 import Papa from "papaparse"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
+import { EndBlockComponent } from "./common_blocks"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {

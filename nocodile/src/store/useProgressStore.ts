@@ -2,12 +2,15 @@ import { ProgressStep } from "@/components/blocks/common_blocks"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+export const COMPLETABLE_STEPS = ["preprocessing", "training"]
+export type CompletableStep = (typeof COMPLETABLE_STEPS)[number]
+
 interface ProgressState {
-  completedSteps: Record<ProgressStep, boolean>
-  isStepCompleted: (step: ProgressStep) => boolean
+  completedSteps: Record<CompletableStep, boolean>
+  isStepCompleted: (step: CompletableStep) => boolean
   isStepAvailable: (step: ProgressStep) => boolean
-  completeStep: (step: ProgressStep) => void
-  resetStep: (step: ProgressStep) => void
+  completeStep: (step: CompletableStep) => void
+  resetStep: (step: CompletableStep) => void
 }
 
 export const useProgressStore = create<ProgressState>()(
@@ -16,26 +19,23 @@ export const useProgressStore = create<ProgressState>()(
       completedSteps: {
         preprocessing: false,
         training: false,
-        predicting: false,
-        testing: false,
       },
-      isStepCompleted: (step: ProgressStep) => get().completedSteps[step],
+      isStepCompleted: (step: CompletableStep) => get().completedSteps[step],
       isStepAvailable: (step: ProgressStep) => {
         const { completedSteps } = get()
         if (step === "preprocessing") return true
         if (step === "training") return completedSteps.preprocessing
-        if (step === "predicting") return completedSteps.training
-        if (step === "testing") return completedSteps.predicting
+        if (step === "predicting" || step === "testing") return completedSteps.training
         return false
       },
-      completeStep: (step: ProgressStep) =>
+      completeStep: (step: CompletableStep) =>
         set((state) => ({
           completedSteps: {
             ...state.completedSteps,
             [step]: true,
           },
         })),
-      resetStep: (step: ProgressStep) =>
+      resetStep: (step: CompletableStep) =>
         set((state) => ({
           completedSteps: {
             ...state.completedSteps,

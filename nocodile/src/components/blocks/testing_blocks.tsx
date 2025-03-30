@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Pencil } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
+import { EndBlockComponent } from "./common_blocks"
 import {
   GrayscaleFilterBlock,
   ResizeFilterBlock
@@ -11,15 +12,23 @@ import {
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_: any, blocks: any) => {
-    // Validate the chain structure
-    const chains = splitChain(blocks);
-    if (chains.length === 0 || chains[0].length === 0) {
+    const chain = splitChain(blocks)
+  
+    if (chain[0][0].type !== "start") {
       return {
         type: "error",
-        message: "No valid chain found"
-      };
+        message: "The first block must be a Start block",
+      }
     }
-    return { type: "success" };
+
+    if (chain[0][chain[0].length - 1].type !== "end") {
+      return {
+        type: "error",
+        message: "The last block must be an End block",
+      }
+    }
+
+    return { type: "success" }
   })
 )
 

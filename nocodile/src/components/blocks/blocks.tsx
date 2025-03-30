@@ -1,12 +1,9 @@
+import { BlockInstance } from "@/components/dnd_layout"
+import { BlockChain } from "@/components/save_alerts"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { ChevronRight } from "lucide-react"
-import React, { ReactNode, useState } from "react"
-import { BlockInstance } from "@/components/dnd_layout"
-import { BlockChain, SaveFunction } from "@/components/save_alerts"
-import { useProgressStore } from "@/store/useProgressStore"
-import { ProgressStep } from "@/components/blocks/common_blocks"
-import { Button } from "@/components/ui/button"
+import React, { ReactNode } from "react"
 
 type BlockChainProps = {
   entire: BlockChain
@@ -102,58 +99,5 @@ export const Block = ({ title, icon, color = "bg-white", children, dragHandlePro
       </div>
       {children}
     </Card>
-  )
-}
-
-export function EndBlockComponent({
-  id,
-  blocks,
-  dragHandleProps,
-  saveFunc,
-  stage,
-  allBlocks,
-  step,
-  children,
-  buttonText,
-}: Omit<CreateBlockElementProps<{}>, "dragging"> & {
-  saveFunc: SaveFunction
-  stage: ProgressStep
-  allBlocks: BlockRegistry
-  step?: () => Promise<void>
-  children?: ReactNode
-  buttonText?: string | ((running: boolean, complete: boolean) => string)
-}) {
-  const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore()
-  const [isRunning, setIsRunning] = useState(false)
-  const saveFuncResult = blocks ? saveFunc.save(allBlocks, blocks) : null
-  const canRun = saveFuncResult?.type === "success" && isStepAvailable(stage)
-  const isCompleted = isStepCompleted(stage)
-  const buttonTextFunc = buttonText ?? ((running: boolean, complete: boolean) => (running ? "Running..." : complete ? "Run Again" : "Run"))
-
-  return (
-    <Block id={id} title="End" color={isCompleted ? "bg-green-100" : "bg-red-100"} icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : "bg-red-500"}`} />} dragHandleProps={dragHandleProps}>
-      <div className="flex flex-col gap-4">
-        {saveFuncResult?.type === "error" && <p className="text-xs text-red-900">{saveFuncResult.message}</p>}
-        <Button
-          variant="default"
-          size="sm"
-          className="w-full"
-          disabled={!canRun || isRunning}
-          onClick={async () => {
-            setIsRunning(true)
-
-            try {
-              await step?.()
-            } finally {
-              completeStep(stage)
-              setIsRunning(false)
-            }
-          }}
-        >
-          {typeof buttonTextFunc === "function" ? buttonTextFunc(isRunning, isCompleted) : buttonTextFunc}
-        </Button>
-        {children}
-      </div>
-    </Block>
   )
 }
