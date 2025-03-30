@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Toaster } from "@/components/ui/sonner"
 import { trainModel } from "@/lib/server_hooks"
+import { filterOutKeys } from "@/lib/utils"
 import { useBlocksStore } from "@/store"
 import { Database, Plus, Trash } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -92,6 +93,24 @@ type ClassificationBlockProps = {
   batch_size: number
 }
 
+type EndBlockProps = {
+  results: null | {
+    modelPath: string
+    accuracyGraph: string
+    lossGraph: string
+    accuracyData: {
+      epoch: number[]
+      accuracy: number[]
+      valAccuracy: number[]
+    }
+    lossData: {
+      epoch: number[]
+      loss: number[]
+      valLoss: number[]
+    }
+  }
+}
+
 const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
     const chain = splitChain(blocks)
@@ -126,8 +145,8 @@ const StartBlock: BlockType<{}> = {
   },
 }
 
-const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
-  const { chain } = props
+const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps>) => {
+  const { chain, data, setData } = props
   const [isTraining, setIsTraining] = useState(false)
   const [convolution, setConvolution] = useState<ConvolutionBlockProps | null>(null)
   const [classification, setClassification] = useState<ClassificationBlockProps | null>(null)
@@ -158,6 +177,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
     }
 
     setIsTraining(true)
+    setData({ results: null })
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -175,10 +195,28 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
         batch_size: classification.batch_size,
         kFold_k: convolution.kFold_k,
       },
-    }).then(response => {
+    }).then((response) => {
       if (response.success) {
+        setData({
+          results: {
+            modelPath: response.data["model path"],
+            accuracyGraph: response.data["accuracy graph"],
+            lossGraph: response.data["loss graph"],
+            accuracyData: {
+              epoch: response.data["accuracy data"].Epoch,
+              accuracy: response.data["accuracy data"].Accuracy,
+              valAccuracy: response.data["accuracy data"].Val_Accuracy,
+            },
+            lossData: {
+              epoch: response.data["loss data"].Epoch,
+              loss: response.data["loss data"].Loss,
+              valLoss: response.data["loss data"].Val_Loss,
+            },
+          },
+        })
         toast.success("Model trained successfully")
       } else {
+        setData({ results: null })
         toast.error("Failed to train model", {
           description: response.error,
         })
@@ -187,16 +225,37 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<{}>) => {
     })
   }
 
-  return <EndBlockComponent stage="training" saveFunc={saveFunc} allBlocks={allTrainingBlocks} {...props} step={startTraining} />
+  return <EndBlockComponent stage="training" saveFunc={saveFunc} allBlocks={allTrainingBlocks} data={{}} setData={() => {}} {...filterOutKeys(props, ["data", "setData"])} step={startTraining}>
+    {data.results && <ResultsComponent results={data.results} />}
+  </EndBlockComponent>
 }
 
-const EndBlock: BlockType<{}> = {
+const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold">Results</h2>
+      <div className="flex flex-col space-y-2">
+        <Label>Model Path</Label>
+        <span className="text-sm">{results.modelPath}</span>
+        <Label>Accuracy Graph</Label>
+        <img src={`data:image/png;base64,${results.accuracyGraph}`} alt="Accuracy" />
+        <Label>Loss Graph</Label>
+        <img src={`data:image/png;base64,${results.lossGraph}`} alt="Loss" />
+      </div>
+    </div>
+  )
+}
+
+const EndBlock: BlockType<EndBlockProps> = {
   hasInput: true,
   title: "End",
   icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
   limit: 1,
   immortal: true,
-  createNew: () => ({}),
+  width: 340,
+  createNew: () => ({
+    results: null,
+  }),
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 

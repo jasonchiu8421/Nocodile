@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { ChevronRight } from "lucide-react"
-import React, { ReactNode } from "react"
+import React, { ReactNode, useState } from "react"
 import { BlockInstance } from "@/components/dnd_layout"
 import { BlockChain, SaveFunction } from "@/components/save_alerts"
 import {useProgressStore } from "@/store/useProgressStore"
@@ -119,15 +119,16 @@ export function EndBlockComponent({
   saveFunc: SaveFunction
   stage: ProgressStep
   allBlocks: BlockRegistry
-  step?: () => void
+  step?: () => Promise<void>
   children?: ReactNode
-  buttonText?: string | ((complete: boolean) => string)
+  buttonText?: string | ((running: boolean, complete: boolean) => string)
 }) {
   const { isStepAvailable, isStepCompleted, completeStep } = useProgressStore()
+  const [isRunning, setIsRunning] = useState(false)
   const saveFuncResult = blocks ? saveFunc.save(allBlocks, blocks) : null
   const canRun = saveFuncResult?.type === "success" && isStepAvailable(stage)
   const isCompleted = isStepCompleted(stage)
-  const buttonTextFunc = buttonText ?? ((complete: boolean) => (complete ? "Run Again" : "Run"))
+  const buttonTextFunc = buttonText ?? ((running: boolean, complete: boolean) => (running ? "Running..." : complete ? "Run Again" : "Run"))
 
   return (
     <Block id={id} title="End" color={isCompleted ? "bg-green-100" : "bg-red-100"} icon={<div className={`w-4 h-4 rounded-full ${isCompleted ? "bg-green-500" : "bg-red-500"}`} />} dragHandleProps={dragHandleProps}>
@@ -137,15 +138,18 @@ export function EndBlockComponent({
           variant="default"
           size="sm"
           className="w-full"
-          disabled={!canRun}
+          disabled={!canRun || isRunning}
           onClick={() => {
             console.log(`Run ${stage} code`)
-            localStorage.setItem("testingPageVisited", "false");
-            step?.()
-            completeStep(stage)
+            setIsRunning(true)
+
+            (step?.() ?? Promise.resolve()).finally(() => {
+              completeStep(stage)
+              setIsRunning(false)
+            })
           }}
         >
-          {typeof buttonTextFunc === "function" ? buttonTextFunc(isCompleted) : buttonTextFunc}
+          {typeof buttonTextFunc === "function" ? buttonTextFunc(isRunning, isCompleted) : buttonTextFunc}
         </Button>
         {children}
       </div>
