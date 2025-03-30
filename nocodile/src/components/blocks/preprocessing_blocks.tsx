@@ -106,7 +106,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
 
     await sleep(500)
 
-    preprocessDataset({
+    await preprocessDataset({
       dataset_path: importData.datasetFile,
       options: {
         ...(options["resize"] ? { resize: [options["resize"] as number, options["resize"] as number] } : {}),
