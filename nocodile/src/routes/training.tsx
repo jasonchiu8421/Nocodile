@@ -183,7 +183,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
 
     await sleep(500)
 
-    trainModel({
+    await trainModel({
       dataset_path: preprocessingData?.preprocessedPath || preprocessingData?.uploadPath || "",
       training_options: {
         method: convolution.approach,
@@ -630,7 +630,7 @@ export const allTrainingBlocks: BlockRegistry = {
 }
 
 export default function TrainingRoute() {
-  const { trainingBlocks, setTrainingBlocks, inactiveTrainingBlocks } = useBlocksStore()
+  const { trainingBlocks, setTrainingBlocks } = useBlocksStore()
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
@@ -640,7 +640,7 @@ export default function TrainingRoute() {
           Submit
         </Button>
       </div>
-      <BlockDrawer blockRegistry={allTrainingBlocks} inactiveBlocks={inactiveTrainingBlocks} className="flex-1" />
+      <BlockDrawer blockRegistry={allTrainingBlocks} blocks={trainingBlocks} className="flex-1" />
     </div>
   )
 

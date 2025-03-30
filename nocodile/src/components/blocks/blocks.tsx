@@ -139,15 +139,15 @@ export function EndBlockComponent({
           size="sm"
           className="w-full"
           disabled={!canRun || isRunning}
-          onClick={() => {
+          onClick={async () => {
             setIsRunning(true)
 
-            const stepPromise = step?.() ?? Promise.resolve()
-            
-            stepPromise.finally(() => {
+            try {
+              await step?.()
+            } finally {
               completeStep(stage)
               setIsRunning(false)
-            })
+            }
           }}
         >
           {typeof buttonTextFunc === "function" ? buttonTextFunc(isRunning, isCompleted) : buttonTextFunc}
