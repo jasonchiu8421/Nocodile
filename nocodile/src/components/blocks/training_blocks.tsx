@@ -14,7 +14,6 @@ import { useBlocksStore } from "@/store"
 import { Database, Plus, Trash } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { getimage } from "@/lib/server_hooks"
 // Layer types
 type KernelSize = [number, number]
 type PoolSize = [number, number]
@@ -233,7 +232,23 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
     </EndBlockComponent>
   )
 }
-
+/**
+ * results => {
+ *  modelPath: string
+ *  accuracyGraph: string
+ *  lossGraph: string
+ *  accuracyData: {
+ *    epoch: number[]
+ *    accuracy: number[]
+ *    valAccuracy: number[]
+ *  }
+ *  lossData: {
+ *    epoch: number[]
+ *    loss: number[]
+ *    valLoss: number[]
+ *  }
+ * }
+ */
 const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
 
   return (
@@ -243,7 +258,8 @@ const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]
         <Label>Model Path</Label>
         <span className="text-sm">{results.modelPath}</span>
         <div>
-          
+          <Label>accuracy daya</Label>
+          <span className="text-sm">{JSON.stringify(results.accuracyData)}</span>
         </div>
         <Label>Accuracy Graph</Label>
         <img src={`data:image/png;base64,${results.accuracyGraph}`} alt="Accuracy" />

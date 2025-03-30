@@ -8,7 +8,6 @@ from io import BytesIO, StringIO
 from typing import Tuple
 import os
 import uuid
-from flask import request
 import base64
 import pandas as pd
 
