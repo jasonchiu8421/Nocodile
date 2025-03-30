@@ -77,7 +77,7 @@ class Dataset:
         return self.images, self.labels
 
     def print_shapes(self):
-        if (self.images.any() == None) or (self.labels.any() == None):
+        if (self.images is None) or (self.labels is None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
             # Print the shapes of images and labels
