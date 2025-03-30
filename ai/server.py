@@ -117,7 +117,7 @@ async def delete_file(filename: str):
             status_code=status.HTTP_404_NOT_FOUND,
             content={"error": f"File '{filename}' not found or not a valid H5 file"}
         )
-    
+
     # Delete the file
     os.remove(filename)
     return ORJSONResponse(
@@ -162,7 +162,7 @@ async def preprocess(request: contract.ImagePreprocessRequest):
                 output_paths[option] = output_path
             elif intermediate_save_option == "one image per class":
                 output_paths[option] = preprocessing.return_class_example()
-    
+
     output_path = f"preprocessed_{os.path.basename(request.dataset_path)}"
     preprocessing.save_dataset(DATASETS_DIR + "/" + output_path)
     output_paths["output"] = output_path
@@ -193,7 +193,7 @@ async def train(request: contract.TrainingRequest):
     # Convert DataFrames to dict with lists format to match TypeScript interface
     accuracy_data_dict = accuracy_data.to_dict(orient='list')
     loss_data_dict = loss_data.to_dict(orient='list')
-    
+
     # WHY IS IT LIKE THIS NOW
     return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
             "accuracy data": accuracy_data_dict, "loss data": loss_data_dict}
