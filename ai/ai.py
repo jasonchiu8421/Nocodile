@@ -186,8 +186,7 @@ class Preprocessing:
         # Specify the new size as (width, height)
         new_size = (width, height)
         old_X = self.X
-        # TODO: This only works for CSV, not for arbitrary image
-        self.X = np.zeros((len(old_X), width, height), dtype=np.uint8)
+        self.X = np.zeros((len(old_X), width, height, *old_X[0].shape[2:]), dtype=np.uint8)
         for i in range(len(old_X)):
             self.X[i] = cv2.resize(old_X[i], new_size)
         return self.X
@@ -196,10 +195,16 @@ class Preprocessing:
     def convert_to_grayscale(self):
         # Use the cvtColor() function to grayscale the image
         width, height = self.X[0].shape[:2]
-        self.X = np.zeros((len(self.X), width, height), dtype=np.uint8)
         if self.X.ndim == 4:
-            for i in range(len(self.X)):
-                self.X[i] = cv2.cvtColor(self.X[i], cv2.COLOR_BGR2GRAY)
+            if self.X[0].shape[2] == 1:
+                # If it is already grayscale but with a 4-th dimension
+                self.X = np.squeeze(self.X, axis=-1)
+            else:
+                # If it is RGB or RGBA
+                old_X = self.X
+                self.X = np.zeros((len(self.X), width, height), dtype=np.uint8)
+                for i in range(len(old_X)):
+                    self.X[i] = cv2.cvtColor(old_X[i], cv2.COLOR_BGR2GRAY)
         return self.X
     
     # Data Shuffling
@@ -276,6 +281,12 @@ class CNN:
         np.random.seed(seed)
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
         
+        # Make sure grayscale images have 4-th dimension
+        if self.X_train.ndim == 3:
+            self.X_train = np.expand_dims(self.X_train, axis=-1)
+        if self.X_test.ndim == 3:
+            self.X_test = np.expand_dims(self.X_test, axis=-1)
+
         # Create Data Generator
         gen = ImageDataGenerator()
         self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
@@ -344,7 +355,8 @@ class CNN:
             self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
 
     def _custom_model(self):
-        self.model = Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
+        # FIXME: self.model = Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
+        self.model = Sequential([])
         for layer in self.layers:
             self._add_layer(layer)
 
@@ -352,7 +364,7 @@ class CNN:
 
         self.model.optimizer.lr=self.lr
         self.model.optimizer.clipnorm=1
-        self.model.optimizer.clipvalue=0.5
+        # FIXME: self.model.optimizer.clipvalue=0.5
         
         self.hist = self.model.fit(
             x=self.batches,

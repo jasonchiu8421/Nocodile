@@ -179,7 +179,8 @@ async def train(request: contract.TrainingRequest):
     X, y = dataset.load_saved_dataset(DATASETS_DIR + "/" + request.dataset_path)
 
     # Preprocess the dataset based on the options provided
-    cnn = ai.CNN(X, y, request.training_options)
+    # FIXME: cnn = ai.CNN(X, y, request.training_options)
+    cnn = ai.CNN(X, y)
     model = cnn.train_model()
     
     # Save model
@@ -212,8 +213,8 @@ async def predict(request: contract.PredictionRequest):
     output_paths = {}
     for option in options:
         if option=="resize":
-            size = options["resize"]
-            preprocessing.resize((size, size))
+            width, height = options["resize"]
+            preprocessing.resize(width, height)
 
         if option=="grayscale":
             preprocessing.convert_to_grayscale()
@@ -231,6 +232,10 @@ async def predict(request: contract.PredictionRequest):
     cnn = ai.CNN()
     cnn.load_model(CHECKPOINTS_DIR + "/" + request.model_path)
     prediction, confidence = cnn.run_model(image)
+
+    # Convert ndarray to list for JSON serialization
+    prediction = prediction.tolist()
+    confidence = confidence.tolist()
     
     return {"predicted class": prediction, "confidence level": confidence, "intermediates": output_paths}
     
