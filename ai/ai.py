@@ -86,7 +86,7 @@ class Dataset:
             return self.images.shape, self.labels.shape
 
     def find_random_image_per_class(self):
-        if (self.images.any() == None) or (self.labels.any() == None):
+        if (self.images is None) or (self.labels is None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
             # Print the first image for each unique label
@@ -146,7 +146,7 @@ class Preprocessing:
     """
     Preprocessing class for image datasets.
     """
-    
+
     def __init__(self, filename=None, X=None, y=None):
         self.X = X
         self.y = y
@@ -176,11 +176,11 @@ class Preprocessing:
     # Noise removal/ Outlier removal
     def noise_removal(self, alpha):
         raise NotImplementedError
-    
+
     # Image Filtering/ Cropping
     def crop(self, size):
         raise NotImplementedError
-    
+
     # Image Resizing (allow Multi-Resolution Training)
     def resize(self, width, height):
         # Specify the new size as (width, height)
@@ -206,13 +206,13 @@ class Preprocessing:
                 for i in range(len(old_X)):
                     self.X[i] = cv2.cvtColor(old_X[i], cv2.COLOR_BGR2GRAY)
         return self.X
-    
+
     # Data Shuffling
     def shuffle_data(self):
         from sklearn.utils import shuffle
         self.X, self.y = shuffle(self.X, self.y, random_state=42)
         return self.X, self.y
-    
+
     # Normalization
     def normalize(self):
         from sklearn.preprocessing import MinMaxScaler
@@ -222,7 +222,7 @@ class Preprocessing:
         for i in range(len(self.X)):
             self.X[i] = scaler.fit_transform(self.X[i])
         return self.X
-    
+
     def save_dataset(self, filename):
         dataset = Dataset(self.X, self.y)
         dataset.save_dataset(filename)
