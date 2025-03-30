@@ -25,7 +25,6 @@ export const saveFunc = SaveFunction.requireChainCount(1).then(
         message: "The last block must be an end block!",
       }
     }
-
     return { type: "success" }
   })
 )
@@ -97,6 +96,11 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
     }
 
     setIsProcessing(true)
+
+    // Store the csv to be trained here
+    alert(importData.datasetFile);
+    // Save the dataset file path to localStorage for later use
+    localStorage.setItem('lastUsedDatasetFile', importData.datasetFile);
     setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -166,6 +170,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
     }
   }, [importData, options, data, setData, isDeleting, startDeleting, finishDeleting, dragging])
 
+  //console.log(data.preprocessedPath);
   return (
     <EndBlockComponent stage="preprocessing" saveFunc={saveFunc} allBlocks={allPpBlocks} step={startProcessing} id={id} blocks={blocks} data={data} chain={chain} setData={setData} dragHandleProps={dragHandleProps}
       buttonText={"Preprocess Dataset"}
