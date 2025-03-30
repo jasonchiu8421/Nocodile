@@ -150,7 +150,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
   const [convolution, setConvolution] = useState<ConvolutionBlockProps | null>(null)
   const [classification, setClassification] = useState<ClassificationBlockProps | null>(null)
 
-  const { preprocessingData } = useBlocksStore()
+  const { preprocessingData, setTrainingData } = useBlocksStore()
 
   useEffect(() => {
     let convolutionBlock: BlockInstance | null = null
@@ -177,6 +177,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
 
     setIsTraining(true)
     setData({ results: null })
+    setTrainingData({ modelPath: null })
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -214,11 +215,13 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
           },
         })
         toast.success("Model trained successfully")
+        setTrainingData({ modelPath: response.data["model path"] })
       } else {
         setData({ results: null })
         toast.error("Failed to train model", {
           description: response.error,
         })
+        setTrainingData({ modelPath: null })
       }
       setIsTraining(false)
     })
