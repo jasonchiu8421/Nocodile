@@ -1,9 +1,10 @@
+import { SettingsDialog } from "@/components/settings_dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
+import { useProgressStore } from "@/store/useProgressStore"
 import { BarChart2, Brain, ChevronRight, Database, Play } from "lucide-react"
 import { NavLink } from "react-router-dom"
-import { useProgressStore } from "@/store/useProgressStore"
-import { cn } from "@/lib/utils"
 
 export default function Index() {
   const { isStepCompleted, isStepAvailable } = useProgressStore();
@@ -80,6 +81,10 @@ export default function Index() {
           })}
         </CardContent>
       </Card>
+      {/* Settings dialog positioned at bottom right */}
+      <div className="fixed bottom-4 right-4">
+        <SettingsDialog />
+      </div>
     </div>
   )
 }

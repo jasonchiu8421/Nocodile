@@ -3,8 +3,10 @@
  * Example TypeScript functions to call your FastAPI routes.
  */
 
-const baseURL = "http://localhost:8888"
-// Adjust to match wherever your FastAPI app is hosted
+import { useSettingsStore } from "@/store/useSettingsStore"
+
+// Get the base URL from the settings store
+const getBaseURL = () => useSettingsStore.getState().serverUrl
 
 // ------------------ Interfaces for request bodies ------------------ //
 
@@ -125,7 +127,7 @@ export const uploadDataset = async (csvFile: File): Promise<APIResponse<UploadRe
 
   try {
     // Make the request
-    const response = await fetch(`${baseURL}/upload`, {
+    const response = await fetch(`${getBaseURL()}/upload`, {
       method: "POST",
       body: formData,
       signal: AbortSignal.timeout(180 * 1000),
@@ -157,7 +159,7 @@ export async function deleteFile(filename: string): Promise<APIResponse<DeleteFi
 
   try {
     // Make the DELETE request
-    const response = await fetch(`${baseURL}/delete/${encodedFilename}`, {
+    const response = await fetch(`${getBaseURL()}/delete/${encodedFilename}`, {
       method: "DELETE",
     })
 
@@ -183,7 +185,7 @@ export async function deleteFile(filename: string): Promise<APIResponse<DeleteFi
  */
 export const preprocessDataset = async (preprocessRequest: ImagePreprocessRequest): Promise<APIResponse<PreprocessResponse>> => {
   try {
-    const response = await fetch(`${baseURL}/preprocess`, {
+    const response = await fetch(`${getBaseURL()}/preprocess`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(preprocessRequest),
@@ -211,7 +213,7 @@ export const preprocessDataset = async (preprocessRequest: ImagePreprocessReques
  */
 export const predict = async (predictRequest: PredictionRequest): Promise<APIResponse<PredictResponse>> => {
   try {
-    const response = await fetch(`${baseURL}/predict`, {
+    const response = await fetch(`${getBaseURL()}/predict`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(predictRequest),
@@ -239,7 +241,7 @@ export const predict = async (predictRequest: PredictionRequest): Promise<APIRes
  */
 export const testModel = async (testRequest: TestingRequest): Promise<APIResponse<TestModelResponse>> => {
   try {
-    const response = await fetch(`${baseURL}/test`, {
+    const response = await fetch(`${getBaseURL()}/test`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(testRequest),
@@ -267,7 +269,7 @@ export const testModel = async (testRequest: TestingRequest): Promise<APIRespons
  */
 export const trainModel = async (trainingRequest: TrainingRequest): Promise<APIResponse<TrainResponse>> => {
   try {
-    const response = await fetch(`${baseURL}/train`, {
+    const response = await fetch(`${getBaseURL()}/train`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(trainingRequest),
