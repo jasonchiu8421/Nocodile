@@ -237,7 +237,7 @@ class Dataset:
             image_list.append(random_image['image'])
             label_list.append(random_image['label'])
 
-        return label_list, image_list
+        return image_list, label_list
     
     def encode_b64(self):
         b64_images = []
@@ -341,7 +341,7 @@ class Preprocessing:
         dataset = Dataset(self.X, self.y)
         images, labels = dataset.find_random_image_per_class()
         images = dataset.encode_b64()
-        class_example = {label: image for label, image in zip(labels, images)}
+        class_example = {label: image for label, image in zip(labels.tolist(), images.tolist())}
         return class_example
 
 class CNN:
