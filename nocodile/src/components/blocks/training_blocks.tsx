@@ -14,7 +14,7 @@ import { useBlocksStore } from "@/store"
 import { Database, Plus, Trash } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-
+import { getimage } from "@/lib/server_hooks"
 // Layer types
 type KernelSize = [number, number]
 type PoolSize = [number, number]
@@ -232,12 +232,16 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
 }
 
 const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
+
   return (
     <div className="space-y-2">
       <h2 className="text-lg font-semibold">Results</h2>
       <div className="flex flex-col space-y-2">
         <Label>Model Path</Label>
         <span className="text-sm">{results.modelPath}</span>
+        <div>
+          
+        </div>
         <Label>Accuracy Graph</Label>
         <img src={`data:image/png;base64,${results.accuracyGraph}`} alt="Accuracy" />
         <Label>Loss Graph</Label>

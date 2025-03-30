@@ -241,7 +241,6 @@ export const testModel = async (testRequest: PredictionRequest): Promise<APIResp
     return { success: false, error: `Failed to test model: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
-
 /**
  * Calls /train endpoint
  * Takes a TrainingRequest with dataset_path and training_options.
