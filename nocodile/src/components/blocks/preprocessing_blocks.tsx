@@ -196,7 +196,9 @@ interface DataRow {
   image: string // base64 encoded image
 }
 
-function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: CreateBlockElementProps<ImportDataProps>) {
+function ImportDataBlockComponent({ data, id, setData, dragHandleProps, shouldSetPreprocessingData }: CreateBlockElementProps<ImportDataProps> & {
+  shouldSetPreprocessingData: boolean
+}) {
   // File upload states
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -274,7 +276,9 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       if (response.success) {
         // Success case, response is the filename
         setData({ ...data, datasetFile: response.data })
-        setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
+        if (shouldSetPreprocessingData) {
+          setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
+        }
         toast.success("Dataset uploaded successfully")
       } else {
         // Error case
@@ -309,7 +313,9 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       const response = await deleteFile(data.datasetFile)
       if (response.success) {
         setData({ ...data, datasetFile: null })
-        setPreprocessingData((prev) => ({ ...prev, uploadPath: null }))
+        if (shouldSetPreprocessingData) {
+          setPreprocessingData((prev) => ({ ...prev, uploadPath: null }))
+        }
         toast.success("Dataset deleted successfully")
       } else {
         setError(response.error || "Failed to delete file")
@@ -422,7 +428,9 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       if (response.success) {
         // Success case
         setData({ ...data, datasetFile: response.data })
-        setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
+        if (shouldSetPreprocessingData) {
+          setPreprocessingData((prev) => ({ ...prev, uploadPath: response.data }))
+        }
         // Reset create mode and dataset
         setCreateMode(false)
         setBrowserDataset([])
@@ -616,7 +624,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
   )
 }
 
-const ImportDataBlock: BlockType<ImportDataProps> = {
+export const ImportDataBlock: BlockType<ImportDataProps> = {
   hasInput: true,
   hasOutput: true,
   limit: 1,
@@ -625,7 +633,7 @@ const ImportDataBlock: BlockType<ImportDataProps> = {
   width: 350,
   createNew: () => ({ datasetFile: null }),
   block(props) {
-    return <ImportDataBlockComponent {...props} />
+    return <ImportDataBlockComponent {...props} shouldSetPreprocessingData={true} />
   },
 }
 

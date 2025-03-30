@@ -1,9 +1,8 @@
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
 import { SaveFunction } from "@/components/save_alerts"
-import { useProgressStore } from "@/store/useProgressStore"
+import { Block, BlockRegistry, BlockType, EndBlockComponent } from "./blocks"
 
 // Use the Step type from useProgressStore
-export type ProgressStep = "preprocessing" | "training" | "performance" | "testing"
+export type ProgressStep = "preprocessing" | "training" | "predicting" | "testing"
 
 /**
  * Common Start Block that can be reused across different pages

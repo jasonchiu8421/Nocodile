@@ -22,10 +22,10 @@ export default function Index() {
       step: "training" as const
     },
     { 
-      title: "Model Performance", 
-      route: "/performance", 
+      title: "Prediction", 
+      route: "/predicting", 
       icon: BarChart2,
-      step: "performance" as const
+      step: "predicting" as const
     },
     { 
       title: "Try the Model", 

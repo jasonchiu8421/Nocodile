@@ -14,8 +14,11 @@ interface BlocksState {
   trainingBlocks: BlockInstance[]
   setTrainingBlocks: (blocks: BlockInstance[]) => void
 
-  performanceBlocks: BlockInstance[]
-  setPerformanceBlocks: (blocks: BlockInstance[]) => void
+  predictingBlocks: BlockInstance[]
+  setPredictingBlocks: (blocks: BlockInstance[]) => void
+
+  testingBlocks: BlockInstance[]
+  setTestingBlocks: (blocks: BlockInstance[]) => void
 
   preprocessingData: PreprocessingData
   setPreprocessingData: (data: PreprocessingData | ((prev: PreprocessingData) => PreprocessingData)) => void
@@ -63,7 +66,28 @@ export function defaultTrainingBlocks() {
   ]
 }
 
-export function defaultPerformanceBlocks() {
+export function defaultPredictingBlocks() {
+  return [
+    {
+      id: "block-1",
+      type: "start",
+      data: {},
+      position: { x: 64, y: 81 },
+      input: null,
+      output: "block-2",
+    },
+    {
+      id: "block-2",
+      type: "end",
+      data: {},
+      position: { x: 280, y: 81 },
+      input: "block-1",
+      output: null,
+    },
+  ]
+}
+
+export function defaultTestingBlocks() {
   return [
     {
       id: "block-1",
@@ -99,10 +123,16 @@ export const useBlocksStore = create<BlocksState>()(
           trainingBlocks: blocks,
         })),
 
-      performanceBlocks: defaultPerformanceBlocks(),
-      setPerformanceBlocks: (blocks) =>
+      predictingBlocks: defaultPredictingBlocks(),
+      setPredictingBlocks: (blocks) =>
         set(() => ({
-          performanceBlocks: blocks,
+          predictingBlocks: blocks,
+        })),
+
+      testingBlocks: defaultTestingBlocks(),
+      setTestingBlocks: (blocks) =>
+        set(() => ({
+          testingBlocks: blocks,
         })),
 
       preprocessingData: {

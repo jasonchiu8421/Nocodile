@@ -1,15 +1,12 @@
+import { SaveFunction, splitChain } from "@/components/save_alerts"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Pencil } from "lucide-react"
-import { useEffect, useState, useRef } from "react"
-import { Block, BlockRegistry, BlockType, CreateBlockElementProps } from "./blocks"
-import { Button } from "@/components/ui/button"
-import { SaveFunction, splitChain } from "@/components/save_alerts"
-import { EndBlockComponent } from "./blocks"
-import { 
-  ResizeFilterBlock, 
-  GrayscaleFilterBlock, 
-  NormalizeFilterBlock, 
-  ShufflingFilterBlock 
+import { useEffect, useRef, useState } from "react"
+import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
+import {
+  GrayscaleFilterBlock,
+  ResizeFilterBlock
 } from "./preprocessing_blocks"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
@@ -45,7 +42,6 @@ const EndBlock: BlockType<{}> = {
   icon: <div className="w-4 h-4 rounded-full bg-red-500" />,
   limit: 1,
   immortal: true,
-  width: 100,
   createNew: () => ({}),
   block: (props) => <EndBlockComponent stage="testing" saveFunc={saveFunc} allBlocks={allTestingBlocks} {...props} />,
 }
@@ -206,8 +202,6 @@ const allTestingBlocks: BlockRegistry = {
   doodlePad: DoodlePadBlock,
   resize: ResizeFilterBlock,
   grayscale: GrayscaleFilterBlock,
-  normalize: NormalizeFilterBlock,
-  shuffling: ShufflingFilterBlock,
   end: EndBlock,
 }
 

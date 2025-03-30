@@ -232,7 +232,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
 
 const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <h2 className="text-lg font-semibold">Results</h2>
       <div className="flex flex-col space-y-2">
         <Label>Model Path</Label>
