@@ -46,7 +46,22 @@ export interface TrainingRequest {
 
 export interface PredictionRequest {
   model_path: string
-  input_data: string // e.g. Base64 data or entire CSV file contents
+  input_data: string
+  preprocessing_options: {
+    resize?: [number, number]
+    grayscale?: boolean
+    save_option?: "whole dataset" | "one image per class"
+  }
+}
+
+export interface TestingRequest {
+  model_path: string
+  dataset_path: string
+  preprocessing_options: {
+    resize?: [number, number]
+    grayscale?: boolean
+    save_option?: "whole dataset" | "one image per class"
+  }
 }
 
 // ------------------ Interfaces for response bodies ------------------ //
@@ -219,7 +234,7 @@ export const predict = async (predictRequest: PredictionRequest): Promise<APIRes
  * Calls /test endpoint
  * Returns overall accuracy, per-class accuracy, plus a base64-encoded plot.
  */
-export const testModel = async (testRequest: PredictionRequest): Promise<APIResponse<TestModelResponse>> => {
+export const testModel = async (testRequest: TestingRequest): Promise<APIResponse<TestModelResponse>> => {
   try {
     const response = await fetch(`${baseURL}/test`, {
       method: "POST",

@@ -7,6 +7,10 @@ type PreprocessingData = {
   preprocessedPath: string | null
 }
 
+type TrainingData = {
+  modelPath: string | null
+}
+
 interface BlocksState {
   preprocessingBlocks: BlockInstance[]
   setPreprocessingBlocks: (blocks: BlockInstance[]) => void
@@ -22,6 +26,9 @@ interface BlocksState {
 
   preprocessingData: PreprocessingData
   setPreprocessingData: (data: PreprocessingData | ((prev: PreprocessingData) => PreprocessingData)) => void
+
+  trainingData: TrainingData
+  setTrainingData: (data: TrainingData | ((prev: TrainingData) => TrainingData)) => void
 }
 
 export function defaultBlocks() {
@@ -80,6 +87,14 @@ export const useBlocksStore = create<BlocksState>()(
       setPreprocessingData: (data) =>
         set((state) => ({
           preprocessingData: typeof data === "function" ? data(state.preprocessingData) : data,
+        })),
+
+      trainingData: {
+        modelPath: null,
+      },
+      setTrainingData: (data) =>
+        set((state) => ({
+          trainingData: typeof data === "function" ? data(state.trainingData) : data,
         })),
     }),
     {
