@@ -111,7 +111,7 @@ class Dataset:
             image_list.append(random_image['image'])
             label_list.append(random_image['label'].values[0])
 
-        return label_list, image_list
+        return image_list, label_list
     
     def encode_b64(self):
         b64_images = []
@@ -186,13 +186,17 @@ class Preprocessing:
         # Specify the new size as (width, height)
         new_size = (width, height)
         old_X = self.X
-        self.X = np.zeros((len(old_X), width, height, old_X[0].shape[2]), dtype=np.uint8)
+        # TODO: This only works for CSV, not for arbitrary image
+        self.X = np.zeros((len(old_X), width, height), dtype=np.uint8)
         for i in range(len(old_X)):
             self.X[i] = cv2.resize(old_X[i], new_size)
         return self.X
 
     # Grayscale Conversion
     def convert_to_grayscale(self):
+        if self.X.dims == 2:
+            raise ValueError("Image is already grayscale.")
+
         # Use the cvtColor() function to grayscale the image
         old_X = self.X
         width, height = old_X[0].shape[:2]
@@ -213,8 +217,6 @@ class Preprocessing:
         # Initialize the scaler
         scaler = MinMaxScaler()   
         # Fit and transform the data
-        import logging
-        logging.info(f"{self.X[0].shape}")
         for i in range(len(self.X)):
             self.X[i] = scaler.fit_transform(self.X[i])
         return self.X
@@ -225,13 +227,17 @@ class Preprocessing:
 
     def return_class_example(self):
         dataset = Dataset(self.X, self.y)
-        labels, images = dataset.find_random_image_per_class()
+        images, labels = dataset.find_random_image_per_class()
         images = dataset.encode_b64()
-        class_example = {label: image for label, image in zip(labels, images)}
+        class_example = {label: image for label, image in zip(labels, images.tolist())}
         return class_example
 
 class CNN:
-    def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
+    """
+    Convolutional Neural Network class for training and evaluating models.
+    """
+
+    def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "softmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
         self.X = X
         self.y = y
         self.model = model
@@ -292,6 +298,14 @@ class CNN:
         self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
         self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
         
+        # Make sure grayscale images have 4-th dimension
+        if self.X_train.ndim == 3:
+            self.X_train = np.expand_dims(self.X_train, axis=-1)
+        if self.X_val.ndim == 3:
+            self.X_val = np.expand_dims(self.X_val, axis=-1)
+        if self.X_test.ndim == 3:
+            self.X_test = np.expand_dims(self.X_test, axis=-1)
+
         # Create Data Generator
         gen = ImageDataGenerator()
         self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)

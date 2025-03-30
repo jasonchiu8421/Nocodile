@@ -14,17 +14,13 @@ import pandas as pd
 import ai
 import contract
 
-logging.basicConfig(level=logging.DEBUG)
+DATASETS_DIR = "datasets"
+CHECKPOINTS_DIR = "checkpoints"
+
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
+enable_backtrace = os.environ.get("ENABLE_BACKTRACE", "0") == "1"
 
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.middleware("http")
 async def handle_errors(request, call_next):
@@ -32,11 +28,21 @@ async def handle_errors(request, call_next):
         response = await call_next(request)
         return response
     except Exception as e:
-        logging.error(f"Error processing request: {e}")
+        if enable_backtrace:
+            logging.error(f"Error processing request: {e}")
+        
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+    
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
@@ -56,7 +62,7 @@ async def upload(file: UploadFile = File(...)):
     h5_filename = f"{base_name}.h5"
     
     # Check if filename already exists
-    if os.path.exists("datasets/" + h5_filename):
+    if os.path.exists(DATASETS_DIR + "/" + h5_filename):
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"error": f"A file with name '{h5_filename}' already exists. Please use a different filename."}
@@ -87,7 +93,7 @@ async def upload(file: UploadFile = File(...)):
 
     # Save as a dataset
     dataset = ai.Dataset(images=images, labels=labels)
-    dataset.save_dataset("datasets/" + h5_filename)
+    dataset.save_dataset(DATASETS_DIR + "/" + h5_filename)
 
     return h5_filename
 
@@ -103,7 +109,7 @@ async def delete_file(filename: str):
             content={"error": "Invalid filename"}
         )
 
-    filename = "datasets/" + filename
+    filename = DATASETS_DIR + "/" + filename
 
     # Check if file exists
     if not os.path.exists(filename) or not filename.endswith('.h5'):
@@ -126,7 +132,7 @@ async def preprocess(request: contract.ImagePreprocessRequest):
     """
     options = request.options
 
-    preprocessing = ai.Preprocessing(filename="datasets/" + request.dataset_path)
+    preprocessing = ai.Preprocessing(filename=DATASETS_DIR + "/" + request.dataset_path)
     output_paths = {}
 
     # Set save option
@@ -152,13 +158,13 @@ async def preprocess(request: contract.ImagePreprocessRequest):
         if option=="resize" or option=="grayscale":
             if intermediate_save_option == "whole dataset":
                 output_path = option + os.path.basename(request.dataset_path)
-                preprocessing.save_dataset("datasets/" + output_path)
+                preprocessing.save_dataset(DATASETS_DIR + "/" + output_path)
                 output_paths[option] = output_path
             elif intermediate_save_option == "one image per class":
                 output_paths[option] = preprocessing.return_class_example()
     
     output_path = f"preprocessed_{os.path.basename(request.dataset_path)}"
-    preprocessing.save_dataset("datasets/" + output_path)
+    preprocessing.save_dataset(DATASETS_DIR + "/" + output_path)
     output_paths["output"] = output_path
 
     return output_paths
@@ -170,7 +176,7 @@ async def train(request: contract.TrainingRequest):
     """    
     # Load dataset
     dataset = ai.Dataset()
-    X, y = dataset.load_saved_dataset(request.dataset_path)
+    X, y = dataset.load_saved_dataset(DATASETS_DIR + "/" + request.dataset_path)
 
     # Preprocess the dataset based on the options provided
     cnn = ai.CNN(X, y, request.training_options)
@@ -178,20 +184,24 @@ async def train(request: contract.TrainingRequest):
     
     # Save model
     model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
-    model.save(model_path)
+    model.save(CHECKPOINTS_DIR + "/" + model_path)
 
     loss_graph, accuracy_graph = cnn.get_performance_graphs()
     loss_data, accuracy_data = cnn.get_performance_data()
+
+    # Convert DataFrames to dict with lists format to match TypeScript interface
+    accuracy_data_dict = accuracy_data.to_dict(orient='list')
+    loss_data_dict = loss_data.to_dict(orient='list')
     
     return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
-            "accuracy data": accuracy_data, "loss data": loss_data}
+            "accuracy data": accuracy_data_dict, "loss data": loss_data_dict}
 
 @app.post("/predict")
 async def predict(request: contract.PredictionRequest):
     """
     Process prediction request, return predicted class and confidence level.
     """
-    preprocessing = ai.Preprocessing(X=request.input_data)
+    preprocessing = ai.Preprocessing(X=DATASETS_DIR + "/" + request.input_data)
     options = request.preprocessing_options
     output_paths = {}
     for option in options:
@@ -213,7 +223,7 @@ async def predict(request: contract.PredictionRequest):
     image = np.array(preprocessing.get_x())
 
     cnn = ai.CNN()
-    cnn.load_model(request.model_path)
+    cnn.load_model(CHECKPOINTS_DIR + "/" + request.model_path)
     prediction, confidence = cnn.run_model(image)
     
     return {"predicted class": prediction, "confidence level": confidence, "intermediates": output_paths}
@@ -223,7 +233,7 @@ async def test(request: contract.TestingRequest):
     """
     Process testing request, return accuracy and performance graphs.
     """
-    preprocessing = ai.Preprocessing(filename=request.dataset_path)
+    preprocessing = ai.Preprocessing(filename=DATASETS_DIR + "/" + request.dataset_path)
     options = request.preprocessing_options
     output_paths = {}
     for option in options:
@@ -246,7 +256,7 @@ async def test(request: contract.TestingRequest):
     labels = np.array(preprocessing.get_y())
 
     cnn = ai.CNN()
-    cnn.load_model(request.model_path)
+    cnn.load_model(CHECKPOINTS_DIR + "/" + request.model_path)
     accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
 
     return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}

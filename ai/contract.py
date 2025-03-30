@@ -12,11 +12,10 @@ class ImagePreprocessRequest(BaseModel):
     }
 
 class TrainingRequest(BaseModel):
-    preprocessed_images: List[str]
-    labels: List[int]
+    dataset_path: str
     training_options: Dict[str, Any] = {
         "method": "train_test_val",
-        "layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}],
+        "layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "softmax"}],
         "optimizer": "Adam",
         "loss": "categorical_crossentropy",
         "metrics": ["accuracy"],
