@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { AccuracyChart, LossChart, TrainingResults } from "@/components/ui/chart_dot"
 import { trainModel } from "@/lib/server_hooks"
 import { filterOutKeys } from "@/lib/utils"
 import { useBlocksStore } from "@/store"
@@ -260,6 +261,7 @@ const PlaceholderComponent: React.FC<{ results: NonNullable<EndBlockProps["resul
     </div>
   )
 }
+/*
 const ResultsPlaceholderBlock: BlockType<EndBlockProps> = {
   hasInput: true,
   hasOutput: false,
@@ -286,22 +288,19 @@ const ResultsPlaceholderBlock: BlockType<EndBlockProps> = {
     <PlaceholderComponent results={props.data.results!} />
   </Block>
 }
+*/
 const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
-
   return (
-    <div className="space-y-2">
-      <h2 className="text-lg font-semibold">Results</h2>
-      <div className="flex flex-col space-y-2">
-        <Label>Model Path</Label>
-        <span className="text-sm">{results.modelPath}</span>
-        <div>
-          <Label>accuracy daya</Label>
-          <span className="text-sm">{JSON.stringify(results.accuracyData)}</span>
+    <div className="space-y-4 w-full">
+      <h2 className="text-lg font-semibold">Model Results</h2>
+      <hr/>
+      <div className="flex flex-col space-y-4">
+        <div className="text-sm">
+          <Label>Model Path</Label>
+          <span className="ml-2 font-mono">{results.modelPath}</span>
         </div>
-        <Label>Accuracy Graph</Label>
-        <img src={`data:image/png;base64,${results.accuracyGraph}`} alt="Accuracy" />
-        <Label>Loss Graph</Label>
-        <img src={`data:image/png;base64,${results.lossGraph}`} alt="Loss" />
+          <AccuracyChart results={results as TrainingResults} />
+          <LossChart results={results as TrainingResults} />
       </div>
     </div>
   )
@@ -314,9 +313,21 @@ const EndBlock: BlockType<EndBlockProps> = {
   limit: 1,
   immortal: true,
   width: 340,
-  createNew: () => ({
-    results: null,
-  }),
+  createNew: () => ({results: {
+    modelPath: "placeholder.h5",
+    accuracyGraph: "placeholder.png",
+    lossGraph: "placeholder.png",
+    accuracyData: {
+      epoch: [1,2,3,4,5,6,7,8,9,10],
+      accuracy: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+      valAccuracy: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    },
+    lossData: {
+      epoch: [1,2,3,4,5,6,7,8,9,10],
+      loss: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+      valLoss: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    },
+  }}),
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 
