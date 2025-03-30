@@ -238,4 +238,5 @@ class CNN:
         X_test = X_test.reshape(len(X_test), 28, 28, 1).astype('float32')
         predictions = self.model.predict(X_test, verbose=1)
         predicted_class = np.argmax(predictions, axis=1)
+        print(predicted_class)
         return predicted_class
