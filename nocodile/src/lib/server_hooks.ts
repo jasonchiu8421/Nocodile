@@ -3,7 +3,7 @@
  * Example TypeScript functions to call your FastAPI routes.
  */
 
-const baseURL = "http://localhost:8000"
+const baseURL = "http://localhost:8888"
 // Adjust to match wherever your FastAPI app is hosted
 
 // ------------------ Interfaces for request bodies ------------------ //

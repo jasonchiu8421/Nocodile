@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI, File, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, ORJSONResponse
 import numpy as np
 from PIL import Image
 from io import BytesIO, StringIO
@@ -20,7 +20,7 @@ CHECKPOINTS_DIR = "checkpoints"
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
 enable_backtrace = os.environ.get("ENABLE_BACKTRACE", "0") == "1"
 
-app = FastAPI()
+app = FastAPI(default_response_class=ORJSONResponse)
 
 @app.middleware("http")
 async def handle_errors(request, call_next):
@@ -31,7 +31,7 @@ async def handle_errors(request, call_next):
         if enable_backtrace:
             logging.error(f"Error processing request: {e}")
         
-        return JSONResponse(
+        return ORJSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
@@ -51,7 +51,7 @@ async def upload(file: UploadFile = File(...)):
     """
     # Verify file type
     if file.content_type != "text/csv":
-        return JSONResponse(
+        return ORJSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"error": "Only CSV files are accepted"}
         )
@@ -63,7 +63,7 @@ async def upload(file: UploadFile = File(...)):
     
     # Check if filename already exists
     if os.path.exists(DATASETS_DIR + "/" + h5_filename):
-        return JSONResponse(
+        return ORJSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"error": f"A file with name '{h5_filename}' already exists. Please use a different filename."}
         )
@@ -104,7 +104,7 @@ async def delete_file(filename: str):
     """
     # Prevent directory traversal
     if "/" in filename or "\\" in filename or ".." in filename or ".." in filename or "~" in filename:
-        return JSONResponse(
+        return ORJSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"error": "Invalid filename"}
         )
@@ -113,14 +113,14 @@ async def delete_file(filename: str):
 
     # Check if file exists
     if not os.path.exists(filename) or not filename.endswith('.h5'):
-        return JSONResponse(
+        return ORJSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"error": f"File '{filename}' not found or not a valid H5 file"}
         )
     
     # Delete the file
     os.remove(filename)
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=status.HTTP_200_OK,
         content={"message": f"File '{filename}' successfully deleted"}
     )
@@ -193,7 +193,7 @@ async def train(request: contract.TrainingRequest):
     accuracy_data_dict = accuracy_data.to_dict(orient='list')
     loss_data_dict = loss_data.to_dict(orient='list')
     
-    # WHY IS IT LIKE THIS NOW 
+    # WHY IS IT LIKE THIS NOW
     return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
             "accuracy data": accuracy_data_dict, "loss data": loss_data_dict}
 
@@ -207,7 +207,7 @@ async def predict(request: contract.PredictionRequest):
     image = Image.open(BytesIO(image_data))
     image_array = np.array(image)
 
-    preprocessing = ai.Preprocessing(image_array)
+    preprocessing = ai.Preprocessing(X=np.array([image_array]), y=np.array([0]))
     options = request.preprocessing_options
     output_paths = {}
     for option in options:
