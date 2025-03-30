@@ -3,7 +3,7 @@ import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { defaultPredictingBlocks } from "@/store/useBlocksStore"
+import { defaultBlocks } from "@/store/useBlocksStore"
 
 export default function Predicting() {
   const { predictingBlocks, setPredictingBlocks } = useBlocksStore()
@@ -24,7 +24,7 @@ export default function Predicting() {
       blocks={predictingBlocks} 
       setBlocks={setPredictingBlocks} 
       save={saveFunc} 
-      defaultBlocks={defaultPredictingBlocks} 
+      defaultBlocks={defaultBlocks} 
       />
       <Toaster visibleToasts={10}/>
     </>

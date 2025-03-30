@@ -194,15 +194,12 @@ class Preprocessing:
 
     # Grayscale Conversion
     def convert_to_grayscale(self):
-        if self.X.dims == 2:
-            raise ValueError("Image is already grayscale.")
-
         # Use the cvtColor() function to grayscale the image
-        old_X = self.X
-        width, height = old_X[0].shape[:2]
-        self.X = np.zeros((len(old_X), width, height), dtype=np.uint8)
-        for i in range(len(old_X)):
-            self.X[i] = cv2.cvtColor(old_X[i], cv2.COLOR_BGR2GRAY)
+        width, height = self.X[0].shape[:2]
+        self.X = np.zeros((len(self.X), width, height), dtype=np.uint8)
+        if self.X.ndim == 4:
+            for i in range(len(self.X)):
+                self.X[i] = cv2.cvtColor(self.X[i], cv2.COLOR_BGR2GRAY)
         return self.X
     
     # Data Shuffling

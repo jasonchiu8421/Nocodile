@@ -3,7 +3,7 @@ import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { defaultPreprocessingBlocks } from "@/store/useBlocksStore"
+import { defaultBlocks } from "@/store/useBlocksStore"
 
 export default function Preprocessing() {
   const { preprocessingBlocks, setPreprocessingBlocks } = useBlocksStore()
@@ -24,7 +24,7 @@ export default function Preprocessing() {
       blocks={preprocessingBlocks} 
       setBlocks={setPreprocessingBlocks} 
       save={saveFunc} 
-      defaultBlocks={defaultPreprocessingBlocks} 
+      defaultBlocks={defaultBlocks} 
       />
       <Toaster visibleToasts={10}/>
     </>

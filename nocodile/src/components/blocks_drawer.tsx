@@ -39,7 +39,7 @@ export function BlockDrawer({
       {/* Trash zone for deleting blocks */}
       <div className="text-sm space-y-1">
         <div className="font-medium">
-          Drag and drop blocks to create your data preprocessing pipeline.
+          Drag and drop blocks to create your model.
         </div>
         <div className="text-muted-foreground heading-none">
           Drop blocks on this panel to delete them.
