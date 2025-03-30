@@ -246,7 +246,11 @@ async def predict(request: contract.PredictionRequest):
     """
     Process prediction request, return predicted class and confidence level.
     """
-    preprocessing = ai.Preprocessing(X=DATASETS_DIR + "/" + request.input_data)
+    image_data = base64.b64decode(request.input_data)
+    image = Image.open(BytesIO(image_data))
+    image_array = np.array(image)
+
+    preprocessing = ai.Preprocessing(image_array)
     options = request.preprocessing_options
     output_paths = {}
     for option in options:
