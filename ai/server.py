@@ -193,52 +193,9 @@ async def train(request: contract.TrainingRequest):
     accuracy_data_dict = accuracy_data.to_dict(orient='list')
     loss_data_dict = loss_data.to_dict(orient='list')
     
+    # WHY IS IT LIKE THIS NOW 
     return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
             "accuracy data": accuracy_data_dict, "loss data": loss_data_dict}
-
-
-@app.get("/train/data")
-async def get_dataset(dataset_path: str):
-    """
-    Find and return the corresponding h5 file based on the dataset_path.
-    
-    Args:
-        dataset_path: Path to the dataset file relative to DATASETS_DIR
-        
-    Returns:
-        The h5 file content if it exists, otherwise an error message
-    """
-    dataset_path = requests.args.get("dataset_path")
-    try:
-        file_path = os.path.join(DATASETS_DIR, dataset_path)
-        
-        if not os.path.exists(file_path):
-            print("Can't find dataset file: " + dataset_path)
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={"error": f"Dataset file not found: {dataset_path}"}
-            )
-            
-        # Check if it's an h5 file
-        if not file_path.endswith('.h5'):
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"error": f"File is not an h5 file: {dataset_path}"}
-            )
-            
-        # Read the h5 file
-        with open(file_path, 'rb') as f:
-            file_content = f.read()
-            
-        # Return the file content
-        return JSONResponse(
-            content={"filename": dataset_path, "file_content": base64.b64encode(file_content).decode('utf-8')}
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": f"Failed to get dataset: {str(e)}"}
-        )
 
 # after trainig the model, use it to predict a set of images
 @app.post("/predict")

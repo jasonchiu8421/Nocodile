@@ -174,23 +174,45 @@ function DoodlePadComponent({ data, id, setData, dragHandleProps }: CreateBlockE
     }
   }, [data.imageData])
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Get coordinates from either mouse or touch event
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    
+    if ('touches' in e) {
+      // Touch event
+      return {
+        x: e.touches[0].clientX - rect.left,
+        y: e.touches[0].clientY - rect.top
+      }
+    } else {
+      // Mouse event
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      }
+    }
+  }
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    // Prevent scrolling when drawing on touch devices
+    if ('touches' in e) {
+      e.preventDefault()
+    }
+
+    const { x, y } = getCoordinates(e, canvas)
 
     ctx.beginPath()
     ctx.moveTo(x, y)
     setIsDrawing(true)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
 
     const canvas = canvasRef.current
@@ -199,9 +221,12 @@ function DoodlePadComponent({ data, id, setData, dragHandleProps }: CreateBlockE
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    // Prevent scrolling when drawing on touch devices
+    if ('touches' in e) {
+      e.preventDefault()
+    }
+
+    const { x, y } = getCoordinates(e, canvas)
 
     ctx.lineWidth = 2
     ctx.lineCap = "round"
@@ -242,7 +267,20 @@ function DoodlePadComponent({ data, id, setData, dragHandleProps }: CreateBlockE
     <Block id={id} title="Doodle Pad" icon={<Pencil className="w-5 h-5" />} color="bg-blue-50" dragHandleProps={dragHandleProps}>
       <div className="p-2 flex flex-col gap-2">
         <div className={cn("border border-gray-300 rounded-md overflow-hidden", "flex items-center justify-center bg-white")}>
-          <canvas ref={canvasRef} width={256} height={256} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} className="touch-none" />
+          <canvas 
+            ref={canvasRef} 
+            width={256} 
+            height={256} 
+            onMouseDown={startDrawing} 
+            onMouseMove={draw} 
+            onMouseUp={stopDrawing} 
+            onMouseLeave={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+            onTouchCancel={stopDrawing}
+            className="touch-none" 
+          />
         </div>
         <Button variant="outline" size="sm" onClick={clearCanvas} className="w-full">
           Clear
