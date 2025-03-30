@@ -106,6 +106,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
       preprocessing_options: {
         ...(options["resize"] ? { resize: [options["resize"] as number, options["resize"] as number] } : {}),
         ...(options["grayscale"] ? { grayscale: true } : {}),
+        save_option: "whole dataset",
       },
     }).then((response) => {
       if (response.success) {

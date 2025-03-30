@@ -244,8 +244,8 @@ async def test(request: contract.TestingRequest):
     output_paths = {}
     for option in options:
         if option=="resize":
-            size = options["resize"]
-            preprocessing.resize((size, size))
+            width, height = options["resize"]
+            preprocessing.resize(width, height)
 
         if option=="grayscale":
             preprocessing.convert_to_grayscale()
