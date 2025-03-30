@@ -187,7 +187,7 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
       dataset_path: preprocessingData?.preprocessedPath || preprocessingData?.uploadPath || "",
       training_options: {
         method: convolution.approach,
-        layers: [...classification.layers, ...convolution.layers],
+        layers: [...convolution.layers, ...classification.layers],
         optimizer: classification.optimizer,
         loss: classification.loss,
         lr: classification.lr,

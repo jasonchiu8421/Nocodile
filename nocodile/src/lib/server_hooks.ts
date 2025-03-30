@@ -3,7 +3,7 @@
  * Example TypeScript functions to call your FastAPI routes.
  */
 
-const baseURL = "http://localhost:8888"
+const baseURL = "http://nocodile.shedaniel.me"
 // Adjust to match wherever your FastAPI app is hosted
 
 // ------------------ Interfaces for request bodies ------------------ //
@@ -128,6 +128,7 @@ export const uploadDataset = async (csvFile: File): Promise<APIResponse<UploadRe
     const response = await fetch(`${baseURL}/upload`, {
       method: "POST",
       body: formData,
+      signal: AbortSignal.timeout(180 * 1000),
     })
 
     // Parse the JSON body
@@ -186,6 +187,7 @@ export const preprocessDataset = async (preprocessRequest: ImagePreprocessReques
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(preprocessRequest),
+      signal: AbortSignal.timeout(180 * 1000),
     })
 
     // Parse the JSON body
@@ -213,6 +215,7 @@ export const predict = async (predictRequest: PredictionRequest): Promise<APIRes
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(predictRequest),
+      signal: AbortSignal.timeout(180 * 1000),
     })
 
     // Parse the JSON body
@@ -240,6 +243,7 @@ export const testModel = async (testRequest: TestingRequest): Promise<APIRespons
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(testRequest),
+      signal: AbortSignal.timeout(180 * 1000),
     })
 
     // Parse the JSON body
@@ -267,6 +271,7 @@ export const trainModel = async (trainingRequest: TrainingRequest): Promise<APIR
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(trainingRequest),
+      signal: AbortSignal.timeout(180 * 1000),
     })
 
     // Parse the JSON body

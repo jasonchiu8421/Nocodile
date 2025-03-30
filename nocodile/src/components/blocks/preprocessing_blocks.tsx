@@ -99,10 +99,6 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
 
     setIsProcessing(true)
 
-    // Store the csv to be trained here
-    alert(importData.datasetFile);
-    // Save the dataset file path to localStorage for later use
-    localStorage.setItem('lastUsedDatasetFile', importData.datasetFile);
     setData({ ...data, preprocessedPath: undefined, processedForPath: undefined, processedWithOptions: undefined })
     setPreprocessingData((prev) => ({ ...prev, preprocessedPath: null }))
 
@@ -194,7 +190,7 @@ const EndBlock: BlockType<EndBlockData> = {
   block: (props) => <EndAndUploadBlockComponent {...props} />,
 }
 
-type ImportDataProps = {
+export type ImportDataProps = {
   datasetFile: string | null
 }
 
