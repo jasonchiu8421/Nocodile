@@ -98,9 +98,14 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockData>
 
     await sleep(500)
 
+    let imageData = doodle.imageData
+    if (imageData && imageData.startsWith("data:image/png;base64,")) {
+      imageData = imageData.replace("data:image/png;base64,", "")
+    }
+
     await predict({
       model_path: trainingData?.modelPath || "",
-      input_data: doodle.imageData || "",
+      input_data: imageData || "",
       preprocessing_options: {
         ...(options["resize"] ? { resize: [options["resize"] as number, options["resize"] as number] } : {}),
         ...(options["grayscale"] ? { grayscale: true } : {}),
