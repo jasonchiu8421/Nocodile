@@ -351,6 +351,8 @@ class CNN:
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
 
         self.model.optimizer.lr=self.lr
+        self.model.optimizer.clipnorm=1
+        self.model.optimizer.clipvalue=0.5
         
         self.hist = self.model.fit(
             x=self.batches,
