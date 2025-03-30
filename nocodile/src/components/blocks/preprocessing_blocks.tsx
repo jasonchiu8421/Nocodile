@@ -5,11 +5,12 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { deleteFile, preprocessDataset, uploadDataset } from "@/lib/server_hooks"
+import { useBlocksStore } from "@/store/useBlocksStore"
 import { Database, FileSpreadsheet, Image, Plus, Trash, Upload, X } from "lucide-react"
+import Papa from "papaparse"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Block, BlockRegistry, BlockType, CreateBlockElementProps, EndBlockComponent } from "./blocks"
-import { useBlocksStore } from "@/store/useBlocksStore"
 
 export const saveFunc = SaveFunction.requireChainCount(1).then(
   SaveFunction.create((_, blocks) => {
@@ -337,7 +338,11 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       const reader = new FileReader()
       reader.onload = () => {
         if (reader.result) {
-          filesUploaded.push(reader.result as string)
+          let image = reader.result as string
+          if (image.startsWith("data:image/png;base64,")) {
+            image = image.replace("data:image/png;base64,", "")
+          }
+          filesUploaded.push(image)
           completed++
           if (completed === filesArray.length) {
             setCurrentPreviews(filesUploaded)
@@ -396,8 +401,11 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
       return
     }
 
-    // Generate CSV content
-    const csvContent = "label,image\n" + browserDataset.map((row) => `${row.label},${row.image}`).join("\n")
+    // Generate CSV content with proper escaping using PapaParse
+    const csvContent = Papa.unparse({
+      fields: ["label", "image"],
+      data: browserDataset.map(row => [row.label, row.image])
+    })
     const csvBlob = new Blob([csvContent], { type: "text/csv" })
 
     // Use UUID for filename
@@ -549,7 +557,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                     currentPreviews.map((preview, index) => (
                       <div key={index} className="mt-2">
                         <div className="relative w-24 h-24 mx-auto">
-                          <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-cover rounded" />
+                          <img src={`data:image/png;base64,${preview}`} alt={`Preview ${index}`} className="w-full h-full object-cover rounded" />
                         </div>
                       </div>
                     ))}
@@ -575,7 +583,7 @@ function ImportDataBlockComponent({ data, id, setData, dragHandleProps }: Create
                         <div key={index} className="flex items-center justify-between py-1 border-b last:border-0">
                           <div className="flex items-center space-x-2">
                             <div className="w-8 h-8 rounded overflow-hidden">
-                              <img src={item.image} alt={item.label} className="w-full h-full object-cover" />
+                              <img src={`data:image/png;base64,${item.image}`} alt={item.label} className="w-full h-full object-cover" />
                             </div>
                             <span className="text-sm">{item.label}</span>
                           </div>

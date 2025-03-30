@@ -4,8 +4,8 @@ import { ChevronRight } from "lucide-react"
 import React, { ReactNode, useState } from "react"
 import { BlockInstance } from "@/components/dnd_layout"
 import { BlockChain, SaveFunction } from "@/components/save_alerts"
-import {useProgressStore } from "@/store/useProgressStore"
-import {ProgressStep} from "@/components/blocks/common_blocks"
+import { useProgressStore } from "@/store/useProgressStore"
+import { ProgressStep } from "@/components/blocks/common_blocks"
 import { Button } from "@/components/ui/button"
 
 type BlockChainProps = {
@@ -140,10 +140,11 @@ export function EndBlockComponent({
           className="w-full"
           disabled={!canRun || isRunning}
           onClick={() => {
-            console.log(`Run ${stage} code`)
             setIsRunning(true)
 
-            (step?.() ?? Promise.resolve()).finally(() => {
+            const stepPromise = step?.() ?? Promise.resolve()
+            
+            stepPromise.finally(() => {
               completeStep(stage)
               setIsRunning(false)
             })
