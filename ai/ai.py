@@ -1,24 +1,14 @@
-import logging
-from fastapi import FastAPI, Request, status, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel
-from typing import Dict, List, Optional
 import base64
-import os
-import uuid
-import numpy as np
 import cv2
-from PIL import Image
-import pandas as pd
-from io import StringIO, BytesIO
-from torch.utils.data import Dataset, DataLoader, TensorDataset
-import torch.nn.functional as F
 import h5py
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
+import numpy as np
+import pandas as pd
+from PIL import Image
+from io import BytesIO
 from brokenaxes import brokenaxes
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import KFold
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import KFold, train_test_split
 from tensorflow.keras.layers import Lambda, Dense, Flatten, Dropout, Activation, BatchNormalization, Conv2D, MaxPooling2D, GlobalMaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Sequential, load_model
@@ -26,126 +16,6 @@ from tensorflow.keras.optimizers import Adam, SGD, RMSprop, Adagrad, Adadelta, N
 from tensorflow.keras import backend as K
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
-from PIL import Image
-from sklearn.metrics import accuracy_score
-from typing import Any, Dict
-import traceback
-
-ENABLE_TRACEBACK = True
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# 创建 FastAPI 应用实例
-app = FastAPI()
-
-# 添加 CORS 中间件
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class ImagePreprocessRequest(BaseModel):
-    dataset_path: str
-    options: Dict[str, Any] = {
-        "resize": (28,28),
-        "rgb2gray": 0,
-        "shuffle": 0,
-        "normalize": 0,
-        "save_option": "one image per class"
-    }
-
-class TrainingRequest(BaseModel):
-    dataset_path: str
-    training_options: Dict[str, Any] = {
-        "method": "train_test_val",
-        "layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}],
-        "optimizer": "Adam",
-        "loss": "categorical_crossentropy",
-        "metrics": ["accuracy"],
-        "lr": 0.01,
-        "epochs": 10,
-        "batch_size": 64,
-        "kFold_k": 5
-    }
-
-class PredictionRequest(BaseModel):
-    model_path: str
-    input_data: str
-    preprocessing_options: Dict[str, Any] = {
-        "resize": (28,28),
-        "rgb2gray": 0,
-        "save_option": "one image per class"
-    }
-
-class TestingRequest(BaseModel):
-    model_path: str
-    dataset_path: str
-    preprocessing_options: Dict[str, Any] = {
-        "resize": (28,28),
-        "rgb2gray": 0,
-        "save_option": "one image per class"
-    }
-
-class DatasetCreator:
-    def __init__(self, base_folder):
-        self.base_folder = base_folder
-        self.image_paths = []
-        self.labels = []
-        self.images = []
-
-    def _load_image_paths_and_labels(self):
-        # Load image paths and labels from the specified folder structure
-        for label in os.listdir(self.base_folder):
-            label_folder = os.path.join(self.base_folder, label)
-            if os.path.isdir(label_folder):
-                for img_file in os.listdir(label_folder):
-                    img_path = os.path.join(label_folder, img_file)
-                    self.image_paths.append(img_path)
-                    self.labels.append(label)
-
-        self.labels = np.array(self.labels)
-
-    def load_data(self):
-        # Load all images into a dataset
-        if not self.images:  # Load images only once
-            self._load_image_paths_and_labels()  # Load image paths and labels
-            for img_path in self.image_paths:
-                image = cv2.imread(img_path)  # Load the image using cv2
-                if image is not None:  # Check if the image was loaded successfully
-                    self.images.append(image)
-            self.images = np.array(self.images)
-
-        return self.images, self.labels
-    
-    def load_images(self):
-        # List all files in the folder
-        image_files = [f for f in os.listdir(self.base_folder) if f.endswith(('png', 'jpg', 'jpeg'))]
-        images_array = []
-        for image_file in image_files:
-            # Open an image file
-            img_path = os.path.join(self.base_folder, image_file)
-            with Image.open(img_path) as img:
-                images_array.append(np.array(img))
-        self.images = np.array(images_array)
-        return self.images
-
-    def save_dataset(self, file_path=None):
-        # Create dataset filename if not specified
-        if file_path is None or file_path.strip() == "":
-            directory = os.path.dirname(self.base_folder)
-            file_name = os.path.splitext(os.path.basename(self.base_folder))[0] + '_dataset.h5'
-            file_path = os.path.join(directory, file_name)
-        
-        # Save dataset
-        if (self.images is None) or (self.labels is None):
-            raise ValueError("Images or Labels not loaded successfully.")
-        else:
-            dataset = Dataset(self.images, self.labels)
-            dataset.save_dataset(file_path)
-            return file_path
 
 class Dataset:
     """
@@ -316,13 +186,17 @@ class Preprocessing:
         # Specify the new size as (width, height)
         new_size = (width, height)
         old_X = self.X
-        self.X = np.zeros((len(old_X), width, height, old_X[0].shape[2]), dtype=np.uint8)
+        # TODO: This only works for CSV, not for arbitrary image
+        self.X = np.zeros((len(old_X), width, height), dtype=np.uint8)
         for i in range(len(old_X)):
             self.X[i] = cv2.resize(old_X[i], new_size)
         return self.X
 
     # Grayscale Conversion
     def convert_to_grayscale(self):
+        if self.X.dims == 2:
+            raise ValueError("Image is already grayscale.")
+
         # Use the cvtColor() function to grayscale the image
         old_X = self.X
         width, height = old_X[0].shape[:2]
@@ -343,8 +217,6 @@ class Preprocessing:
         # Initialize the scaler
         scaler = MinMaxScaler()   
         # Fit and transform the data
-        import logging
-        logging.info(f"{self.X[0].shape}")
         for i in range(len(self.X)):
             self.X[i] = scaler.fit_transform(self.X[i])
         return self.X
@@ -355,13 +227,17 @@ class Preprocessing:
 
     def return_class_example(self):
         dataset = Dataset(self.X, self.y)
-        labels, images = dataset.find_random_image_per_class()
+        images, labels = dataset.find_random_image_per_class()
         images = dataset.encode_b64()
-        class_example = {label: image for label, image in zip(labels.tolist(), images.tolist())}
+        class_example = {label: image for label, image in zip(labels, images.tolist())}
         return class_example
 
 class CNN:
-    def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
+    """
+    Convolutional Neural Network class for training and evaluating models.
+    """
+
+    def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "softmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
         self.X = X
         self.y = y
         self.model = model
@@ -422,6 +298,14 @@ class CNN:
         self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
         self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
         
+        # Make sure grayscale images have 4-th dimension
+        if self.X_train.ndim == 3:
+            self.X_train = np.expand_dims(self.X_train, axis=-1)
+        if self.X_val.ndim == 3:
+            self.X_val = np.expand_dims(self.X_val, axis=-1)
+        if self.X_test.ndim == 3:
+            self.X_test = np.expand_dims(self.X_test, axis=-1)
+
         # Create Data Generator
         gen = ImageDataGenerator()
         self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
@@ -702,329 +586,3 @@ class CNN:
 
     def get_performance_data(self):
         return self.loss_data, self.accuracy_data
-
-def save_images_to_folder(image_dict: Dict[str, str]) -> List[str]:
-    """
-    Save base64 encoded images to the datasets folder
-    Takes a dictionary of image names to base64 data
-    Returns list of saved file paths
-    """
-    os.makedirs("datasets", exist_ok=True)
-    
-    saved_paths = []
-    for img_name, img_data in image_dict.items():
-        if "," in img_data:
-            img_data = img_data.split(",")[1]
-        
-        try:
-            img_bytes = base64.b64decode(img_data)
-            
-            # Use the provided image name but ensure it has a valid extension
-            if not any(img_name.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg']):
-                filename = f"{img_name}.png"
-            else:
-                filename = img_name
-                
-            # Ensure the filename is unique by adding a UUID if needed
-            if os.path.exists(os.path.join("datasets", filename)):
-                name, ext = os.path.splitext(filename)
-                filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
-                
-            file_path = os.path.join("datasets", filename)
-            
-            with open(file_path, "wb") as f:
-                f.write(img_bytes)
-                
-            saved_paths.append(file_path)
-        except Exception as e:
-            print(f"Error saving image '{img_name}': {str(e)}")
-    
-    return saved_paths
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    body = request._body.decode() if hasattr(request, "_body") else ""
-    logger.error(f"Unexpected error: {str(exc)}")
-    logger.error(f"Request body: {body[:100]}")
-    
-    if ENABLE_TRACEBACK:
-        logger.error(traceback.format_exc())
-    
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": str(exc)},
-    )
-
-def upload_csv(file: str) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Process CSV file to extract images and labels
-    """
-    decode = lambda x: np.array(Image.open(BytesIO(base64.b64decode(x))))
-
-    # read the uploaded file
-    data = StringIO(file)
-    df = pd.read_csv(data)
-    images = df['image']
-    images = np.array(list(map(decode, images)))
-    labels = df['label']
-    labels = np.array(labels)
-
-    return images, labels
-
-@app.post("/upload")
-async def upload(file: UploadFile = File(...)):
-    """
-    处理CSV文件上传，使用上传的文件名
-    """
-    # Verify file type
-    if file.content_type != "text/csv":
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"error": "Only CSV files are accepted"}
-        )
-        
-    # Get original filename and create .h5 filename
-    original_filename = file.filename
-    base_name = os.path.splitext(original_filename)[0]
-    h5_filename = f"{base_name}.h5"
-    
-    # Check if filename already exists
-    if os.path.exists("datasets/" + h5_filename):
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={"error": f"A file with name '{h5_filename}' already exists. Please use a different filename."}
-        )
-    
-    # Read file content
-    file_content = await file.read()
-    file_content_str = file_content.decode('utf-8')
-    
-    # Process CSV data
-    images, labels = upload_csv(file_content_str)
-
-    # save as a dataset
-    dataset = Dataset(images=images, labels=labels)
-    dataset.save_dataset("datasets/" + h5_filename)
-
-    return h5_filename
-
-@app.delete("/delete/{filename}")
-async def delete_file(filename: str):
-    """
-    删除指定的H5文件
-    """
-    # Prevent directory traversal
-    if "/" in filename or "\\" in filename or ".." in filename or ".." in filename or "~" in filename:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"error": "Invalid filename"}
-        )
-
-    filename = "datasets/" + filename
-
-    # Check if file exists
-    if not os.path.exists(filename) or not filename.endswith('.h5'):
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={"error": f"File '{filename}' not found or not a valid H5 file"}
-        )
-    
-    # Delete the file
-    try:
-        os.remove(filename)
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={"message": f"File '{filename}' successfully deleted"}
-        )
-    except Exception as e:
-        if ENABLE_TRACEBACK:
-            logger.error(traceback.format_exc())
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": f"Failed to delete file: {str(e)}"}
-        )
-
-@app.post("/preprocess")
-async def preprocess(request: ImagePreprocessRequest):
-    try:
-        options = request.options
-
-        preprocessing = Preprocessing(filename="datasets/" + request.dataset_path)
-        output_paths = {}
-
-        # set save option
-        intermediate_save_option = "one image per class" # by default
-        if options.get("save_option"):
-            intermediate_save_option = options["save_option"]
-
-        # 根据选项进行预处理
-        for option in options:
-            if option=="resize":
-                width, height = options["resize"]
-                preprocessing.resize(width, height)
-
-            if option=="grayscale":
-                preprocessing.convert_to_grayscale()
-
-            if option=="normalize":
-                preprocessing.normalize()
-
-            if option=="shuffle":
-                preprocessing.shuffle_data()
-
-            if option=="resize" or option=="grayscale":
-                # 保存预处理后的图像
-                if intermediate_save_option == "whole dataset":
-                    output_path = option + os.path.basename(request.dataset_path)
-                    preprocessing.save_dataset("datasets/" + output_path)
-                    output_paths[option] = output_path
-                elif intermediate_save_option == "one image per class":
-                    output_paths[option] = preprocessing.return_class_example()
-        
-        output_path = f"preprocessed_{os.path.basename(request.dataset_path)}"
-        preprocessing.save_dataset("datasets/" + output_path)
-        output_paths["output"] = output_path
-
-        return output_paths
-
-    except Exception as e:
-        if ENABLE_TRACEBACK:
-            logger.error(traceback.format_exc())
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
-        
-@app.post("/train")
-async def train(request: TrainingRequest):
-    """
-    训练CNN模型
-    
-    参数:
-    - images: 预处理后的图像路径列表
-    - labels: 对应的标签列表 (0-9)
-    - training_options: 训练参数
-        - learning_rate: 学习率
-        - epochs: 训练轮数
-        - optimizer: 优化器类型 ("sgd", "adam", "adagrad")
-        - batch_size: 批次大小
-    """
-
-    try:        
-        # load data
-        dataset = Dataset()
-        X, y = dataset.load_saved_dataset("datasets/" + request.dataset_path)
-
-        # train model
-        cnn = CNN(X, y, request.training_options)
-        model = cnn.train_model()
-        
-        # 保存模型
-        model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
-        model.save(model_path)
-
-        loss_graph, accuracy_graph = cnn.get_performance_graphs()
-        loss_data, accuracy_data = cnn.get_performance_data()
-        
-        return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
-                "accuracy data": accuracy_data, "loss data": loss_data}
-
-    except Exception as e:
-        if ENABLE_TRACEBACK:
-            logger.error(traceback.format_exc())
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
-
-@app.post("/predict")
-async def predict(request: PredictionRequest):
-    """
-    处理预测请求，返回预测的数字和每个数字的概率分布
-    """
-    try:
-        preprocessing = Preprocessing(X=request.input_data)
-        options = request.preprocessing_options
-        output_paths = {}
-        for option in options:
-            if option=="resize":
-                size = options["resize"]
-                preprocessing.resize((size, size))
-
-            if option=="grayscale":
-                preprocessing.convert_to_grayscale()
-
-            if option=="resize" or option=="grayscale":
-                # 保存预处理后的图像
-                if options["save_option"] == "whole dataset":
-                    output_path = option + os.path.basename(uuid.uuid4().hex[:8])
-                    preprocessing.save_dataset(output_path)
-                    output_paths[option] = output_path
-                elif options["save_option"] == "one image per class":
-                    output_paths[option] = preprocessing.return_class_example()
-
-        image = np.array(preprocessing.get_x())
-
-        cnn = CNN()
-        cnn.load_model(request.model_path)
-        prediction, confidence = cnn.run_model(image)
-        
-        return {"predicted class": prediction, "confidence level": confidence, "intermediates": output_paths}
-        
-    except Exception as e:
-        if ENABLE_TRACEBACK:
-            logger.error(traceback.format_exc())
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
-    
-@app.post("/test")
-async def test(request: TestingRequest):
-    """
-    处理预测请求，返回预测的数字和每个数字的概率分布
-    """
-    try:
-        preprocessing = Preprocessing(filename=request.dataset_path)
-        options = request.preprocessing_options
-        output_paths = {}
-        for option in options:
-            if option=="resize":
-                size = options["resize"]
-                preprocessing.resize((size, size))
-
-            if option=="grayscale":
-                preprocessing.convert_to_grayscale()
-
-            if option=="resize" or option=="grayscale":
-                # 保存预处理后的图像
-                if options["save_option"] == "whole dataset":
-                    output_path = option + os.path.basename(uuid.uuid4().hex[:8])
-                    preprocessing.save_dataset(output_path)
-                    output_paths[option] = output_path
-                elif options["save_option"] == "one image per class":
-                    output_paths[option] = preprocessing.return_class_example()
-
-        images = np.array(preprocessing.get_x())
-        labels = np.array(preprocessing.get_y())
-
-        cnn = CNN()
-        cnn.load_model(request.model_path)
-        accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
-
-        return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}
-    except Exception as e:
-        if ENABLE_TRACEBACK:
-            logger.error(traceback.format_exc())
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
-
-
-if __name__ == "__main__":
-    # create datasets folder if it doesn't exist
-    os.makedirs("datasets", exist_ok=True)
-
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8888)
