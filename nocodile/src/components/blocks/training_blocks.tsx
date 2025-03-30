@@ -249,6 +249,43 @@ const EndAndUploadBlockComponent = (props: CreateBlockElementProps<EndBlockProps
  *  }
  * }
  */
+// io lvoe ts
+const PlaceholderComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-lg font-semibold">Results</h2>
+      <div className="flex flex-col space-y-2">
+        {JSON.stringify(results.accuracyData)}
+      </div>
+    </div>
+  )
+}
+const ResultsPlaceholderBlock: BlockType<EndBlockProps> = {
+  hasInput: true,
+  hasOutput: false,
+  title: "Results",
+  icon: <div className="w-4 h-4 rounded-full bg-blue-500" />,
+  limit: 1,
+  immortal: true,
+  createNew: () => ({results: {
+    modelPath: "placeholder.h5",
+    accuracyGraph: "placeholder.png",
+    lossGraph: "placeholder.png",
+    accuracyData: {
+      epoch: [1,2,3,4,5,6,7,8,9,10],
+      accuracy: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+      valAccuracy: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    },
+    lossData: {
+      epoch: [1,2,3,4,5,6,7,8,9,10],
+      loss: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+      valLoss: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    },
+  }}),
+  block: (props) => <Block title="Results Placeholder"  {...props}>
+    <PlaceholderComponent results={props.data.results!} />
+  </Block>
+}
 const ResultsComponent: React.FC<{ results: NonNullable<EndBlockProps["results"]> }> = ({ results }) => {
 
   return (
