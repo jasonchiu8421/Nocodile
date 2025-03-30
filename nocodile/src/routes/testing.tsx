@@ -3,7 +3,7 @@ import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { defaultTestingBlocks } from "@/store/useBlocksStore"
+import { defaultBlocks } from "@/store/useBlocksStore"
 
 export default function Testing() {
   const { testingBlocks, setTestingBlocks } = useBlocksStore()
@@ -23,7 +23,7 @@ export default function Testing() {
         blockRegistry={allBlocks}
         blocks={testingBlocks}
         setBlocks={setTestingBlocks}
-        defaultBlocks={defaultTestingBlocks}
+        defaultBlocks={defaultBlocks}
         save={saveFunc}
       />
       <Toaster />

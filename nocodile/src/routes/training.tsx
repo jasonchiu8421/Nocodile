@@ -4,7 +4,7 @@ import { BlockDrawer } from "@/components/blocks_drawer"
 import { DndLayout } from "@/components/dnd_layout"
 import { Toaster } from "@/components/ui/sonner"
 import { useBlocksStore } from "@/store"
-import { defaultTrainingBlocks } from "@/store/useBlocksStore"
+import { defaultBlocks } from "@/store/useBlocksStore"
 
 export default function TrainingRoute() {
   const { trainingBlocks, setTrainingBlocks } = useBlocksStore()
@@ -24,7 +24,7 @@ export default function TrainingRoute() {
         blockRegistry={allTrainingBlocks}
         blocks={trainingBlocks}
         setBlocks={setTrainingBlocks}
-        defaultBlocks={defaultTrainingBlocks}
+        defaultBlocks={defaultBlocks}
         save={saveFunc}
       />
       <Toaster visibleToasts={10} />

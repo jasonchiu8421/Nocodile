@@ -24,70 +24,7 @@ interface BlocksState {
   setPreprocessingData: (data: PreprocessingData | ((prev: PreprocessingData) => PreprocessingData)) => void
 }
 
-export function defaultPreprocessingBlocks() {
-  return [
-    {
-      id: "block-1",
-      type: "start",
-      data: {},
-      position: { x: 64, y: 81 },
-      input: null,
-      output: "block-2",
-    },
-    {
-      id: "block-2",
-      type: "end",
-      data: {},
-      position: { x: 280, y: 81 },
-      input: "block-1",
-      output: null,
-    },
-  ]
-}
-
-export function defaultTrainingBlocks() {
-  return [
-    {
-      id: "block-1",
-      type: "start",
-      data: {},
-      position: { x: 100, y: 100 },
-      input: null,
-      output: null,
-    },
-    {
-      id: "block-2",
-      type: "end",
-      data: {},
-      position: { x: 500, y: 100 },
-      input: null,
-      output: null,
-    },
-  ]
-}
-
-export function defaultPredictingBlocks() {
-  return [
-    {
-      id: "block-1",
-      type: "start",
-      data: {},
-      position: { x: 64, y: 81 },
-      input: null,
-      output: "block-2",
-    },
-    {
-      id: "block-2",
-      type: "end",
-      data: {},
-      position: { x: 280, y: 81 },
-      input: "block-1",
-      output: null,
-    },
-  ]
-}
-
-export function defaultTestingBlocks() {
+export function defaultBlocks() {
   return [
     {
       id: "block-1",
@@ -111,25 +48,25 @@ export function defaultTestingBlocks() {
 export const useBlocksStore = create<BlocksState>()(
   persist(
     (set) => ({
-      preprocessingBlocks: defaultPreprocessingBlocks(),
+      preprocessingBlocks: defaultBlocks(),
       setPreprocessingBlocks: (blocks) =>
         set(() => ({
           preprocessingBlocks: blocks,
         })),
 
-      trainingBlocks: defaultTrainingBlocks(),
+      trainingBlocks: defaultBlocks(),
       setTrainingBlocks: (blocks) =>
         set(() => ({
           trainingBlocks: blocks,
         })),
 
-      predictingBlocks: defaultPredictingBlocks(),
+      predictingBlocks: defaultBlocks(),
       setPredictingBlocks: (blocks) =>
         set(() => ({
           predictingBlocks: blocks,
         })),
 
-      testingBlocks: defaultTestingBlocks(),
+      testingBlocks: defaultBlocks(),
       setTestingBlocks: (blocks) =>
         set(() => ({
           testingBlocks: blocks,
