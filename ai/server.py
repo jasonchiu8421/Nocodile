@@ -184,7 +184,7 @@ async def train(request: contract.TrainingRequest):
     model = cnn.train_model()
     
     # Save model
-    model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
+    model_path = f"model_{uuid.uuid4().hex[:8]}.keras"
     model.save(CHECKPOINTS_DIR + "/" + model_path)
 
     loss_graph, accuracy_graph = cnn.get_performance_graphs()
