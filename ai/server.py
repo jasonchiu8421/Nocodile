@@ -137,8 +137,6 @@ async def preprocess(request: contract.ImagePreprocessRequest):
 
     # Set save option
     save_option = "None" # by default
-    if request.save_option:
-        save_option = request.save_option
 
     # Preprocess the dataset based on the options provided
     for option in options:
