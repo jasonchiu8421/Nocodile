@@ -156,10 +156,6 @@ class Preprocessing:
             self.X, self.y = dataset.load_saved_dataset(filename)
         elif X is None:
             raise ValueError("No filename input or image input found.")
-        if self.X.ndim == 2:
-            self.X = [self.X]
-        if self.y.ndim == 2:
-            self.y = [self.y]
 
     def get_x(self):
         if self.X is not None:
@@ -195,7 +191,7 @@ class Preprocessing:
     def convert_to_grayscale(self):
         # Use the cvtColor() function to grayscale the image
         width, height = self.X[0].shape[:2]
-        if self.X.ndim == 4:
+        if self.X[0].ndim == 3:
             if self.X[0].shape[2] == 1:
                 # If it is already grayscale but with a 4-th dimension
                 self.X = np.squeeze(self.X, axis=-1)
@@ -203,6 +199,7 @@ class Preprocessing:
                 # If it is RGB or RGBA
                 old_X = self.X
                 self.X = np.zeros((len(self.X), width, height), dtype=np.uint8)
+                cv2.imwrite('ori.jpg', old_X[0])
                 for i in range(len(old_X)):
                     self.X[i] = cv2.cvtColor(old_X[i], cv2.COLOR_BGR2GRAY)
         return self.X
@@ -239,7 +236,7 @@ class CNN:
     Convolutional Neural Network class for training and evaluating models.
     """
 
-        def __init__(self, X=None, y=None, training_options={}, model = None):
+    def __init__(self, X=None, y=None, training_options={"method": "train_test_val","layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "softmax"}],"optimizer": "Adam","loss": "categorical_crossentropy","metrics": ["accuracy"],"lr": 0.01,"epochs": 10,"batch_size": 64,"kFold_k": 5}, model = None):
         self.X = X
         self.y = y
         self.model = model
@@ -269,18 +266,13 @@ class CNN:
 
         return self.model
 
-    def _standardize(self, x):
-        mean_px = self.X.mean().astype(np.float32)
-        std_px = self.X.std().astype(np.float32)
-        return (x-mean_px)/std_px
-    
     # train/test approach
     def _train_test_approach(self):
         # train/test split
         seed = 43
         np.random.seed(seed)
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
-        
+
         # Make sure grayscale images have 4-th dimension
         if self.X_train.ndim == 3:
             self.X_train = np.expand_dims(self.X_train, axis=-1)
@@ -294,7 +286,7 @@ class CNN:
 
         # Define and train model
         self._custom_model()
-        
+
         # Plot performance of the model
         self._check_performance()
 
@@ -305,7 +297,7 @@ class CNN:
         np.random.seed(seed)
         self.X_train, X_temp, self.y_train, y_temp = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
         self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
-        
+
         # Make sure grayscale images have 4-th dimension
         if self.X_train.ndim == 3:
             self.X_train = np.expand_dims(self.X_train, axis=-1)
@@ -321,32 +313,32 @@ class CNN:
 
         # Define and train model
         self._custom_model()
-        
+
         # Plot performance of the model
         self._check_performance()
         test_generator = gen.flow(self.X_test, self.y_test, batch_size=self.batch_size)
         test_loss, test_accuracy = self.model.evaluate(test_generator)
         print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
-    
+
     # k-fold CV
     def _kFold_validation_approach(self):
         # not yet finished
         kf = KFold(n_splits=self.kFOld_k, shuffle=True, random_state=42)
-        
+
         # Create Data Generator
         gen = ImageDataGenerator()
         model_histories = []
-        
+
         for train_index, val_index in kf.split(self.X):
             self.X_train, self.X_val = self.X[train_index], self.X[val_index]
             self.y_train, self.y_val = self.y[train_index], self.y[val_index]
-            
+
             self.batches = gen.flow(self.X_train, self.y_train, batch_size=self.batch_size)
             self.val_batches=gen.flow(self.X_val, self.y_val, batch_size=self.batch_size)
 
             # Define and train model
             self._custom_model()
-            
+
             # Plot performance of the model
             avg_loss = np.mean([history.history['loss'] for history in model_histories], axis=0)
             avg_val_loss = np.mean([history.history['val_loss'] for history in model_histories], axis=0)
@@ -356,16 +348,15 @@ class CNN:
 
     def _custom_model(self):
         self.model = Sequential()
-        self.model.add(Lambda(self._standardize, input_shape=self.X_train[0].shape))
         for layer in self.layers:
             self._add_layer(layer)
 
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
 
         self.model.optimizer.lr=self.lr
-        # FIXME: self.model.optimizer.clipnorm=1
+        # self.model.optimizer.clipnorm=1
         # FIXME: self.model.optimizer.clipvalue=0.5
-        
+
         self.hist = self.model.fit(
             x=self.batches,
             steps_per_epoch=self.batches.n,
@@ -465,7 +456,7 @@ class CNN:
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
         self.accuracy_graph = image
-    
+
     def _plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
         epochs = range(1, len(avg_loss) + 1)
 
@@ -525,9 +516,12 @@ class CNN:
         image = Image.open(buf)
         self.accuracy_graph = image
 
+    def save_model(self, filename):
+        self.model.save(filename)
+        
     def load_model(self, filename):
         self.model = load_model(filename)
-      
+
     def run_model(self, image):
         # Run model to predict the result of one image
         predictions = self.model.predict(image, verbose=1)
@@ -535,10 +529,10 @@ class CNN:
         confidence = np.max(predictions, axis=1)
 
         return predicted_class, confidence
-    
+
     def test_model(self, X_test, y_test):
         # Predict on testing data
-        y_predict = self.run_model(X_test)
+        y_predict, _ = self.run_model(X_test)
         accuracy = accuracy_score(y_test, y_predict)
 
         # Find accuracy per class
@@ -551,41 +545,9 @@ class CNN:
             if y_test[i] == y_predict[i]:
                 true_data_per_class[y_test[i]] += 1
 
-        accuracy_per_class = {key: true_data_per_class[key] / data_per_class[key] for key in data_per_class}
-
-        # Plotting with broken axis
-        fig = plt.figure(figsize=(8, 5))
-        range_val = max(accuracy_per_class.values()) - min(accuracy_per_class.values())
-        break_upperbound = min(accuracy_per_class.values()) - range_val * 0.2
-
-        if break_upperbound > range_val * 0.5:
-            bax = brokenaxes(ylims=((0, range_val * 0.1), (break_upperbound, 1.0 + range_val * 0.3)), hspace=.05)
-        else:
-            bax = brokenaxes(ylims=((0, 1.0)), hspace=.05)
-
-        # Create the bar plot
-        bars = bax.bar(accuracy_per_class.keys(), accuracy_per_class.values(), color='skyblue')
-        bax.set_title('Division Result of Dictionary Values with Y-axis Break')
-        bax.set_xlabel('Labels')
-        bax.set_ylabel('Result')
-        bax.grid(axis='y')
-
-        # Adding values on top of the bars
-        for i, value in enumerate(accuracy_per_class.values()):
-            bax.text(i, value, f'{value:.3f}', ha='center', va='bottom')
-
-        # Save plot to a BytesIO object
-        buf = BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
-
-        # Encode the image to base64
-        img = base64.b64encode(buf.read()).decode('utf-8')
-
-        # Close the plot
-        plt.close(fig)
-
-        return accuracy, accuracy_per_class, img
+        accuracy_per_class = {key.item(): true_data_per_class[key] / data_per_class[key] for key in data_per_class}
+        
+        return accuracy, accuracy_per_class
 
     def get_performance_graphs(self):
         buffered = BytesIO()
