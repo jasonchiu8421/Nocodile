@@ -355,15 +355,15 @@ class CNN:
             self._plot_kfold_performance(avg_loss, avg_val_loss, avg_accuracy, avg_val_accuracy)
 
     def _custom_model(self):
-        # FIXME: self.model = Sequential([Lambda(self._standardize, input_shape=self.X[0].shape)])
-        self.model = Sequential([])
+        self.model = Sequential()
+        self.model.add(Lambda(self._standardize, input_shape=self.X[0].shape))
         for layer in self.layers:
             self._add_layer(layer)
 
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
 
         self.model.optimizer.lr=self.lr
-        self.model.optimizer.clipnorm=1
+        # FIXME: self.model.optimizer.clipnorm=1
         # FIXME: self.model.optimizer.clipvalue=0.5
         
         self.hist = self.model.fit(
