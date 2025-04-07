@@ -136,9 +136,9 @@ async def preprocess(request: contract.ImagePreprocessRequest):
     output_paths = {}
 
     # Set save option
-    intermediate_save_option = "one image per class" # by default
-    if options.get("save_option"):
-        intermediate_save_option = options["save_option"]
+    save_option = "None" # by default
+    if request.save_option:
+        save_option = request.save_option
 
     # Preprocess the dataset based on the options provided
     for option in options:
@@ -156,16 +156,22 @@ async def preprocess(request: contract.ImagePreprocessRequest):
             preprocessing.shuffle_data()
 
         if option=="resize" or option=="grayscale":
-            if intermediate_save_option == "whole dataset":
+            if save_option == "whole dataset":
                 output_path = option + os.path.basename(request.dataset_path)
                 preprocessing.save_dataset(DATASETS_DIR + "/" + output_path)
                 output_paths[option] = output_path
-            elif intermediate_save_option == "one image per class":
+            elif save_option == "one image per class":
                 output_paths[option] = preprocessing.return_class_example()
 
     output_path = f"preprocessed_{os.path.basename(request.dataset_path)}"
     preprocessing.save_dataset(DATASETS_DIR + "/" + output_path)
     output_paths["output"] = output_path
+
+    # X = preprocessing.get_x()
+    # y = preprocessing.get_y()
+    # df = pd.DataFrame(X.reshape(X.shape[0], -1))
+    # df["label"] = y
+    # df.to_csv('data.csv', index=False)
 
     return output_paths
         
@@ -179,13 +185,12 @@ async def train(request: contract.TrainingRequest):
     X, y = dataset.load_saved_dataset(DATASETS_DIR + "/" + request.dataset_path)
 
     # Preprocess the dataset based on the options provided
-    # FIXME: cnn = ai.CNN(X, y, request.training_options)
-    cnn = ai.CNN(X, y)
-    model = cnn.train_model()
+    cnn = ai.CNN(X, y, request.training_options)
+    cnn.train_model()
     
     # Save model
     model_path = f"model_{uuid.uuid4().hex[:8]}.keras"
-    model.save(CHECKPOINTS_DIR + "/" + model_path)
+    cnn.save_model(CHECKPOINTS_DIR + "/" + model_path)
 
     loss_graph, accuracy_graph = cnn.get_performance_graphs()
     loss_data, accuracy_data = cnn.get_performance_data()
@@ -206,10 +211,15 @@ async def predict(request: contract.PredictionRequest):
     """
     image_data = base64.b64decode(request.input_data)
     image = Image.open(BytesIO(image_data))
+    if image.mode == 'RGBA':
+        image = image.convert('RGB')
     image_array = np.array(image)
 
-    preprocessing = ai.Preprocessing(X=np.array([image_array]), y=np.array([0]))
+    preprocessing = ai.Preprocessing(X=[image_array], y=[0])
     options = request.preprocessing_options
+
+    save_option = "none"
+
     output_paths = {}
     for option in options:
         if option=="resize":
@@ -220,14 +230,16 @@ async def predict(request: contract.PredictionRequest):
             preprocessing.convert_to_grayscale()
 
         if option=="resize" or option=="grayscale":
-            if options["save_option"] == "whole dataset":
+            if save_option == "whole dataset":
                 output_path = option + os.path.basename(uuid.uuid4().hex[:8])
                 preprocessing.save_dataset(output_path)
                 output_paths[option] = output_path
-            elif options["save_option"] == "one image per class":
+            elif save_option == "one image per class":
                 output_paths[option] = preprocessing.return_class_example()
 
-    image = np.array(preprocessing.get_x())
+    image = np.array(preprocessing.get_x())[0]
+    image = np.expand_dims(image, axis=-1)
+    image = np.expand_dims(image, axis=0)
 
     cnn = ai.CNN()
     cnn.load_model(CHECKPOINTS_DIR + "/" + request.model_path)
@@ -247,6 +259,10 @@ async def test(request: contract.TestingRequest):
     preprocessing = ai.Preprocessing(filename=DATASETS_DIR + "/" + request.dataset_path)
     options = request.preprocessing_options
     output_paths = {}
+    labels = np.array(preprocessing.get_y())
+
+    save_option = "none"
+
     for option in options:
         if option=="resize":
             width, height = options["resize"]
@@ -256,11 +272,11 @@ async def test(request: contract.TestingRequest):
             preprocessing.convert_to_grayscale()
 
         if option=="resize" or option=="grayscale":
-            if options["save_option"] == "whole dataset":
+            if save_option == "whole dataset":
                 output_path = option + os.path.basename(uuid.uuid4().hex[:8])
                 preprocessing.save_dataset(output_path)
                 output_paths[option] = output_path
-            elif options["save_option"] == "one image per class":
+            elif save_option == "one image per class":
                 output_paths[option] = preprocessing.return_class_example()
 
     images = np.array(preprocessing.get_x())
@@ -268,9 +284,9 @@ async def test(request: contract.TestingRequest):
 
     cnn = ai.CNN()
     cnn.load_model(CHECKPOINTS_DIR + "/" + request.model_path)
-    accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
+    accuracy, accuracy_per_class = cnn.test_model(images, labels)
 
-    return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}
+    return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "intermediates": output_paths}
 
 
 if __name__ == "__main__":
