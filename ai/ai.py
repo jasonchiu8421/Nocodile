@@ -239,22 +239,22 @@ class CNN:
     Convolutional Neural Network class for training and evaluating models.
     """
 
-    def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "softmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
+        def __init__(self, X=None, y=None, training_options={}, model = None):
         self.X = X
         self.y = y
         self.model = model
         self.hist = None
         self.batches = None
         self.val_batches = None
-        self.layers = layers
-        self.optimizer = optimizer
-        self.loss = loss
-        self.metrics = metrics
-        self.lr = lr
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.method = method
-        self.kFold_k = kFold_k
+        self.layers = training_options['layers']
+        self.optimizer = training_options['optimizer']
+        self.loss = training_options['loss']
+        self.metrics = ['accuracy']
+        self.lr = training_options['lr']
+        self.epochs = training_options['epochs']
+        self.batch_size = training_options['batch_size']
+        self.method = training_options['method']
+        self.kFold_k = training_options['kFold_k']
 
     def train_model(self):
         self.y = to_categorical(self.y)
