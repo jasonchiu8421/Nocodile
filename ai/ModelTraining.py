@@ -40,7 +40,7 @@ class CNN:
         self.layers=layers
         self.optimizer=optimizer
         self.loss=loss
-        self.metrics=metrics
+        self.metrics=["accuracy"]
         self.lr=lr
         self.epochs=epochs
         self.batch_size=batch_size
