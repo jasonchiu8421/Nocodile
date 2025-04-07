@@ -356,7 +356,7 @@ class CNN:
 
     def _custom_model(self):
         self.model = Sequential()
-        self.model.add(Lambda(self._standardize, input_shape=self.X[0].shape))
+        self.model.add(Lambda(self._standardize, input_shape=self.X_train[0].shape))
         for layer in self.layers:
             self._add_layer(layer)
 
