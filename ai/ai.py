@@ -383,13 +383,13 @@ class CNN:
         elif layer["type"] == "BatchNormalization":
             self.model.add(BatchNormalization())
         elif layer["type"] == "Conv2D":
-            self.model.add(Conv2D(layer["number of filters"], layer["kernel_size"], activation=layer.get("activation"), padding=layer.get("padding", "valid")))
+            self.model.add(Conv2D(64, (3,3), activation="relu"))
         elif layer["type"] == "MaxPooling2D":
-            self.model.add(MaxPooling2D(pool_size=layer["pool_size"]))
+            self.model.add(MaxPooling2D())
         elif layer["type"] == "GlobalMaxPooling2D":
             self.model.add(GlobalMaxPooling2D())
         elif layer["type"] == "AveragePooling2D":
-            self.model.add(AveragePooling2D(pool_size=layer["pool_size"]))
+            self.model.add(AveragePooling2D())
         elif layer["type"] == "GlobalAveragePooling2D":
             self.model.add(GlobalAveragePooling2D())
 
