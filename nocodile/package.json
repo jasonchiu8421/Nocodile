@@ -1,29 +1,59 @@
 {
-  "name": "nocodile",
-  "version": "1.0.0",
-  "description": "A sample app using Blockly",
-  "main": "index.js",
+  "name": "nocodile-web",
   "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --mode production",
-    "start": "webpack serve --open --mode development"
-  },
-  "keywords": [
-    "blockly"
-  ],
-  "author": "",
-  "license": "Apache-2.0",
-  "devDependencies": {
-    "css-loader": "^6.7.1",
-    "html-webpack-plugin": "^5.5.0",
-    "source-map-loader": "^4.0.1",
-    "style-loader": "^3.3.1",
-    "webpack": "^5.76.0",
-    "webpack-cli": "^4.10.0",
-    "webpack-dev-server": "^4.11.1"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "blockly": "^11.2.1"
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@radix-ui/react-accordion": "^1.2.3",
+    "@radix-ui/react-alert-dialog": "^1.1.6",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-select": "^2.1.6",
+    "@radix-ui/react-separator": "^1.1.2",
+    "@radix-ui/react-slider": "^1.2.3",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-tooltip": "^1.1.8",
+    "@tailwindcss/vite": "^4.0.14",
+    "@types/papaparse": "^5.3.15",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.479.0",
+    "next-themes": "^0.4.6",
+    "papaparse": "^5.5.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-resizable-panels": "^2.1.7",
+    "react-router": "^7.3.0",
+    "react-router-dom": "^7.3.0",
+    "recharts": "^2.15.1",
+    "sonner": "^2.0.1",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^4.0.14",
+    "tailwindcss-animate": "^1.0.7",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.21.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^15.15.0",
+    "postcss-preset-env": "^10.1.5",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.24.1",
+    "vite": "^6.2.0"
   }
 }

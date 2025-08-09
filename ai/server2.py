@@ -28,6 +28,10 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.utils import to_categorical
 from PIL import Image
 from sklearn.metrics import accuracy_score
+from typing import Any, Dict
+import traceback
+
+ENABLE_TRACEBACK = True
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,14 +43,13 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 class ImagePreprocessRequest(BaseModel):
     dataset_path: str
-    options: Dict[str, any] = {
+    options: Dict[str, Any] = {
         "resize": (28,28),
         "rgb2gray": 0,
         "shuffle": 0,
@@ -54,13 +57,9 @@ class ImagePreprocessRequest(BaseModel):
         "save_option": "one image per class"
     }
 
-class TrainRequest(BaseModel):
-    dataset: Dict[str, str]
-
 class TrainingRequest(BaseModel):
-    preprocessed_images: List[str]
-    labels: List[int]
-    training_options: Dict[str, any] = {
+    dataset_path: str
+    training_options: Dict[str, Any] = {
         "method": "train_test_val",
         "layers": [{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}],
         "optimizer": "Adam",
@@ -75,6 +74,20 @@ class TrainingRequest(BaseModel):
 class PredictionRequest(BaseModel):
     model_path: str
     input_data: str
+    preprocessing_options: Dict[str, Any] = {
+        "resize": (28,28),
+        "rgb2gray": 0,
+        "save_option": "one image per class"
+    }
+
+class TestingRequest(BaseModel):
+    model_path: str
+    dataset_path: str
+    preprocessing_options: Dict[str, Any] = {
+        "resize": (28,28),
+        "rgb2gray": 0,
+        "save_option": "one image per class"
+    }
 
 class DatasetCreator:
     def __init__(self, base_folder):
@@ -97,7 +110,7 @@ class DatasetCreator:
 
     def load_data(self):
         # Load all images into a dataset
-        if self.images == []:  # Load images only once
+        if not self.images:  # Load images only once
             self._load_image_paths_and_labels()  # Load image paths and labels
             for img_path in self.image_paths:
                 image = cv2.imread(img_path)  # Load the image using cv2
@@ -118,7 +131,7 @@ class DatasetCreator:
                 images_array.append(np.array(img))
         self.images = np.array(images_array)
         return self.images
-        
+
     def save_dataset(self, file_path=None):
         # Create dataset filename if not specified
         if file_path is None or file_path.strip() == "":
@@ -127,7 +140,7 @@ class DatasetCreator:
             file_path = os.path.join(directory, file_name)
         
         # Save dataset
-        if (self.images == None) or (self.labels == None):
+        if (self.images is None) or (self.labels is None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
             dataset = Dataset(self.images, self.labels)
@@ -135,31 +148,37 @@ class DatasetCreator:
             return file_path
 
 class Dataset:
+    """
+    Dataset class for loading, saving, and processing image datasets.
+    """
+    
     def __init__(self, images=None, labels=None):
         self.images = images
         self.labels = labels
         self.filename = None
 
     def save_dataset(self, file_path, images=None, labels=None):
-        if images==None:
+        if images is None:
             images = self.images
-        if labels==None:
+        if labels is None:
             labels = self.labels
 
         # Avoid subscript
         base_name = file_path.split('.')[0]
         if not file_path.endswith('.h5'):
             self.filename = f"{base_name}.h5"
+        else:
+            self.filename = file_path
 
-        if (images == None) or (labels == None):
+        if (images is None) or (labels is None):
             raise ValueError("Images or Labels not loaded successfully.")
         else:
             with h5py.File(self.filename, 'w') as h5f:
                 # Save images and labels directly
                 h5f.create_dataset('images', data=images, dtype='float32')
                 h5f.create_dataset('labels', data=labels.astype('S'))
-            
-        return 
+        
+        return self.filename
 
     def _load_csv(self, filename):
         self.dataset = pd.read_csv(filename)
@@ -167,16 +186,6 @@ class Dataset:
         self.labels = self.dataset.iloc[:,0].values.astype('int32') # only labels i.e targets digits
         return self.images, self.labels
 
-    def load_images(self, filename):
-        if filename.endswith('.csv'):
-            df = pd.read_csv(filename)
-            images = df['image']
-            self.images = np.array(images)
-        elif filename.endswith(".h5"):
-            with h5py.File(filename, 'r') as h5f:
-                self.images = h5f['images'][:]
-        return self.images
-    
     def load_saved_dataset(self, filename):
         if filename.endswith('.csv'):
             return self._load_csv(filename)
@@ -230,29 +239,66 @@ class Dataset:
             # Randomly select one image from the filtered DataFrame
             random_image = label_images.sample(n=1)
             image_list.append(random_image['image'])
-            label_list.append(random_image['label'])
+            label_list.append(random_image['label'].values[0])
 
-        return label_list, image_list
+        return image_list, label_list
+    
+    def encode_b64(self):
+        b64_images = []
 
+        for image in self.images:
+            image_array = np.resize(image,(28,28)).astype('uint8')
+            image = Image.fromarray(image_array)
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            b64_images.append(img_str)
+
+        self.images = np.array(b64_images)
+
+        return self.images
+
+    def decode_b64(self):
+        images = []
+
+        for b64_image in self.images:
+            img_data = base64.b64decode(b64_image)
+            buffered = BytesIO(img_data)
+            image = Image.open(buffered)
+            image = np.array(image)
+            images.append(image)
+
+        self.images = images
+
+        return images
+    
 class Preprocessing:
+    """
+    Preprocessing class for image datasets.
+    """
+    
     def __init__(self, filename=None, X=None, y=None):
         self.X = X
         self.y = y
         # filename = file name of the dataset from current directory
-        if filename != None:
-            dataset_loader = Dataset()
-            self.X, self.y = dataset_loader.load_saved_dataset(filename)
-        elif X == None:
+        if filename is not None:
+            dataset = Dataset()
+            self.X, self.y = dataset.load_saved_dataset(filename)
+        elif X is None:
             raise ValueError("No filename input or image input found.")
-        
-    def get_X(self):
-        if self.X != None:
+        if self.X.ndim == 2:
+            self.X = [self.X]
+        if self.y.ndim == 2:
+            self.y = [self.y]
+
+    def get_x(self):
+        if self.X is not None:
             return self.X
         else:
             raise ValueError("No images found.")
 
     def get_y(self):
-        if self.y != None:
+        if self.y is not None:
             return self.y
         else:
             raise ValueError("No labels found.")
@@ -269,15 +315,20 @@ class Preprocessing:
     def resize(self, width, height):
         # Specify the new size as (width, height)
         new_size = (width, height)
-        for i in range(self.X.shape[0]):
-            self.X[i] = cv2.resize(self.X[i], new_size)
+        old_X = self.X
+        self.X = np.zeros((len(old_X), width, height, old_X[0].shape[2]), dtype=np.uint8)
+        for i in range(len(old_X)):
+            self.X[i] = cv2.resize(old_X[i], new_size)
         return self.X
 
     # Grayscale Conversion
     def convert_to_grayscale(self):
         # Use the cvtColor() function to grayscale the image
-        for i in range(self.X.shape[0]):
-            self.X[i] = cv2.cvtColor(self.X[i], cv2.COLOR_BGR2GRAY)
+        old_X = self.X
+        width, height = old_X[0].shape[:2]
+        self.X = np.zeros((len(old_X), width, height), dtype=np.uint8)
+        for i in range(len(old_X)):
+            self.X[i] = cv2.cvtColor(old_X[i], cv2.COLOR_BGR2GRAY)
         return self.X
     
     # Data Shuffling
@@ -292,17 +343,22 @@ class Preprocessing:
         # Initialize the scaler
         scaler = MinMaxScaler()   
         # Fit and transform the data
-        self.X = scaler.fit_transform(self.X)
+        import logging
+        logging.info(f"{self.X[0].shape}")
+        for i in range(len(self.X)):
+            self.X[i] = scaler.fit_transform(self.X[i])
         return self.X
     
     def save_dataset(self, filename):
         dataset = Dataset(self.X, self.y)
         dataset.save_dataset(filename)
 
-    def save_class_example(self, filename):
+    def return_class_example(self):
         dataset = Dataset(self.X, self.y)
-        images, labels = dataset.find_random_image_per_class()
-        dataset.save_dataset(filename, images, labels)
+        labels, images = dataset.find_random_image_per_class()
+        images = dataset.encode_b64()
+        class_example = {label: image for label, image in zip(labels.tolist(), images.tolist())}
+        return class_example
 
 class CNN:
     def __init__(self, X=None, y=None, model = None, method="train_test_val", layers=[{"type": "Flatten"},  {"type": "Dense", "units": 512, "activation": "relu"}, {"type": "Dense", "units": 10, "activation": "sofftmax"}], optimizer="Adam", loss="categorical_crossentropy", metrics=["accuracy"], lr=0.01, epochs=10, batch_size=64, kFold_k=5):
@@ -321,10 +377,6 @@ class CNN:
         self.batch_size = batch_size
         self.method = method
         self.kFold_k = kFold_k
-        self.loss_graph = []
-        self.accuracy_graph = []
-        self.loss_data = []
-        self.accuracy_data = []
 
     def train_model(self):
         self.y = to_categorical(self.y)
@@ -496,7 +548,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.loss_graph.append(image)
+        self.loss_graph = image
 
         # Create a figure for accuracy
         plt.figure(figsize=(6, 5))
@@ -517,7 +569,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.accuracy_graph.append(image)
+        self.accuracy_graph = image
     
     def _plot_kfold_performance(self, avg_loss, avg_val_loss, avg_acc, avg_val_acc):
         epochs = range(1, len(avg_loss) + 1)
@@ -555,7 +607,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.loss_graph.append(image)
+        self.loss_graph = image
 
         # Create a figure for accuracy
         plt.figure(figsize=(6, 5))
@@ -576,7 +628,7 @@ class CNN:
         # Convert the BytesIO object to a NumPy array
         buf.seek(0)  # Move to the beginning of the BytesIO object
         image = Image.open(buf)
-        self.accuracy_graph.append(image)
+        self.accuracy_graph = image
 
     def load_model(self, filename):
         self.model = load_model(filename)
@@ -641,6 +693,11 @@ class CNN:
         return accuracy, accuracy_per_class, img
 
     def get_performance_graphs(self):
+        buffered = BytesIO()
+        self.accuracy_graph.save(buffered, format="PNG")
+        self.accuracy_graph = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        self.loss_graph.save(buffered, format="PNG")
+        self.loss_graph = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return self.loss_graph, self.accuracy_graph
 
     def get_performance_data(self):
@@ -690,42 +747,156 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unexpected error: {str(exc)}")
     logger.error(f"Request body: {body[:100]}")
     
+    if ENABLE_TRACEBACK:
+        logger.error(traceback.format_exc())
+    
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": str(exc)},
     )
 
-@app.post("/train")
-async def train(request: TrainRequest):
+def upload_csv(file: str) -> tuple[np.ndarray, np.ndarray]:
     """
-    Train endpoint that accepts:
-    - dataset: Dictionary of image name to URL encoded images
+    Process CSV file to extract images and labels
     """
-    # Save images to datasets folder
-    saved_paths = save_images_to_folder(request.dataset)
-    
-    logger.info(f"Saved images to: {saved_paths}")
-    
-    return {
-        "status": "success",
-        "message": f"Training initiated with {len(request.dataset)} images",
-    }
+    decode = lambda x: np.array(Image.open(BytesIO(base64.b64decode(x))))
 
-def upload_csv(file: str):
-    """
-    处理图片上传
-    """
     # read the uploaded file
     data = StringIO(file)
     df = pd.read_csv(data)
     images = df['image']
-    images = np.array(labels)
+    images = np.array(list(map(decode, images)))
     labels = df['label']
     labels = np.array(labels)
-    
+
     return images, labels
 
-def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
+@app.post("/upload")
+async def upload(file: UploadFile = File(...)):
+    """
+    处理CSV文件上传，使用上传的文件名
+    """
+    # Verify file type
+    if file.content_type != "text/csv":
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "Only CSV files are accepted"}
+        )
+        
+    # Get original filename and create .h5 filename
+    original_filename = file.filename
+    base_name = os.path.splitext(original_filename)[0]
+    h5_filename = f"{base_name}.h5"
+    
+    # Check if filename already exists
+    if os.path.exists("datasets/" + h5_filename):
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"error": f"A file with name '{h5_filename}' already exists. Please use a different filename."}
+        )
+    
+    # Read file content
+    file_content = await file.read()
+    file_content_str = file_content.decode('utf-8')
+    
+    # Process CSV data
+    images, labels = upload_csv(file_content_str)
+
+    # save as a dataset
+    dataset = Dataset(images=images, labels=labels)
+    dataset.save_dataset("datasets/" + h5_filename)
+
+    return h5_filename
+
+@app.delete("/delete/{filename}")
+async def delete_file(filename: str):
+    """
+    删除指定的H5文件
+    """
+    # Prevent directory traversal
+    if "/" in filename or "\\" in filename or ".." in filename or ".." in filename or "~" in filename:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "Invalid filename"}
+        )
+
+    filename = "datasets/" + filename
+
+    # Check if file exists
+    if not os.path.exists(filename) or not filename.endswith('.h5'):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"error": f"File '{filename}' not found or not a valid H5 file"}
+        )
+    
+    # Delete the file
+    try:
+        os.remove(filename)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"message": f"File '{filename}' successfully deleted"}
+        )
+    except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": f"Failed to delete file: {str(e)}"}
+        )
+
+@app.post("/preprocess")
+async def preprocess(request: ImagePreprocessRequest):
+    try:
+        options = request.options
+
+        preprocessing = Preprocessing(filename="datasets/" + request.dataset_path)
+        output_paths = {}
+
+        # set save option
+        intermediate_save_option = "one image per class" # by default
+        if options.get("save_option"):
+            intermediate_save_option = options["save_option"]
+
+        # 根据选项进行预处理
+        for option in options:
+            if option=="resize":
+                width, height = options["resize"]
+                preprocessing.resize(width, height)
+
+            if option=="grayscale":
+                preprocessing.convert_to_grayscale()
+
+            if option=="normalize":
+                preprocessing.normalize()
+
+            if option=="shuffle":
+                preprocessing.shuffle_data()
+
+            if option=="resize" or option=="grayscale":
+                # 保存预处理后的图像
+                if intermediate_save_option == "whole dataset":
+                    output_path = option + os.path.basename(request.dataset_path)
+                    preprocessing.save_dataset("datasets/" + output_path)
+                    output_paths[option] = output_path
+                elif intermediate_save_option == "one image per class":
+                    output_paths[option] = preprocessing.return_class_example()
+        
+        output_path = f"preprocessed_{os.path.basename(request.dataset_path)}"
+        preprocessing.save_dataset("datasets/" + output_path)
+        output_paths["output"] = output_path
+
+        return output_paths
+
+    except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+        
+@app.post("/train")
+async def train(request: TrainingRequest):
     """
     训练CNN模型
     
@@ -738,110 +909,29 @@ def train_model(filename: str, training_options: Dict[str, any]) -> Dict:
         - optimizer: 优化器类型 ("sgd", "adam", "adagrad")
         - batch_size: 批次大小
     """
-    
-    # load data
-    dataset = Dataset()
-    X, y = dataset.load_saved_dataset(filename)
 
-    # train model
-    cnn = CNN(X, y, training_options)
-    model = cnn.train_model()
-    
-    # 保存模型
-    model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
-    model.save(model_path)
+    try:        
+        # load data
+        dataset = Dataset()
+        X, y = dataset.load_saved_dataset("datasets/" + request.dataset_path)
 
-    loss_graph, accuracy_graph = cnn.get_performance_graphs()
-    loss_data, accuracy_data = cnn.get_performance_data()
-    
-    return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
-            "accuracy data": accuracy_data, "loss data": loss_data}
-
-@app.post("/upload")
-async def upload(file: str):
-    """
-    处理图片上传
-    """
-    images, labels = upload_csv(file)
-
-    # ensure filename is unique
-    filename = "dataset.h5"
-    if os.path.exists(filename):
-        name, ext = os.path.splitext(filename)
-        filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
-
-    # save as a dataset
-    dataset = Dataset(images=images, labels=labels)
-    dataset.save_dataset(filename)
-    
-    return filename
-
-@app.post("/preprocess")
-async def preprocess(request: ImagePreprocessRequest):
-    try: 
-        dataset_path = request.dataset_path
-        options = request.options
-
-        preprocessing = Preprocessing(dataset_path)
-        output_paths = {key: None for key in options.keys()}
-
-        # set save option
-        intermediate_save_option = "one image per class" # by default
-        if options.get("save_option"):
-            intermediate_save_option = options["save_option"]
+        # train model
+        cnn = CNN(X, y, request.training_options)
+        model = cnn.train_model()
         
-        # 根据选项进行预处理
-        for option in options:
-            if option=="resize":
-                size = options["resize"]
-                preprocessing.resize((size, size))
-            
-            if option=="grayscale":
-                preprocessing.convert_to_grayscale()
-            
-            if option=="normalize":
-                preprocessing.normalize()
+        # 保存模型
+        model_path = f"model_{uuid.uuid4().hex[:8]}.h5"
+        model.save(model_path)
 
-            if option=="shuffle":
-                preprocessing.shuffle_data()
-
-            # 保存预处理后的图像
-            if intermediate_save_option == "whole dataset":
-                output_path = option + os.path.basename(dataset_path)
-                preprocessing.save_dataset(output_path)
-                output_paths[option] = output_path
-            elif intermediate_save_option == "one image per class":
-                output_path = option + os.path.basename(dataset_path)
-                preprocessing.save_class_example(output_path)
-                output_paths[option] = output_path
+        loss_graph, accuracy_graph = cnn.get_performance_graphs()
+        loss_data, accuracy_data = cnn.get_performance_data()
         
-        output_path = f"preprocessed_{os.path.basename(dataset_path)}"
-        preprocessing.save_dataset(output_path)
-        output_path["output"] = output_path
+        return {"model path": model_path, "accuracy graph": accuracy_graph, "loss graph": loss_graph,
+                "accuracy data": accuracy_data, "loss data": loss_data}
 
-        return output_paths
-    
     except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
-
-@app.post("/train")
-async def train(request: TrainingRequest):
-    """
-    处理模型训练请求
-    """
-    try:
-        result = train_model(
-            request.preprocessed_images,
-            request.labels,
-            request.training_options
-        )
-        
-        return result
-    
-    except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -853,37 +943,88 @@ async def predict(request: PredictionRequest):
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
+        preprocessing = Preprocessing(X=request.input_data)
+        options = request.preprocessing_options
+        output_paths = {}
+        for option in options:
+            if option=="resize":
+                size = options["resize"]
+                preprocessing.resize((size, size))
+
+            if option=="grayscale":
+                preprocessing.convert_to_grayscale()
+
+            if option=="resize" or option=="grayscale":
+                # 保存预处理后的图像
+                if options["save_option"] == "whole dataset":
+                    output_path = option + os.path.basename(uuid.uuid4().hex[:8])
+                    preprocessing.save_dataset(output_path)
+                    output_paths[option] = output_path
+                elif options["save_option"] == "one image per class":
+                    output_paths[option] = preprocessing.return_class_example()
+
+        image = np.array(preprocessing.get_x())
+
         cnn = CNN()
         cnn.load_model(request.model_path)
-        prediction, confidence = cnn.run_model(request.input_data)
+        prediction, confidence = cnn.run_model(image)
         
-        return {"predicted class": prediction, "confidence level": confidence}
+        return {"predicted class": prediction, "confidence level": confidence, "intermediates": output_paths}
         
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
     
 @app.post("/test")
-async def test_model(request: PredictionRequest):
+async def test(request: TestingRequest):
     """
     处理预测请求，返回预测的数字和每个数字的概率分布
     """
     try:
+        preprocessing = Preprocessing(filename=request.dataset_path)
+        options = request.preprocessing_options
+        output_paths = {}
+        for option in options:
+            if option=="resize":
+                size = options["resize"]
+                preprocessing.resize((size, size))
+
+            if option=="grayscale":
+                preprocessing.convert_to_grayscale()
+
+            if option=="resize" or option=="grayscale":
+                # 保存预处理后的图像
+                if options["save_option"] == "whole dataset":
+                    output_path = option + os.path.basename(uuid.uuid4().hex[:8])
+                    preprocessing.save_dataset(output_path)
+                    output_paths[option] = output_path
+                elif options["save_option"] == "one image per class":
+                    output_paths[option] = preprocessing.return_class_example()
+
+        images = np.array(preprocessing.get_x())
+        labels = np.array(preprocessing.get_y())
+
         cnn = CNN()
         cnn.load_model(request.model_path)
-        images, labels = upload_csv(request.input_data)
         accuracy, accuracy_per_class, accuracy_per_class_image = cnn.test_model(images, labels)
 
-        return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image}
-        
+        return {"accuracy": accuracy, "accuracy per class": accuracy_per_class, "accuracy per class graph": accuracy_per_class_image, "intermediates": output_paths}
     except Exception as e:
+        if ENABLE_TRACEBACK:
+            logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
 
+
 if __name__ == "__main__":
+    # create datasets folder if it doesn't exist
+    os.makedirs("datasets", exist_ok=True)
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8888)

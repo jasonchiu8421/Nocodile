@@ -1,2 +1,5 @@
+# uv trash
 .venv
 datasets
+checkpoints
+__pycache__
