@@ -41,6 +41,9 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
+.next/
+.swc/
+.*.env
 
 # Generated files
 dist/
