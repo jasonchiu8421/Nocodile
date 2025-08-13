@@ -12,9 +12,14 @@ type WorkspaceProps = {
   onBackgroundMouseDown?: (e: React.MouseEvent<HTMLDivElement>) => void;
 };
 
-export const Workspace = ({ workspace, blocks, onBackgroundMouseDown }: WorkspaceProps) => {
+export const Workspace = ({
+  workspace,
+  blocks,
+  onBackgroundMouseDown,
+}: WorkspaceProps) => {
   //dnd stuff
   const { setNodeRef } = useDroppable({ id: workspace.id });
+
   return (
     <div
       ref={setNodeRef}

@@ -23,8 +23,18 @@ const page = () => {
   }
   function handleBackgroundMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     // This fires only when clicking the workspace background (blocks stop propagation)
-    console.log("Background clicked");
-    // TODO: clear selection, start marquee, etc.
+    console.log("add block");
+
+    setBlocks([
+      ...blocks,
+      {
+        id: blocks.length + 1,
+        x: e.clientX - 50,
+        y: e.clientY - 50,
+        title: "New Block",
+        label: "New Block",
+      },
+    ]);
   }
   function handleDragEnd(e: DragEndEvent) {
     const { active, delta } = e;
