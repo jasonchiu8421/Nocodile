@@ -1,29 +1,25 @@
 {
   "name": "nocodile",
-  "version": "1.0.0",
-  "description": "A sample app using Blockly",
-  "main": "index.js",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --mode production",
-    "start": "webpack serve --open --mode development"
-  },
-  "keywords": [
-    "blockly"
-  ],
-  "author": "",
-  "license": "Apache-2.0",
-  "devDependencies": {
-    "css-loader": "^6.7.1",
-    "html-webpack-plugin": "^5.5.0",
-    "source-map-loader": "^4.0.1",
-    "style-loader": "^3.3.1",
-    "webpack": "^5.76.0",
-    "webpack-cli": "^4.10.0",
-    "webpack-dev-server": "^4.11.1"
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
-    "blockly": "^11.2.1"
+    "@dnd-kit/core": "^6.3.1",
+    "next": "15.4.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
