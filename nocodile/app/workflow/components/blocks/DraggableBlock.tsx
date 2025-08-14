@@ -1,7 +1,7 @@
 import React from "react";
 import { useDraggable } from "@dnd-kit/core";
 
-/** Skeleton for all blocks, but data structure is inherited from GenericBlock */
+/** Skeleton for all blocks. All blocks have these.*/
 type DraggableBlockProps = {
   id: number;
   x: number;

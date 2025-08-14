@@ -1,6 +1,7 @@
 import React from "react";
-import { GenericBlock, GenericBlockData } from "./GenericBlock";
-import { FieldBlock } from "./FieldBlock";
+import { GenericBlock, GenericBlockData } from "./blocks/GenericBlock";
+import { FieldBlock } from "./blocks/FieldBlock";
+import { ImagesBlock } from "./blocks/ImagesBlock";
 import { useDroppable } from "@dnd-kit/core";
 
 /**Displays blocks using block data imported from workflow/ page */
@@ -36,9 +37,9 @@ export const Workspace = ({
       <h2>{workspace.title}</h2>
       {blocks.map((block, index) => {
         switch (block.type) {
-          case "nothing":
+          case "generic":
             return <GenericBlock key={index} block={block} />;
-          case "input":
+          case "field":
             return (
               <FieldBlock
                 key={index}
@@ -46,6 +47,8 @@ export const Workspace = ({
                 onFieldChange={handleFieldChange}
               />
             );
+          case "images":
+            return <ImagesBlock key={index} block={block} />;
           default:
             return <GenericBlock key={index} block={block} />;
         }

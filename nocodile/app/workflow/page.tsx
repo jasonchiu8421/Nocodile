@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { GenericBlockData } from "./components/GenericBlock";
+import { GenericBlockData } from "./components/blocks/GenericBlock";
 import { useState } from "react";
 import { WorkspaceData, Workspace } from "./components/Workspace";
 import { DndContext, DragEndEvent, DragMoveEvent } from "@dnd-kit/core";
@@ -18,17 +18,14 @@ const test_blocks: GenericBlockData[] = [
     id: 2,
     x: 100,
     y: 100,
-    title: "Test tity",
-    label: "My name is Gustavo!",
-    type: "nothing",
+    type: "generic",
+    data: "Beep beep",
   },
   {
     id: 3,
     x: 200,
     y: 200,
-    title: "Test tity",
-    label: "A field block shouldn't have labels here!",
-    type: "input",
+    type: "field",
   },
 ];
 const page = () => {
@@ -47,9 +44,8 @@ const page = () => {
         id: blocks.length + 1,
         x: e.clientX - 50,
         y: e.clientY - 50,
-        title: "New Block",
-        label: "New Block",
-        type: "nothing",
+        type: "generic",
+        data: "blahblah random data this can be changed for other stuff",
       },
     ]);
   }
