@@ -5,7 +5,8 @@ import { GenericBlockData } from "./GenericBlock";
 import { DraggableBlock } from "./DraggableBlock";
 import { useState } from "react";
 
-/** A block that stores editable fields. Updates the blocks states in pages.tsx */
+/** A block that stores editable fields. Updates the blocks states in workflow/page.tsx */
+/**Kinda repeatey but my brain doesnt have eough credits for that */
 export interface FieldBlockData extends GenericBlockData {
   id: number;
   x: number;
@@ -26,7 +27,8 @@ export const FieldBlock = ({ block, onBlockChange }: FieldBlockProps) => {
   const [sliderValue, setSliderValue] = useState(block.sliderValue || 0.5);
 
   function handleChange(updatedData: Partial<FieldBlockData>) {
-    const updatedBlock = { ...block, ...updatedData };
+    const updatedBlock = { ...block, ...updatedData }; //YYou can just do that.... but it'sjust for objects
+    //javascripte black magic damn
     onBlockChange?.(updatedBlock);
   }
 

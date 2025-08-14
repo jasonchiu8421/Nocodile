@@ -91,12 +91,14 @@ const page = () => {
   }
 
   function updateBlocks(updatedBlock: GenericBlockData) {
+    /**@param updatedBlock Data of the block that's changed */
+    // linear search for the changed block using id
     setBlocks((prevBlocks) =>
       prevBlocks.map((block) =>
         block.id === updatedBlock.id ? updatedBlock : block
       )
     );
-    console.log("Updated Blocks:", blocks);
+    console.log("Blocks:", blocks);
   }
   return (
     <main>
