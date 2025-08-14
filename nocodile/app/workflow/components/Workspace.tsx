@@ -13,22 +13,17 @@ type WorkspaceProps = {
   workspace: WorkspaceData;
   blocks: GenericBlockData[];
   onBgDoubleClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
-  onBlockChange?: (data: GenericBlockData) => void; // Passed to blocks with fields
+  updateBlocks?: (data: GenericBlockData) => void; // Passed to blocks with fields
 };
 
 export const Workspace = ({
   workspace,
   blocks,
   onBgDoubleClick,
-  onBlockChange,
+  updateBlocks,
 }: WorkspaceProps) => {
   //dnd stuff
   const { setNodeRef } = useDroppable({ id: workspace.id });
-
-  //debug, use to show all state chagnes
-  function handleBlockChange(data: GenericBlockData) {
-    onBlockChange?.(data);
-  }
 
   return (
     <div
@@ -46,11 +41,17 @@ export const Workspace = ({
               <FieldBlock
                 key={index}
                 block={block}
-                onBlockChange={handleBlockChange}
+                updateBlocks={(data) => updateBlocks?.(data)} //dont mind me im just passing through
               />
             );
           case "images":
-            return <ImagesBlock key={index} block={block} />;
+            return (
+              <ImagesBlock
+                key={index}
+                block={block}
+                updateBlocks={(data) => updateBlocks?.(data)}
+              />
+            );
           default:
             return <GenericBlock key={index} block={block} />;
         }

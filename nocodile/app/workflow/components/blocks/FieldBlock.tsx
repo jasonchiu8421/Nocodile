@@ -19,17 +19,17 @@ export interface FieldBlockData extends GenericBlockData {
 
 type FieldBlockProps = {
   block: FieldBlockData;
-  onBlockChange?: (data: FieldBlockData) => void;
+  updateBlocks?: (data: FieldBlockData) => void; // Passed from page
 };
 
-export const FieldBlock = ({ block, onBlockChange }: FieldBlockProps) => {
+export const FieldBlock = ({ block, updateBlocks }: FieldBlockProps) => {
   const [name, setName] = useState(block.name || "Default Name");
   const [sliderValue, setSliderValue] = useState(block.sliderValue || 0.5);
 
-  function handleChange(updatedData: Partial<FieldBlockData>) {
+  function updateBlock(updatedData: Partial<FieldBlockData>) {
     const updatedBlock = { ...block, ...updatedData }; //YYou can just do that.... but it'sjust for objects
     //javascripte black magic damn
-    onBlockChange?.(updatedBlock);
+    updateBlocks?.(updatedBlock);
   }
 
   return (
@@ -43,7 +43,7 @@ export const FieldBlock = ({ block, onBlockChange }: FieldBlockProps) => {
           type="text"
           onChange={(e) => {
             setName(e.target.value);
-            handleChange({ name: e.target.value });
+            updateBlock({ name: e.target.value });
           }}
           value={name}
         />
@@ -58,7 +58,7 @@ export const FieldBlock = ({ block, onBlockChange }: FieldBlockProps) => {
           value={sliderValue}
           onChange={(e) => {
             setSliderValue(e.target.valueAsNumber);
-            handleChange({ sliderValue: e.target.valueAsNumber });
+            updateBlock({ sliderValue: e.target.valueAsNumber });
           }}
         />
       </div>

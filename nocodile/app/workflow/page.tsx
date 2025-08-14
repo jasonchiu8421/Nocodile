@@ -93,11 +93,14 @@ const page = () => {
   function updateBlocks(updatedBlock: GenericBlockData) {
     /**@param updatedBlock Data of the block that's changed */
     // linear search for the changed block using id
+
+    //For some reason blocks is one step later
     setBlocks((prevBlocks) =>
       prevBlocks.map((block) =>
         block.id === updatedBlock.id ? updatedBlock : block
       )
     );
+    console.log("Updated block:", updatedBlock);
     console.log("Blocks:", blocks);
   }
   return (
@@ -107,7 +110,7 @@ const page = () => {
           workspace={test_workspace}
           blocks={blocks}
           onBgDoubleClick={addBlock}
-          onBlockChange={updateBlocks}
+          updateBlocks={updateBlocks}
         />
       </DndContext>
     </main>
