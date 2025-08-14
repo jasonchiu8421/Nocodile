@@ -13,15 +13,31 @@ const test_workspace: WorkspaceData = {
   title: "Test workspace",
 };
 const test_blocks: GenericBlockData[] = [
-  { id: 1, x: 0, y: 0, title: "Test title", label: "Hello!" },
-  { id: 2, x: 100, y: 100, title: "Test tity", label: "My name is Gustavo!" },
+  { id: 1, x: 0, y: 0, title: "Test title", label: "Hello!", type: "nothing" },
+  {
+    id: 2,
+    x: 100,
+    y: 100,
+    title: "Test tity",
+    label: "My name is Gustavo!",
+    type: "nothing",
+  },
+  {
+    id: 3,
+    x: 200,
+    y: 200,
+    title: "Test tity",
+    label: "A field block shouldn't have labels here!",
+    type: "input",
+  },
 ];
 const page = () => {
   const [blocks, setBlocks] = useState<GenericBlockData[]>(test_blocks);
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     console.log("click");
   }
-  function handleBackgroundMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+
+  function addBlock(e: React.MouseEvent<HTMLDivElement>) {
     // This fires only when clicking the workspace background (blocks stop propagation)
     console.log("add block");
 
@@ -33,6 +49,7 @@ const page = () => {
         y: e.clientY - 50,
         title: "New Block",
         label: "New Block",
+        type: "nothing",
       },
     ]);
   }
@@ -55,7 +72,6 @@ const page = () => {
   }
   function handleDragMove(e: DragMoveEvent) {
     const { active, over } = e;
-    //console.log(active, over);
   }
   return (
     <main>
@@ -63,7 +79,7 @@ const page = () => {
         <Workspace
           workspace={test_workspace}
           blocks={blocks}
-          onBackgroundMouseDown={handleBackgroundMouseDown}
+          onBgDoubleClick={addBlock}
         />
       </DndContext>
     </main>

@@ -41,7 +41,7 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
-nocodile/.next
+nocodile/.next/
 .swc/
 .*.env
 
