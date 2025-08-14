@@ -55,3 +55,6 @@ input[type="text"] {
   @apply bg-white border border-gray-300 rounded-lg p-2;
   width: 100%;
 }
+input[type="file"] {
+  all: none;
+}

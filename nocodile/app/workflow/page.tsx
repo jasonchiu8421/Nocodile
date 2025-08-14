@@ -13,7 +13,13 @@ const test_workspace: WorkspaceData = {
   title: "Test workspace",
 };
 const test_blocks: GenericBlockData[] = [
-  { id: 1, x: 0, y: 0, title: "Test title", label: "Hello!", type: "nothing" },
+  {
+    id: 1,
+    x: 0,
+    y: 0,
+    type: "generic",
+    data: "I'm a sheep",
+  },
   {
     id: 2,
     x: 100,
@@ -26,6 +32,16 @@ const test_blocks: GenericBlockData[] = [
     x: 200,
     y: 200,
     type: "field",
+
+    name: "Custom name Owo",
+    sliderValue: 0.5,
+  },
+  {
+    id: 4,
+    x: 300,
+    y: 300,
+    type: "images",
+    images: [],
   },
 ];
 const page = () => {
@@ -69,6 +85,19 @@ const page = () => {
   function handleDragMove(e: DragMoveEvent) {
     const { active, over } = e;
   }
+
+  function logBlocks() {
+    console.log(blocks);
+  }
+
+  function updateBlocks(updatedBlock: GenericBlockData) {
+    setBlocks((prevBlocks) =>
+      prevBlocks.map((block) =>
+        block.id === updatedBlock.id ? updatedBlock : block
+      )
+    );
+    console.log("Updated Blocks:", blocks);
+  }
   return (
     <main>
       <DndContext onDragEnd={handleDragEnd} onDragMove={handleDragMove}>
@@ -76,6 +105,7 @@ const page = () => {
           workspace={test_workspace}
           blocks={blocks}
           onBgDoubleClick={addBlock}
+          onBlockChange={updateBlocks}
         />
       </DndContext>
     </main>

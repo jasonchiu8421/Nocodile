@@ -19,15 +19,15 @@ export const GenericBlock = ({ block }: GenericBlockProps) => {
   return (
     <DraggableBlock id={block.id} x={block.x} y={block.y}>
       <h1>Generic block</h1>
-      <p>
+      <div>
         <small>
           x: {block.x}, y: {block.y}
         </small>
-      </p>
-      <p>
+      </div>
+      <div>
         <small>type: {block.type} </small>
-      </p>
-      <p>{block.data}</p>
+      </div>
+      <div>{block.data}</div>
     </DraggableBlock>
   );
 };

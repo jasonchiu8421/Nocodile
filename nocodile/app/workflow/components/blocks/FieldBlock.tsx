@@ -1,10 +1,11 @@
 import React from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { BlockType } from "./blockTypes";
-import { GenericBlockData } from "../GenericBlock";
+import { GenericBlockData } from "./GenericBlock";
 import { DraggableBlock } from "./DraggableBlock";
 import { useState } from "react";
 
+/** A block that stores editable fields. Updates the blocks states in pages.tsx */
 export interface FieldBlockData extends GenericBlockData {
   id: number;
   x: number;
@@ -17,17 +18,16 @@ export interface FieldBlockData extends GenericBlockData {
 
 type FieldBlockProps = {
   block: FieldBlockData;
-  onFieldChange?: () => void;
+  onBlockChange?: (data: FieldBlockData) => void;
 };
 
-export const FieldBlock = ({ block, onFieldChange }: FieldBlockProps) => {
-  const [name, setName] = useState("Default Name");
-  const [sliderValue, setSliderValue] = useState(0.5);
+export const FieldBlock = ({ block, onBlockChange }: FieldBlockProps) => {
+  const [name, setName] = useState(block.name || "Default Name");
+  const [sliderValue, setSliderValue] = useState(block.sliderValue || 0.5);
 
-  function handleChange() {
-    if (onFieldChange) {
-      onFieldChange();
-    }
+  function handleChange(updatedData: Partial<FieldBlockData>) {
+    const updatedBlock = { ...block, ...updatedData };
+    onBlockChange?.(updatedBlock);
   }
 
   return (
@@ -41,7 +41,7 @@ export const FieldBlock = ({ block, onFieldChange }: FieldBlockProps) => {
           type="text"
           onChange={(e) => {
             setName(e.target.value);
-            handleChange();
+            handleChange({ name: e.target.value });
           }}
           value={name}
         />
@@ -53,9 +53,10 @@ export const FieldBlock = ({ block, onFieldChange }: FieldBlockProps) => {
           min={0}
           max={1}
           step={0.1}
+          value={sliderValue}
           onChange={(e) => {
             setSliderValue(e.target.valueAsNumber);
-            handleChange();
+            handleChange({ sliderValue: e.target.valueAsNumber });
           }}
         />
       </div>
