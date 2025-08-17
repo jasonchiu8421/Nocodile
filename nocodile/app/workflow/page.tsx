@@ -86,22 +86,20 @@ const page = () => {
     const { active, over } = e;
   }
 
-  function logBlocks() {
-    console.log(blocks);
-  }
+  React.useEffect(() => {
+    console.log("Blocks updated:", blocks);
+  }, [blocks]);
 
   function updateBlocks(updatedBlock: GenericBlockData) {
     /**@param updatedBlock Data of the block that's changed */
     // linear search for the changed block using id
 
-    //For some reason blocks is one step later
+    //states are async, can't see log right away
     setBlocks((prevBlocks) =>
-      prevBlocks.map((block) =>
-        block.id === updatedBlock.id ? updatedBlock : block
-      )
+      prevBlocks.map((block) => {
+        return block.id === updatedBlock.id ? updatedBlock : block;
+      })
     );
-    console.log("Updated block:", updatedBlock);
-    console.log("Blocks:", blocks);
   }
   return (
     <main>
