@@ -41,7 +41,7 @@ export const Workspace = ({
               <FieldBlock
                 key={index}
                 block={block}
-                updateBlocks={(data) => updateBlocks?.(data)} //dont mind me im just passing through
+                updateBlocks={updateBlocks}
               />
             );
           case "images":
@@ -49,7 +49,7 @@ export const Workspace = ({
               <ImagesBlock
                 key={index}
                 block={block}
-                updateBlocks={(data) => updateBlocks?.(data)}
+                updateBlocks={updateBlocks}
               />
             );
           default:

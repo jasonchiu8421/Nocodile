@@ -28,6 +28,13 @@ type ImagesBlockProps = {
   updateBlocks?: (data: ImagesBlockData) => void;
 };
 
+const FileCard = ({ file }: { file: File }) => {
+  return (
+    <div>
+      <img src={URL.createObjectURL(file)} alt={file.name} className="w-24" />
+    </div>
+  );
+};
 export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
   const [files, setFiles] = React.useState<File[]>([]);
 
@@ -58,11 +65,22 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
               {block.images.length} images in set
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="min-w-[70vw]">
             <DialogHeader>
               <DialogTitle>Images in set</DialogTitle>
-              <DialogDescription>Upload your images here.</DialogDescription>
+              {/* <DialogDescription>Upload your images here.</DialogDescription> */}
             </DialogHeader>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={handleFileChange}
+            />
+            <div className="flex flex-wrap gap-2">
+              {files.map((file) => (
+                <FileCard key={file.name} file={file} />
+              ))}
+            </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button>Close</Button>
@@ -70,14 +88,6 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        {/* {<div>
-          <input
-            type="file"
-            multiple
-            accept="image/*"
-            onChange={handleFileChange}
-          />
-        </div>} */}
       </div>
     </DraggableBlock>
   );
