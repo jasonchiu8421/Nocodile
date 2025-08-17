@@ -22,6 +22,7 @@ export interface ImagesBlockData extends GenericBlockData {
   type: BlockType;
 
   images: File[];
+  name: string;
 }
 type ImagesBlockProps = {
   block: ImagesBlockData;
@@ -31,7 +32,11 @@ type ImagesBlockProps = {
 const FileCard = ({ file }: { file: File }) => {
   return (
     <div>
-      <img src={URL.createObjectURL(file)} alt={file.name} className="w-24" />
+      <img
+        src={URL.createObjectURL(file)}
+        alt={file.name}
+        className="w-24 h-24 object-cover rounded-md"
+      />
     </div>
   );
 };
@@ -45,6 +50,7 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    // adds files instead of replacing all of them, have to update it for server logic
     const selected = event.target.files ? Array.from(event.target.files) : [];
     if (selected.length === 0) {
       event.target.value = "";
@@ -62,7 +68,7 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
 
     const next = dedupe([...files, ...selected]);
     setFiles(next);
-    updateBlock?.({ images: next });
+    updateBlock?.({ images: next, name: block.name });
 
     // Allow picking the same files again in subsequent selections
     event.target.value = "";
@@ -70,45 +76,53 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
 
   return (
     <DraggableBlock id={block.id} x={block.x} y={block.y}>
-      <div onPointerDownCapture={(e) => e.stopPropagation()}>
+      <div onPointerDownCapture={(e) => e.stopPropagation()} className="gap-2">
         <h1>Images block</h1>
-        <small>Type: {block.type}</small>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant={"outline"} onClick={() => console.log("click")}>
-              {block.images.length} images in set
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="min-w-[70vw]">
-            <DialogHeader>
-              <DialogTitle>Images in set</DialogTitle>
-              {/* <DialogDescription>Upload your images here.</DialogDescription> */}
-            </DialogHeader>
-            <label htmlFor="file">
+        <div className="">
+          <label htmlFor="name">Set name:</label>
+          <input
+            type="text"
+            id="name"
+            value={block.name}
+            onChange={(e) => updateBlock({ name: e.target.value })}
+          />
+        </div>
+        <div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant={"outline"}>
+                {block.images.length} images in set
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="min-w-[70vw] min-h-[70vh]">
+              <DialogHeader>
+                <DialogTitle>Images in set</DialogTitle>
+                {/* <DialogDescription>Upload your images here.</DialogDescription> */}
+              </DialogHeader>
               <Button onClick={() => document.getElementById("file")?.click()}>
                 Add images
               </Button>
-            </label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileChange}
-              id="file"
-              style={{ display: "none" }}
-            />
-            <div className="flex flex-wrap gap-2">
-              {files.map((file) => (
-                <FileCard key={file.name} file={file} />
-              ))}
-            </div>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button>Close</Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileChange}
+                id="file"
+                style={{ display: "none" }}
+              />
+              <div className="flex flex-wrap gap-2 overflow-y-auto pr-1">
+                {files.map((file) => (
+                  <FileCard key={file.name} file={file} />
+                ))}
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button>Done</Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
     </DraggableBlock>
   );

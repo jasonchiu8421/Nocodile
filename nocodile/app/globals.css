@@ -58,8 +58,8 @@
 }
 
 .block {
-  @apply bg-white border border-gray-300 rounded-lg shadow-md p-4;
-  width: initlal;
+  @apply bg-white border border-gray-300 rounded-lg shadow-md p-5;
+  width: initial;
 }
 input[type="range"] {
   -webkit-appearance: none;
