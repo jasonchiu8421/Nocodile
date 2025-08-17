@@ -45,13 +45,27 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = event.target.files;
-    let fileArray: File[] = [];
-    if (selectedFiles) {
-      fileArray = Array.from(selectedFiles);
-      setFiles(fileArray);
+    const selected = event.target.files ? Array.from(event.target.files) : [];
+    if (selected.length === 0) {
+      event.target.value = "";
+      return;
     }
-    updateBlock?.({ images: fileArray });
+
+    // De-duplicate by name+size+lastModified to avoid duplicates when adding
+    const dedupe = (arr: File[]) => {
+      const map = new Map<string, File>();
+      for (const f of arr) {
+        map.set(`${f.name}:${f.size}:${f.lastModified}`, f);
+      }
+      return Array.from(map.values());
+    };
+
+    const next = dedupe([...files, ...selected]);
+    setFiles(next);
+    updateBlock?.({ images: next });
+
+    // Allow picking the same files again in subsequent selections
+    event.target.value = "";
   }
 
   return (
@@ -70,11 +84,18 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
               <DialogTitle>Images in set</DialogTitle>
               {/* <DialogDescription>Upload your images here.</DialogDescription> */}
             </DialogHeader>
+            <label htmlFor="file">
+              <Button onClick={() => document.getElementById("file")?.click()}>
+                Add images
+              </Button>
+            </label>
             <input
               type="file"
               multiple
               accept="image/*"
               onChange={handleFileChange}
+              id="file"
+              style={{ display: "none" }}
             />
             <div className="flex flex-wrap gap-2">
               {files.map((file) => (
