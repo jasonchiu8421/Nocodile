@@ -49,35 +49,36 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
 
   return (
     <DraggableBlock id={block.id} x={block.x} y={block.y}>
-      <h1>Images block</h1>
-      <small>Type: {block.type}</small>
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button variant={"outline"} onClick={() => console.log("click")}>
-            {block.images.length} images in set
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Images in set</DialogTitle>
-            <DialogDescription>Upload your images here.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button>Close</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* {<div>
-        <input
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={handleFileChange}
-        />
-      </div>} */}
+      <div onPointerDownCapture={(e) => e.stopPropagation()}>
+        <h1>Images block</h1>
+        <small>Type: {block.type}</small>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant={"outline"} onClick={() => console.log("click")}>
+              {block.images.length} images in set
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Images in set</DialogTitle>
+              <DialogDescription>Upload your images here.</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button>Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* {<div>
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleFileChange}
+          />
+        </div>} */}
+      </div>
     </DraggableBlock>
   );
 };
