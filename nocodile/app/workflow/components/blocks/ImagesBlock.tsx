@@ -2,6 +2,17 @@ import React from "react";
 import { DraggableBlock } from "./DraggableBlock";
 import { BlockType } from "./blockTypes";
 import { GenericBlockData } from "./GenericBlock";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 /**Block that just stores a bunch of images, for handling state updates see FieldBlock */
 export interface ImagesBlockData extends GenericBlockData {
@@ -40,20 +51,33 @@ export const ImagesBlock = ({ block, updateBlocks }: ImagesBlockProps) => {
     <DraggableBlock id={block.id} x={block.x} y={block.y}>
       <h1>Images block</h1>
       <small>Type: {block.type}</small>
-      {files.length == 0 ? (
-        <div className="bg-gray-500 p-2 rounded-lg">Add images here...</div>
-      ) : (
-        <div>{files.length} images</div>
-      )}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant={"outline"} onClick={() => console.log("click")}>
+            {block.images.length} images in set
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Images in set</DialogTitle>
+            <DialogDescription>Upload your images here.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button>Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <div>
+      {/* {<div>
         <input
           type="file"
           multiple
           accept="image/*"
           onChange={handleFileChange}
         />
-      </div>
+      </div>} */}
     </DraggableBlock>
   );
 };

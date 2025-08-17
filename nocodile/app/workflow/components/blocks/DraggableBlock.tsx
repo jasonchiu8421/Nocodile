@@ -1,12 +1,12 @@
 import React from "react";
 import { useDraggable } from "@dnd-kit/core";
 
-/** Skeleton for all blocks. All blocks have these.*/
+/** Skeleton for all blocks. All blocks have these. Children are immune to drag.*/
 type DraggableBlockProps = {
   id: number;
   x: number;
   y: number;
-  children: React.ReactNode; // Allow child components to define their own content
+  children: React.ReactNode;
 };
 
 export const DraggableBlock = ({ id, x, y, children }: DraggableBlockProps) => {
@@ -34,8 +34,14 @@ export const DraggableBlock = ({ id, x, y, children }: DraggableBlockProps) => {
       {...attributes}
       onDoubleClick={(e) => e.stopPropagation()}
       style={style}
+      onPointerDownCapture={(e) => {
+        const t = e.target as HTMLElement;
+        if (t.closest("[data-no-drag]")) {
+          e.stopPropagation();
+        }
+      }}
     >
-      <span onDrag={(e) => e.stopPropagation()}>{children}</span>
+      <span data-no-drag>{children}</span>
     </div>
   );
 };
