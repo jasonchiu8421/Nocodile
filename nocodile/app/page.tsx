@@ -7,7 +7,7 @@ export default function Home() {
       <Link href="/photos" className="flex p-4">
         View your images
       </Link>
-      <Link href="/workflow" className="flex p-4 bg-amber-300 rounded-xl">
+      <Link href="/blocks" className="flex p-4 bg-amber-300 rounded-xl">
         Block interface
       </Link>
     </div>

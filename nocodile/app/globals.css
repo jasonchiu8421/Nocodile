@@ -44,9 +44,7 @@
 }
 
 .dotted-grid {
-  background-color: var(
-    --background
-  ); /* Change to your desired background color */
+  background-color: var(--background);
   background-image: radial-gradient(
     circle,
     rgba(121, 121, 121, 0.5) 1px,
@@ -69,15 +67,16 @@ input[type="range"] {
   border-radius: 5px;
   outline: none;
 }
-input[type="text"] {
+input[type="text"],
+input[type="password"],
+input[type="email"] {
   @apply bg-white border border-gray-300 rounded-lg p-2;
-  width: 100%;
 }
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(89.143% 0.0001 271.152);
+  --foreground: oklch(35% 0 271);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -144,10 +143,7 @@ input[type="text"] {
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
+  h1 {
+    @apply text-4xl font-bold text-primary;
   }
 }
