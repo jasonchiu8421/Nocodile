@@ -4,7 +4,7 @@ import { FieldBlock } from "./blocks/FieldBlock";
 import { ImagesBlock } from "./blocks/ImagesBlock";
 import { useDroppable } from "@dnd-kit/core";
 
-/**Displays blocks using block data imported from workflow/ page */
+/**Displays blocks using block data imported from blocks/ page */
 export type WorkspaceData = {
   id: number;
   title: string;

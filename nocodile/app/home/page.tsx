@@ -42,7 +42,7 @@ const Home = () => {
               console.warn("submit POST req");
             }}
           >
-            <Link href="workflow">Login</Link>
+            <Link href="blocks">Login</Link>
           </button>
         </form>
       </div>

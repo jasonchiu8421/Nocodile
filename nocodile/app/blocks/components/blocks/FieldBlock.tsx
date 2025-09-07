@@ -5,7 +5,7 @@ import { GenericBlockData } from "./GenericBlock";
 import { DraggableBlock } from "./DraggableBlock";
 import { useState } from "react";
 
-/** A block that stores editable fields. Updates the blocks states in workflow/page.tsx */
+/** A block that stores editable fields. Updates the blocks states in blocks/page.tsx */
 /**Kinda repeatey but my brain doesnt have eough credits for that */
 export interface FieldBlockData extends GenericBlockData {
   id: number;
