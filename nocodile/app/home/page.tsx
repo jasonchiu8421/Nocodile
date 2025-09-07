@@ -36,14 +36,17 @@ const Home = () => {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          <button
-            className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
-            onClick={() => {
-              console.warn("submit POST req");
-            }}
-          >
-            <Link href="blocks">Login</Link>
-          </button>
+
+          <Link href="workflow">
+            <button
+              className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
+              onClick={() => {
+                console.warn("submit POST req", { email, password });
+              }}
+            >
+              Login
+            </button>
+          </Link>
         </form>
       </div>
     </main>
