@@ -13,7 +13,7 @@ const Home = () => {
   let [password, setPassword] = React.useState("");
 
   return (
-    <main className="items-center flex flex-col min-w-screen">
+    <div className="items-center flex flex-col min-w-screen">
       <div className="flex flex-col items-center py-2 w-fit bg-white p-16 m-12 border-t-4 border-blue-600 shadow-lg">
         <h1>Nocodile AI</h1>
         <small>Train your AI model in minutes!</small>
@@ -49,7 +49,7 @@ const Home = () => {
           </Link>
         </form>
       </div>
-    </main>
+    </div>
   );
 };
 

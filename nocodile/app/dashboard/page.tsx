@@ -29,7 +29,8 @@ const ProjectCard = ({
 
   //todo change the id to be dynamic
   const handleProjectClick = () => {
-    router.push(`/workflow/${id}`);
+    localStorage.setItem("curProjId", id.toString());
+    router.push(`/project/${id}/upload`);
   };
 
   return (
