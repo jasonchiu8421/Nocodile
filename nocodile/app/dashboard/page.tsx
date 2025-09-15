@@ -1,24 +1,25 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  Plus,
-  Image,
-  Video,
-} from "lucide-react";
+import { Plus, Image, Video } from "lucide-react";
 import { useRouter } from "next/navigation";
 import "../../css/dashboard.css";
 
 // Mock data for demonstration
 const projects = [
-  { id: 1, name: "Road Sign Detection", Videos: 75, images: 75},
-  { id: 2, name: "Vehicle Classification", Videos: 45, images: 45},
-  { id: 3, name: "Pedestrain Tracking", Videos: 100, images: 100},
-  { id: 4, name: "No Name for this project", Videos: 30, images: 30},
-  { id: 5, name: "Hello", Videos: 10000, images: 100000}
+  { id: 1, name: "Road Sign Detection", Videos: 75, images: 75 },
+  { id: 2, name: "Vehicle Classification", Videos: 45, images: 45 },
+  { id: 3, name: "Pedestrain Tracking", Videos: 100, images: 100 },
+  { id: 4, name: "No Name for this project", Videos: 30, images: 30 },
+  { id: 5, name: "Hello", Videos: 10000, images: 100000 },
 ];
 
-const ProjectCard = ({ id, name, Videos, images }: {
+const ProjectCard = ({
+  id,
+  name,
+  Videos,
+  images,
+}: {
   id: number;
   name: string;
   Videos: number;
@@ -26,12 +27,16 @@ const ProjectCard = ({ id, name, Videos, images }: {
 }) => {
   const router = useRouter();
 
+  //todo change the id to be dynamic
   const handleProjectClick = () => {
-    router.push(`/project/${id}`);
+    router.push(`/workflow/${id}`);
   };
 
   return (
-    <div className="project-card fade-in project-card-clickable" onClick={handleProjectClick}>
+    <div
+      className="project-card fade-in project-card-clickable"
+      onClick={handleProjectClick}
+    >
       <div className="project-header">
         <h3 className="project-title">{name}</h3>
       </div>
@@ -89,8 +94,7 @@ export default function Dashboard() {
           <div className="projects-section">
             <div className="section-header">
               <h2 className="section-title">Recent Projects</h2>
-              <div className="flex items-center space-x-2">
-              </div>
+              <div className="flex items-center space-x-2"></div>
             </div>
             <div className="projects-grid">
               {projects.map((project) => (

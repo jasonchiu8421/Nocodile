@@ -2,7 +2,7 @@ import React from "react";
 
 const steps = ["Dashboard", "Upload", "Annotate", "Training", "Deploy"];
 
-const page = () => {
+const layout = ({ children }) => {
   return (
     <main style={{ display: "flex", height: "100vh" }}>
       <nav
@@ -18,13 +18,9 @@ const page = () => {
         </ol>
       </nav>
 
-      <section style={{ flex: 1, padding: "2rem" }}>
-        <h1>Workflow Page</h1>
-        <p>Select a step from the side panel to begin.</p>
-        {/* Add buttons or other controls for modifying the project here */}
-      </section>
+      <section style={{ flex: 1, padding: "2rem" }}>{children}</section>
     </main>
   );
 };
 
-export default page;
+export default layout;
