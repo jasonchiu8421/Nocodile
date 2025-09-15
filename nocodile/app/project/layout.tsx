@@ -1,15 +1,16 @@
 "use client";
+import Link from "next/link";
 //layout for project sidebar
 import { useEffect, useState } from "react";
 import React from "react";
-
-const steps = ["Dashboard", "Upload", "Annotate", "Training", "Deploy"];
+import { useParams } from "next/navigation";
 
 const layout = ({ children }: { children: React.ReactNode }) => {
-  const [curProjId, setCurProjId] = useState(null);
+  const params = useParams();
+  const curProjId = params.id;
 
   useEffect(() => {
-    setCurProjId(localStorage.getItem("curProjId"));
+    //setCurProjId(localStorage.getItem("curProjId"));
   }, []);
 
   // const saveValue = () => {
@@ -24,11 +25,21 @@ const layout = ({ children }: { children: React.ReactNode }) => {
       >
         <h2>Workflow Steps</h2>
         <ol className="flex flex-col gap-2 min-h-4">
-          {steps.map((step, index) => (
-            <li key={index} style={{ margin: "1rem 0" }}>
-              <a href={`/project/${curProjId}/${step.toLowerCase()}`}>{step}</a>
-            </li>
-          ))}
+          <li>
+            <Link href={`/project/${curProjId}/dashboard`}>Dashboard</Link>
+          </li>
+          <li>
+            <Link href={`/project/${curProjId}/upload`}>Upload</Link>
+          </li>
+          <li>
+            <Link href={`/project/${curProjId}/annotate`}>Annotate</Link>
+          </li>
+          <li>
+            <Link href={`/project/${curProjId}/training`}>Training</Link>
+          </li>
+          <li>
+            <Link href={`/project/${curProjId}/deploy`}>Deploy</Link>
+          </li>
         </ol>
       </nav>
 
