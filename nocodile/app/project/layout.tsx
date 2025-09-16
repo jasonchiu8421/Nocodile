@@ -26,7 +26,7 @@ const layout = ({ children }: { children: React.ReactNode }) => {
         <h2>Workflow Steps</h2>
         <ol className="flex flex-col gap-2 min-h-4">
           <li>
-            <Link href={`/project/${curProjId}/dashboard`}>Dashboard</Link>
+            <Link href={`/dashboard`}>Return to dashboard</Link>
           </li>
           <li>
             <Link href={`/project/${curProjId}/upload`}>Upload</Link>
@@ -43,7 +43,9 @@ const layout = ({ children }: { children: React.ReactNode }) => {
         </ol>
       </nav>
 
-      <section style={{ flex: 1, padding: "2rem" }}>{children}</section>
+      <section style={{ flex: 1, padding: "2rem", backgroundColor: "#fff" }}>
+        {children}
+      </section>
     </main>
   );
 };
