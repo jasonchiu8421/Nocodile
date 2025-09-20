@@ -361,25 +361,7 @@ async def upload(projectID: str, file: UploadFile = File(...)):
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    return {"info": f"file '{file.filename}' saved at '{file_location}'"}
-
-(file: str):
-    """
-    处理图片上传
-    """
-    images, labels = upload_csv(file)
-
-    # ensure filename is unique
-    filename = "dataset.h5"
-    if os.path.exists(filename):
-        name, ext = os.path.splitext(filename)
-        filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
-
-    # save as a dataset
-    dataset = Dataset(images=images, labels=labels)
-    dataset.save_dataset(filename)
-    
-    return filename
+    return file_location
 
 if __name__ == "__main__":
     import uvicorn
