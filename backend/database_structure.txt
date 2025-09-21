@@ -1,2 +1,3 @@
-Project: {"projectID": "### db ###", "projectName": "### db ###", "owner": "### ownerID ###", "last_editted": "### db ###", ...}
-Video: {"video_path": "###", "video_name": "###", "video_id": "###", "video_owner": "###", "annotate_status": "### annotate till where, or finished", ...}
+User {userID, username, password, projectID (multiple)}
+Project {userIDs, paths}
+Video
