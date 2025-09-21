@@ -13,6 +13,7 @@ import pandas as pd
 import os
 from cv_models import KCF, SAM
 import numpy as np
+import base64
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +38,21 @@ class UserRequest(BaseModel):
 class ProjectRequest(BaseModel):
     projectID: str
 
+class CreateProjectRequest(BaseModel):
+    userID: str
+    project_name: str
+    project_type: str = "YOLO object detection"
+
+class VideoRequest(BaseModel):
+    projectID: str
+    videoID: str
+
+class AnnotationRequest(BaseModel):
+    projectID: str
+    videoID: str
+    frame_num: int
+    coordinates: str
+
 class User():
     def __init__(self, userID: str):
         self.userID = userID
@@ -47,24 +63,45 @@ class User():
         return username
 
 class Project():
-    def __init__(self, projectID: str):
+    def __init__(self, projectID: str, project_name=None, project_type=None, owner=None):
         self.projectID = projectID
-        self.project_name = "Untitled"
-        if self.project_name_exists():
-            self.project_name = f"{self.project_name}_{uuid.uuid4().hex[:8]}"
+        if not project_name:
+            self.project_name = self.get_project_name()
+        else:
+            self.project_name = project_name
+        if self.project_name.strip() == '':
+            self.project_name = "Untitled"
+            if self.project_name_exists():
+                self.project_name = f"{self.project_name}_{uuid.uuid4().hex[:8]}"
+        if not project_type:
+            self.project_type = self.get_project_type()
+        else:
+            self.project_type = project_type
         self.videos = self.get_videos()
         self.video_count = self.get_video_count()
-        self.owner = self.get_owner()
+        if not owner:
+            self.owner = self.get_owner()
+        else:
+            self.owner = owner
         self.shared_users = self.get_shared_users()
     
     def project_name_exists(self):
         ### db ###
         return False
     
+    def get_project_name(self):
+        ### db ###
+        return project_name
+    
+    def get_project_type(self):
+        ### db ###
+        project_type = "YOLO object detection"
+        return project_type
+    
     def get_videos(self):
         ### db ###
-        video1 = Video(self.projectID, "### video1ID ###")
-        video2 = Video(self.projectID, "### video2ID ###")
+        video1 = "### db video1ID ###"
+        video2 = "### db video2ID ###"
         return [video1, video2, ...]
     
     def get_video_count(self):
@@ -93,11 +130,45 @@ class Project():
         }
         return details
     
+    def get_project_path(self):
+        ### db change the path if needed ###
+        project_path = f"./{self.projectID}/"
+
+        if not os.path.exists(project_path):
+            os.makedirs(project_path)
+        return project_path
+    
+    def change_project_name(self, new_name: str):
+        self.project_name = new_name
+        return True
+    
+    def create_dataset(self):
+        folder_path = f"{self.get_project_path}datasets/label/_"
+        for video in self.videos:
+            bbox_data = video.get_bbox_data()
+            for frame_num, frame_bbox in enumerate(bbox_data):
+                if not isinstance(frame_bbox, str):
+                    raise ValueError(f"Video {video.videoID} has unannotated frames. Please complete annotation before creating dataset.")
+                
+                ### db change path if necessary ###
+                filename = f"{folder_path}{video.videoID}_frame{frame_num+1}.txt"
+                with open(filename, 'w') as file:
+                    for bbox in frame_bbox:
+                        class_label = bbox["class"]
+                        coordinates = bbox["coordinates"]
+                        # Format: class x_min y_min x_max y_max
+                        file.write(f"{class_label} {' '.join(map(str, coordinates))}\n")
+
+        return folder_path
+    
 class Video(Project):
-    def __init__(self, projectID: str, videoID=None, bbox_data_path=None):
+    def __init__(self, projectID: str, videoID, bbox_data_path=None, video_path=None):
         super().__init__(projectID)
         self.videoID = videoID
-        self.video_path = self.get_video_path()
+        if not video_path:
+            self.video_path = self.get_video_path()
+        else:
+            self.video_path = video_path
         self.video_name = self.get_video_name()
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
@@ -109,10 +180,6 @@ class Video(Project):
         self.bbox_data = self.get_bbox_data()
         self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
         self.cap = cv2.VideoCapture(self.video_path)
-    
-    def generate_video_id(self):
-        videoID = uuid.uuid4().hex
-        return videoID
 
     def get_video_name(self):
         ### db ###
@@ -196,24 +263,42 @@ class Video(Project):
             raise ValueError("Frame number out of range")
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         ret, frame = self.cap.read()
-        if not ret:
+        if ret:
+            _, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = buffer.tobytes()
+            frame_encoded = base64.b64encode(frame_bytes).decode('utf-8')
+        else:
             raise ValueError("Could not read frame")
-        return frame
+        return frame_encoded
     
     def annotate(self, frame_num: int, coordinates: str):
-        self.annotation_status = "manual annotation in progress"
-        if frame_num < 0 or frame_num >= self.frame_count:
-            raise ValueError("Frame number out of range")
-        self.bbox_data[frame_num] = coordinates
-        self.last_annotated_frame = frame_num
+        try:
+            self.annotation_status = "manual annotation in progress"
+            if frame_num < 0 or frame_num >= self.frame_count:
+                raise ValueError("Frame number out of range")
+            self.bbox_data[frame_num] = coordinates
+            self.last_annotated_frame = frame_num
+            return True
+        except Exception as e:
+            logger.error(f"Error in annotate: {str(e)}")
+            return f"Error in annotate: {str(e)}"
     
     def auto_annotate(self):
-        self.save_bbox_data()  # Save current user-bounded data before auto-annotation
-        self.annotation_status = "auto annotation in progress"
-        annotator = AutoAnnotator(self.video_path, self.bbox_data_path)
-        annotator.auto_annotate()
-        self.annotation_status = "completed"
-        return 
+        try:
+            self.save_bbox_data()  # Save current user-bounded data before auto-annotation
+            self.annotation_status = "auto annotation in progress"
+            annotator = AutoAnnotator(self.video_path, self.bbox_data_path)
+            annotator.auto_annotate()
+            self.annotation_status = "completed"
+            return True
+        except Exception as e:
+            logger.error(f"Error in auto_annotate: {str(e)}")
+            return f"Error in auto_annotate: {str(e)}"
+    
+    def save_data(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
 
 class AutoAnnotator():
     def __init__(self, video_path: str, user_bounded_data_path: str):
@@ -300,6 +385,15 @@ class AutoAnnotator():
 
         return True
 
+class ModelTraining(Project):
+    def __init__(self, projectID: str):
+        super().__init__(projectID)
+    
+    def train(self):
+        ### YOLO ###
+        
+        return True, model_save_path
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     body = request._body.decode() if hasattr(request, "_body") else ""
@@ -313,55 +407,239 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 @app.post("/login")
 async def login(request: LoginRequest):
+    try:
+        username = request.username
+        password = request.password
 
-    username = request.username
-    password = request.password
+        ### db ###
+        # if username and password are correct, return True, else False
+        status = True if "### username and passowrd are correct ###" else False
+        # if status is True, get userID from database, else None
+        userID = "### userID from database ###" if status else None
 
-    ### db ###
-    # if username and password are correct, return True, else False
-    status = True if "### username and passowrd are correct ###" else False
-    # if status is True, get userID from database, else None
-    userID = "### userID from database ###" if status else None
-
-    return {
-        "status": status,
-        "userID": userID
-    }
+        return {
+            "status": status,
+            "userID": userID
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/get_projects_info")
 async def get_project_info(request: UserRequest):
+    try: 
+        userID = request.userID
 
-    userID = request.userID
-
-    ### db ###
-    owned_projects = ["project1 ID", ...]
-    shared_projects = ["project2 ID", ...]
+        ### db ###
+        owned_projects = ["project1 ID", ...]
+        shared_projects = ["project2 ID", ...]
+        
+        return {
+            "owned projects": owned_projects,
+            "shared projects": shared_projects
+        }
     
-    return {
-        "owned projects": owned_projects,
-        "shared projects": shared_projects
-    }
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/get_project_details")
 async def get_project_details(request: ProjectRequest):
-    project = Project(projectID = request.projectID)
-    project_details = project.get_project_details()
-    return project_details
+    try:
+        project = Project(projectID = request.projectID)
+        project_details = project.get_project_details()
+        return project_details
 
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/create_project")
+async def create_project(request: CreateProjectRequest):
+    try:
+        userID = request.userID
+        project_name = request.project_name
+        project_type = request.project_type
+
+        ### db ###
+        # check if project_name already exists for this user
+        project_name_exists = False if "### project name does not exist ###" else True
+        if project_name_exists:
+            return {
+                "success": False,
+                "message": "Project name already exists."
+            }
+        
+        # create new project in database and get projectID
+        projectID = "### new projectID ###"
+
+        # create project folder
+        project = Project(projectID=projectID)
+        project_path = project.get_project_path()
+
+        return {
+            "success": True,
+            "message": "Project created successfully.",
+            "projectID": projectID
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+    
+# need confirmation with frontend about the upload file object
 @app.post("/upload")
 async def upload(projectID: str, file: UploadFile = File(...)):
-    if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
-        raise HTTPException(status_code=400, detail="Invalid file type.")
-    
-    video = Video(projectID=projectID)
-    videoID = video.generate_video_id()
-    name, ext = os.path.splitext(file.filename)
-    file_location = f"{projectID}/{videoID}.{ext}"
-    
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
+            raise HTTPException(status_code=400, detail="Invalid file type.")
+        
+        videoID = "### generate new videoID ###"
+        
+        ### db change path if necessary ###
+        name, ext = os.path.splitext(file.filename)
+        project_path = video.get_project_path()
+        file_location = f"{project_path}/{videoID}.{ext}"
+        
+        video = Video(projectID=projectID, videoID=videoID, video_path=file_location)
+        
+        data_saved = False
+        while data_saved:
+            data_saved = video.save_data()
+        
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-    return file_location
+        return {
+            "message": f"file '{file.filename}' saved at '{file_location}'",
+            "videoID": videoID,
+            "video_path": file_location
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/get_next_frame_to_annotate")
+async def get_next_frame_to_annotate(request: VideoRequest):
+    try:
+        video = Video(projectID = request.projectID, videoID = request.videoID)
+        next_frame = video.get_next_frame_to_annotate()
+        
+        data_saved = False
+        while data_saved:
+            data_saved = video.save_data()
+        
+        if next_frame is None:
+            return {
+                "success": False,
+                "message": "All frames have been annotated.",
+                "image": None
+            }
+        
+        return {
+                "success": True,
+                "message": "Next frame fetched successfully.",
+                "image": next_frame
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/annotate")
+async def annotate(request: AnnotationRequest):
+    try:
+        video = Video(projectID = request.projectID, videoID = request.videoID)
+        success = video.annotate(request.frame_num, request.coordinates)
+        
+        data_saved = False
+        while data_saved:
+            data_saved = video.save_data()
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Annotation saved."
+            }
+        else:
+            return {
+                    "success": False,
+                    "message": success
+            }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/auto_annotate")
+async def annotate(request: VideoRequest):
+    try:
+        video = Video(projectID = request.projectID, videoID = request.videoID)
+        success = video.auto_annotate()
+        
+        data_saved = False
+        while data_saved:
+            data_saved = video.save_data()
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Auto-annotation saved."
+            }
+        else:
+            return {
+                    "success": False,
+                    "message": success
+            }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+    
+@app.post("/train")
+async def train(request: ProjectRequest):
+    try:
+        project = Project(projectID = request.projectID)
+
+        ## YOLO ##
+        success, model_paths = project.train()
+        success = os.path.exists(model_paths)
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Model trained successfully."
+            }
+        else:
+            return {
+                    "success": False,
+                    "message": "Failed to train model."
+            }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
 
 if __name__ == "__main__":
     import uvicorn
