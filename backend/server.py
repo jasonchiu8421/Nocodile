@@ -63,7 +63,7 @@ class User():
         return username
 
 class Project():
-    def __init__(self, projectID: str, project_name=None, project_type=None, owner=None):
+    def __init__(self, projectID: str, project_name=None, project_type=None, owner=None, initialize=False):
         self.projectID = projectID
         if not project_name:
             self.project_name = self.get_project_name()
@@ -161,8 +161,13 @@ class Project():
 
         return folder_path
     
+    def save_data(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
 class Video(Project):
-    def __init__(self, projectID: str, videoID, bbox_data_path=None, video_path=None):
+    def __init__(self, projectID: str, videoID, bbox_data_path=None, video_path=None, initialize=False):
         super().__init__(projectID)
         self.videoID = videoID
         if not video_path:
@@ -178,7 +183,13 @@ class Video(Project):
         else:
             self.bbox_data_path = bbox_data_path
         self.bbox_data = self.get_bbox_data()
-        self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+        if initialize:
+            self.annotation_status, self.last_annotated_frame = "yet to start", None
+        else:
+            self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+        if initialize:
+            self.bbox_data = [None for _ in range(self.frame_count)]
+            self.save_bbox_data()
         self.cap = cv2.VideoCapture(self.video_path)
 
     def get_video_name(self):
@@ -480,9 +491,16 @@ async def create_project(request: CreateProjectRequest):
         # create new project in database and get projectID
         projectID = "### new projectID ###"
 
-        # create project folder
-        project = Project(projectID=projectID)
+        # initialize project
+        project = Project(projectID=projectID, project_name=project_name, project_type=project_type, owner=userID, initialize=True)
+        
+        # create project directory
         project_path = project.get_project_path()
+
+        # save project to database
+        data_saved = False 
+        while data_saved:
+            data_saved = project.save_data()
 
         return {
             "success": True,
@@ -510,7 +528,7 @@ async def upload(projectID: str, file: UploadFile = File(...)):
         project_path = video.get_project_path()
         file_location = f"{project_path}/{videoID}.{ext}"
         
-        video = Video(projectID=projectID, videoID=videoID, video_path=file_location)
+        video = Video(projectID=projectID, videoID=videoID, video_path=file_location, initialize=True)
         
         data_saved = False
         while data_saved:
@@ -588,7 +606,7 @@ async def annotate(request: AnnotationRequest):
         )
 
 @app.post("/auto_annotate")
-async def annotate(request: VideoRequest):
+async def auto_annotate(request: VideoRequest):
     try:
         video = Video(projectID = request.projectID, videoID = request.videoID)
         success = video.auto_annotate()
@@ -607,6 +625,70 @@ async def annotate(request: VideoRequest):
                     "success": False,
                     "message": success
             }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+    
+@app.post("/change_project_name")
+async def change_project_name(request: ProjectRequest, new_name: str):
+    try:
+        project = Project(projectID = request.projectID)
+        
+        # check if new_name already exists for this user
+        project_name_exists = False if "### project name does not exist ###" else True
+        if project_name_exists:
+            return {
+                "success": False,
+                "message": "Project name already exists."
+            }
+        
+        success = project.change_project_name(new_name)
+        
+        data_saved = False
+        while data_saved:
+            data_saved = project.save_data()
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Project name changed successfully."
+            }
+        else:
+            return {
+                    "success": False,
+                    "message": "Failed to change project name."
+            }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+    
+@app.post("/create_dataset")
+async def create_dataset(request: ProjectRequest):
+    try:
+        project = Project(projectID = request.projectID)
+
+        # check if all videos are annotated
+        for videoID in project.videos:
+            video = Video(projectID = request.projectID, videoID = videoID)
+            if video.annotation_status != "completed":
+                return {
+                    "success": False,
+                    "message": f"Video {videoID} is not fully annotated. Please complete annotation before creating dataset."
+                }
+        
+        dataset_path = project.create_dataset()
+        
+        return {
+            "success": True,
+            "message": "Dataset created successfully.",
+            "dataset_path": dataset_path
+        }
 
     except Exception as e:
         return JSONResponse(
