@@ -84,6 +84,10 @@ class Project():
         else:
             self.owner = owner
         self.shared_users = self.get_shared_users()
+        if initilize:
+            self.classes = []
+        else:
+            self.classes = self.get_classes()
     
     def project_name_exists(self):
         ### db ###
@@ -119,6 +123,11 @@ class Project():
         ### db ###
         shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
         return shared_users
+    
+    def get_classes(self):
+        ### db ###
+        classes = [{"ID": 0, "name": "class1"}, ...]
+        return classes
     
     def get_project_details(self):
         details = {
