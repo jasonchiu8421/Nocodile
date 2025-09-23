@@ -132,10 +132,12 @@ class Project():
     def get_project_details(self):
         details = {
             "project name": self.project_name,
+            "project type": self.project_type,
             "video count": self.video_count,
-            "videos": [video.videoID for video in self.videos],
+            "videos": self.videos,
             "owner": self.owner,
-            "shared users": self.shared_users
+            "shared users": self.shared_users,
+            "classes": self.classes
         }
         return details
     
