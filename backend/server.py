@@ -153,6 +153,28 @@ class Project():
         self.project_name = new_name
         return True
     
+    def check_class_exists(self, class_name: str):
+        return class_name in self.classes.values()
+    
+    def add_class(self, class_name: str):
+        new_index = max(self.classes.keys(), default=-1) + 1
+        self.classes[new_index] = class_name
+        return True
+    
+    def modify_class(self, original_class_name: str, new_class_name: str):
+        for index, name in self.classes.items():
+            if name == original_class_name:
+                self.classes[index] = new_class_name
+                return True
+        return False
+    
+    def delete_class(self, class_name: str):
+        for index, name in list(self.classes.items()):
+            if name == class_name:
+                del self.classes[index]
+                return True
+        return False
+    
     def create_dataset(self):
         folder_path = f"{self.get_project_path}datasets/label/_"
         for video in self.videos:
