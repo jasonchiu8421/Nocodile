@@ -85,7 +85,7 @@ class Project():
             self.owner = owner
         self.shared_users = self.get_shared_users()
         if initilize:
-            self.classes = []
+            self.classes = {}
         else:
             self.classes = self.get_classes()
     
@@ -126,7 +126,7 @@ class Project():
     
     def get_classes(self):
         ### db ###
-        classes = [{"ID": 0, "name": "class1"}, ...]
+        classes = {0: "class1", ...}
         return classes
     
     def get_project_details(self):
