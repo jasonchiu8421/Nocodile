@@ -560,6 +560,108 @@ async def upload(projectID: str, file: UploadFile = File(...)):
             content={"error": str(e)}
         )
 
+@app.post("/add_class")
+async def add_class(request: ProjectRequest, class_name: str):
+    try:
+        project = Project(projectID = request.projectID)
+        
+        # check if class_name already exists for this project
+        class_name_exists = project.check_class_exists(class_name)
+        if class_name_exists:
+            return {
+                "success": False,
+                "message": "Class name already exists.",
+                "classes": project.classes
+            }
+        
+        project.add_class(class_name)
+        data_saved = False
+        while data_saved:
+            data_saved = project.save_data()
+        
+        return {
+            "success": True,
+            "message": "Class added successfully.",
+            "classes": project.classes
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/modify_class")
+async def modify_class(request: ProjectRequest, original_class_name: str, new_class_name: str):
+    try:
+        project = Project(projectID = request.projectID)
+
+        # check if original_class_name exists for this project
+        class_name_exists = project.check_class_exists(original_class_name)
+        if not class_name_exists:
+            return {
+                "success": False,
+                "message": "Original class does not exist.",
+                "classes": project.classes
+            }
+        
+        # check if new_class_name already exists for this project
+        class_name_exists = project.check_class_exists(new_class_name)
+        if class_name_exists:
+            return {
+                "success": False,
+                "message": "New class name already exists.",
+                "classes": project.classes
+            }
+        
+        project.modify_class(original_class_name, new_class_name)
+        data_saved = False
+        while data_saved:
+            data_saved = project.save_data()
+        
+        return {
+            "success": True,
+            "message": "Class modified successfully.",
+            "classes": project.classes
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/delete_class")
+async def add_class(request: ProjectRequest, class_name: str):
+    try:
+        project = Project(projectID = request.projectID)
+        
+        # check if class_name already exists for this project
+        class_name_exists = project.check_class_exists(class_name)
+        if not class_name_exists:
+            return {
+                "success": False,
+                "message": "Class does not exists.",
+                "classes": project.classes
+            }
+        
+        project.delete_class(class_name)
+        data_saved = False
+        while data_saved:
+            data_saved = project.save_data()
+        
+        return {
+            "success": True,
+            "message": "Class added successfully.",
+            "classes": project.classes
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
 @app.post("/get_next_frame_to_annotate")
 async def get_next_frame_to_annotate(request: VideoRequest):
     try:
