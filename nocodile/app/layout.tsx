@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 const Logo = () => {
   return (
     <img
-      className="fixed"
+      //className="fixed"
       src="/templogo.png"
       alt="logo"
       style={{ opacity: 0.2 }}
@@ -38,7 +38,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased dotted-grid`}
       >
         <Logo />
-        {children}
+        <main>{children}</main>
       </body>
     </html>
   );

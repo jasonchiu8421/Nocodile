@@ -146,4 +146,7 @@ input[type="email"] {
   h1 {
     @apply text-4xl font-bold text-primary;
   }
+  h2 {
+    @apply text-2xl font-semibold text-primary;
+  }
 }
