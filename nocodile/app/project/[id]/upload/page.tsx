@@ -74,10 +74,9 @@ const page = () => {
     <div className="flex flex-col gap-4">
       <div
         id="classes"
-        className="flex flex-col border p-2 rounded-md border-gray-300 gap-4"
+        className="flex flex-col border p-4 rounded-md border-gray-300 gap-4"
       >
         <h2>Add videos</h2>
-        <hr />
         <div
           id="upload"
           onDrop={handleDrop}
@@ -141,7 +140,7 @@ const page = () => {
       </div>
       <div
         id="classes"
-        className="flex flex-col border p-2 rounded-md border-gray-300 gap-4"
+        className="flex flex-col border p-4 rounded-md border-gray-300 gap-4"
       >
         <h2>Tags</h2>
         <hr />

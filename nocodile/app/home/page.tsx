@@ -37,11 +37,21 @@ const Home = () => {
             />
           </div>
 
-          <Link href="workflow">
+          <Link href="dashboard">
             <button
               className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
               onClick={() => {
-                console.warn("submit POST req", { email, password });
+                console.warn("submit POST req", { email, password }
+                  const {success, userId} = (true, 123);
+                  if (!success)
+ {
+alert
+ } else {
+  useNavigate(
+    `/dashboard?userId=${userId}`
+  )
+ }
+                );
               }}
             >
               Login
