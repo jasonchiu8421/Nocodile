@@ -9,22 +9,22 @@ const style = {
 };
 const Home = () => {
   let [isLoggedIn, setIsLoggedIn] = React.useState(false);
-  let [email, setEmail] = React.useState("");
+  let [username, setUsername] = React.useState("");
   let [password, setPassword] = React.useState("");
 
   return (
-    <main className="items-center flex flex-col min-w-screen">
+    <div className="items-center flex flex-col min-w-screen">
       <div className="flex flex-col items-center py-2 w-fit bg-white p-16 m-12 border-t-4 border-blue-600 shadow-lg">
         <h1>Nocodile AI</h1>
         <small>Train your AI model in minutes!</small>
         <form className="flex flex-col items-cente justify-center py-2 gap-2">
           <div>
-            <label>Email address:</label>
+            <label>Username:</label>
             <br />
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </div>
           <div>
@@ -37,11 +37,20 @@ const Home = () => {
             />
           </div>
 
-          <Link href="workflow">
+          <Link href="dashboard">
             <button
               className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
-              onClick={() => {
-                console.warn("submit POST req", { email, password });
+              onClick={async () => {
+                console.warn("submit POST req", { username, password });
+                await fetch("localhost:5000/login/", {
+                  method: "POST",
+                  body: JSON.stringify({ username, password }),
+                })
+                  .then((res) => res.json())
+                  .then(({ success, userId }) => {
+                    useNavigate(`/dashboard?userId=${userId}`);
+                  })
+                  .catch((err) => alert("Login failed: " + err.message));
               }}
             >
               Login
@@ -49,7 +58,7 @@ const Home = () => {
           </Link>
         </form>
       </div>
-    </main>
+    </div>
   );
 };
 
