@@ -2,14 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { X } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Plus, X } from "lucide-react";
+import Link from "next/link";
+
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { uploadedVid, getUploadedVids } from "./getUploadedVids";
 
 const UploadPage = () => {
   const { id: project_id } = useParams();
@@ -17,8 +18,9 @@ const UploadPage = () => {
   // default placeholders befoer localstorage is loaded
   const [classes, setClasses] = useState<string[]>(["Owo", "duck", "birds"]);
   const [pendingVideos, setPendingVideos] = useState<File[]>([]); // files before upload, NOT saved to servr
-  const [uploadedVideos, setUploadedVideos] = useState<String[]>([]); // list of links to uplaoded vidoes
+  const [uploadedVideos, setUploadedVideos] = useState<uploadedVid[]>([]); // list of links to uplaoded vidoes
 
+  // load saved vals
   useEffect(() => {
     setClasses(
       localStorage.getItem("classes")
@@ -28,6 +30,11 @@ const UploadPage = () => {
     setPendingVideos(
       localStorage.getItem("pendingVideos")
         ? JSON.parse(localStorage.getItem("pendingVideos")!)
+        : []
+    );
+    setUploadedVideos(
+      localStorage.getItem("uploadedVideos")
+        ? JSON.parse(localStorage.getItem("uploadedVideos")!)
         : []
     );
   }, []);
@@ -44,7 +51,7 @@ const UploadPage = () => {
         ...validPendingVideos,
       ];
       localStorage.setItem(
-        "pendingPendingVideos",
+        "pendingVideos",
         JSON.stringify(updatedPendingVideos)
       );
       return updatedPendingVideos;
@@ -91,22 +98,25 @@ const UploadPage = () => {
     const vids = pendingVideos;
     const body = { projectID: project_id, files: vids };
     console.warn("upload", body);
-    fetch("http://localhost:5000/upload", {
+    /*fetch("http://localhost:5000/upload", {
       method: "POST",
       body: JSON.stringify(body),
       headers: {
         "Content-Type": "application/json",
       },
-    });
-  };
-  useEffect(() => {
-    //setValue(localStorage.getItem("myKey"));
-  }, []);
+    });*/
+    const res = getUploadedVids(parseInt(project_id));
 
-  const saveValue = () => {
-    localStorage.setItem("myKey", "Hello World!");
-    //setValue("Hello World!");
+    // check responses, update uploadedVideos state
+    setUploadedVideos(res);
+    setPendingVideos([]);
   };
+
+  //save vals
+  useEffect(() => {
+    console.warn("save values to localstorage ");
+    localStorage.setItem("uploadedVideos", JSON.stringify(uploadedVideos));
+  }, [pendingVideos, uploadedVideos]);
 
   const removeClass = (index: number) => {
     setClasses((prevClasses) => {
@@ -159,22 +169,48 @@ const UploadPage = () => {
     </div>
   );
 
+  const UploadedCard = (vid: uploadedVid) => {
+    return (
+      <div className="items-center flex flex-row border mb-4 p-4 rounded-md border-gray-300 w-full justify-between">
+        <video controls poster="" className="w-[200px]">
+          <source src={vid.url} type="video/mp4" />
+        </video>
+        <div className="flex flex-row gap-2">
+          <Link
+            href={`/project/${project_id}/annotate?url=${vid.url}`}
+            className="btn-secondary w-fit"
+          >
+            Annotate this video
+          </Link>
+          <button>
+            <X />
+          </button>
+        </div>
+      </div>
+    );
+  };
   return (
     <div className="flex flex-col gap-4">
       <div
         id="classes"
         className="flex flex-col border p-4 rounded-md border-gray-300 gap-4 overflow-x-auto w-full"
       >
-        <h2>Add Videos</h2>
+        <h2>Add Videos Here</h2>
         <div
           id="upload"
-          className="flex flex-col border border-dashed p-4 rounded-md border-gray-300 gap-2"
+          className="flex flex-col justify-center border border-dashed p-4 rounded-md border-gray-300 gap-2"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
-          {pendingVideos.map((video, index) => (
-            <PendingCard key={index} file={video} rpv={removePendingVideo} />
-          ))}
+          {pendingVideos.length > 0
+            ? pendingVideos.map((video, index) => (
+                <PendingCard
+                  key={index}
+                  file={video}
+                  rpv={removePendingVideo}
+                />
+              ))
+            : /*<Plus />*/ null}
 
           <input
             id="pendingVideos"
@@ -189,12 +225,15 @@ const UploadPage = () => {
         <div className={"flex flex-row gap-4"}>
           <button
             onClick={() => document.getElementById("pendingVideos")?.click()}
-            className="flex-grow btn-primary"
+            className="flex-grow btn-primary text-center"
           >
             {pendingVideos.length === 0 ? "Add Video" : "Add More"}
           </button>
           {pendingVideos.length === 0 ? null : (
-            <button className="flex-grow btn-primary" onClick={handleUpload}>
+            <button
+              className="flex-grow btn-primary text-center"
+              onClick={handleUpload}
+            >
               Upload
             </button>
           )}
@@ -203,6 +242,11 @@ const UploadPage = () => {
       <div className="flex flex-col border p-4 rounded-md border-gray-300 gap-4 overflow-x-auto w-full">
         <h2>Uploaded videos</h2>
         <hr />
+        <div>
+          {uploadedVideos.map((vid, index) => (
+            <UploadedCard key={index} {...vid} />
+          ))}
+        </div>
         <p>
           fetch uploaded videos from server display gallery map each to similar
           popover button to move onto annotate (route to annotate page)
