@@ -144,7 +144,7 @@ const UploadPage = () => {
         <PopoverTrigger>
           <a>{file.name}</a>
         </PopoverTrigger>
-        <PopoverContent className="w-80">
+        <PopoverContent className="w-[80vh]">
           <video controls poster="">
             <source src={URL.createObjectURL(file)} type="video/mp4" />
           </video>
@@ -154,7 +154,7 @@ const UploadPage = () => {
         onClick={() => rpv(file)}
         style={{ padding: "5px", position: "absolute", top: 5, right: 5 }}
       >
-        <X size={12} />
+        <X size={20} />
       </button>
     </div>
   );
