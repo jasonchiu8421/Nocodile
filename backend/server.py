@@ -84,10 +84,14 @@ class Project():
         else:
             self.owner = owner
         self.shared_users = self.get_shared_users()
-        if initilize:
+        if initialize:
             self.classes = {}
         else:
             self.classes = self.get_classes()
+        if initialize:
+            self.status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
+        else:
+            self.status = self.get_status()
     
     def project_name_exists(self):
         ### db ###
@@ -129,6 +133,11 @@ class Project():
         classes = {0: "class1", ...}
         return classes
     
+    def get_status(self):
+        ### db ###
+        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained" ###    
+        return project_status
+    
     def get_project_details(self):
         details = {
             "project name": self.project_name,
@@ -137,10 +146,11 @@ class Project():
             "videos": self.videos,
             "owner": self.owner,
             "shared users": self.shared_users,
+            "status": self.status,
             "classes": self.classes
         }
         return details
-    
+        
     def get_project_path(self):
         ### db change the path if needed ###
         project_path = f"./{self.projectID}/"
@@ -187,10 +197,7 @@ class Project():
                 filename = f"{folder_path}{video.videoID}_frame{frame_num+1}.txt"
                 with open(filename, 'w') as file:
                     for bbox in frame_bbox:
-                        class_label = bbox["class"]
-                        coordinates = bbox["coordinates"]
-                        # Format: class x_min y_min x_max y_max
-                        file.write(f"{class_label} {' '.join(map(str, coordinates))}\n")
+                        file.write(f"{bbox}\n")
 
         return folder_path
     
@@ -320,7 +327,11 @@ class Video(Project):
             self.annotation_status = "manual annotation in progress"
             if frame_num < 0 or frame_num >= self.frame_count:
                 raise ValueError("Frame number out of range")
-            self.bbox_data[frame_num] = coordinates
+            width, height = self.resolution
+            x, y, w, h = coordinates[1:5]
+            x_center, y_center = x + w/2, y + h/2
+            x_normalized, y_normalized, w_normalized, h_normalized = x_center/width, y_center/height, w/width, h/height
+            self.bbox_data[frame_num] = f"{coordinates[0]} {x_normalized} {y_normalized} {w_normalized} {h_normalized}"
             self.last_annotated_frame = frame_num
             return True
         except Exception as e:
@@ -449,6 +460,8 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc)},
     )
 
+################ Page 1 - Login ################
+
 @app.post("/login")
 async def login(request: LoginRequest):
     try:
@@ -471,6 +484,8 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+    
+################ Page 2 - Project Management ################
 
 @app.post("/get_projects_info")
 async def get_project_info(request: UserRequest):
@@ -547,7 +562,43 @@ async def create_project(request: CreateProjectRequest):
             content={"error": str(e)}
         )
     
-# need confirmation with frontend about the upload file object
+@app.post("/change_project_name")
+async def change_project_name(request: ProjectRequest, new_name: str):
+    try:
+        project = Project(projectID = request.projectID)
+        
+        # check if new_name already exists for this user
+        project_name_exists = False if "### project name does not exist ###" else True
+        if project_name_exists:
+            return {
+                "success": False,
+                "message": "Project name already exists."
+            }
+        
+        success = project.change_project_name(new_name)
+        
+        data_saved = False
+        while data_saved:
+            data_saved = project.save_data()
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Project name changed successfully."
+            }
+        else:
+            return {
+                    "success": False,
+                    "message": "Failed to change project name."
+            }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+    
+################ Page 3 - Video Upload & Management ################
 @app.post("/upload")
 async def upload(projectID: str, file: UploadFile = File(...)):
     try:
@@ -683,6 +734,8 @@ async def add_class(request: ProjectRequest, class_name: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+    
+################ Page 4 - Annotation ################
 
 @app.post("/get_next_frame_to_annotate")
 async def get_next_frame_to_annotate(request: VideoRequest):
@@ -705,6 +758,21 @@ async def get_next_frame_to_annotate(request: VideoRequest):
                 "success": True,
                 "message": "Next frame fetched successfully.",
                 "image": next_frame
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/check_annotation_status")
+async def check_annotation_status(request: VideoRequest):  
+    try:
+        video = Video(projectID = request.projectID, videoID = request.videoID)
+        return {
+            "annotation status": video.annotation_status,
+            "last annotated frame": video.last_annotated_frame
         }
 
     except Exception as e:
@@ -739,62 +807,32 @@ async def annotate(request: AnnotationRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
-@app.post("/auto_annotate")
-async def auto_annotate(request: VideoRequest):
-    try:
-        video = Video(projectID = request.projectID, videoID = request.videoID)
-        success = video.auto_annotate()
-        
-        data_saved = False
-        while data_saved:
-            data_saved = video.save_data()
-        
-        if success:
-            return {
-                "success": True,
-                "message": "Auto-annotation saved."
-            }
-        else:
-            return {
-                    "success": False,
-                    "message": success
-            }
-
-    except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
     
-@app.post("/change_project_name")
-async def change_project_name(request: ProjectRequest, new_name: str):
+@app.post("/next_video")
+async def next_video(request: ProjectRequest, current_videoID: str):
     try:
         project = Project(projectID = request.projectID)
-        
-        # check if new_name already exists for this user
-        project_name_exists = False if "### project name does not exist ###" else True
-        if project_name_exists:
+        if current_videoID not in project.videos:
             return {
                 "success": False,
-                "message": "Project name already exists."
+                "message": "Current video not found in project.",
+                "next_videoID": None
             }
         
-        success = project.change_project_name(new_name)
-        
-        data_saved = False
-        while data_saved:
-            data_saved = project.save_data()
-        
-        if success:
+        current_index = project.videos.index(current_videoID)
+        if current_index + 1 < len(project.videos):
+            next_videoID = project.videos[current_index + 1]
             return {
                 "success": True,
-                "message": "Project name changed successfully."
+                "message": "Next video fetched successfully.",
+                "next_videoID": next_videoID
             }
         else:
+            next_videoID = project.videos[0]
             return {
-                    "success": False,
-                    "message": "Failed to change project name."
+                "success": True,
+                "message": "Reached end of video list. Looping back to first video.",
+                "next_videoID": next_videoID
             }
 
     except Exception as e:
@@ -808,13 +846,35 @@ async def create_dataset(request: ProjectRequest):
     try:
         project = Project(projectID = request.projectID)
 
+        for videoID in project.videos:
+            # check if video is ready for auto-annotation
+            if video.annotation_status == "completed":
+                continue
+            elif video.annotation_status != "manual annotation completed":
+                return {
+                    "success": False,
+                    "message": f"Video {videoID} is not ready for auto-annotation. Please complete manual annotation first.",
+                    "dataset_path": None
+                }
+            
+            # perform auto-annotation
+            success = False
+            while not success:
+                video = Video(projectID = request.projectID, videoID = videoID)
+                success = video.auto_annotate()
+
+                data_saved = False
+                while data_saved:
+                    data_saved = video.save_data()
+
         # check if all videos are annotated
         for videoID in project.videos:
             video = Video(projectID = request.projectID, videoID = videoID)
             if video.annotation_status != "completed":
                 return {
                     "success": False,
-                    "message": f"Video {videoID} is not fully annotated. Please complete annotation before creating dataset."
+                    "message": f"Video {videoID} is not fully annotated. Please complete annotation before creating dataset.",
+                    "dataset_path": None
                 }
         
         dataset_path = project.create_dataset()
@@ -856,7 +916,6 @@ async def train(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
 
 if __name__ == "__main__":
     import uvicorn
