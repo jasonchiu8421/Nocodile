@@ -145,7 +145,9 @@ const UploadPage = () => {
           <a>{file.name}</a>
         </PopoverTrigger>
         <PopoverContent className="w-80">
-          <video controls src={URL.createObjectURL(file)} poster="" />
+          <video controls poster="">
+            <source src={URL.createObjectURL(file)} type="video/mp4" />
+          </video>
         </PopoverContent>
       </Popover>
       <button
@@ -198,44 +200,13 @@ const UploadPage = () => {
           )}
         </div>
       </div>
-      <div
-        id="classes"
-        className="flex flex-col border p-4 rounded-md border-gray-300 gap-4"
-      >
-        <h2>Tags</h2>
+      <div className="flex flex-col border p-4 rounded-md border-gray-300 gap-4 overflow-x-auto w-full">
+        <h2>Uploaded videos</h2>
         <hr />
-        <div className="flex flex-row gap-2 overflow-x-auto">
-          {classes.map((cls, index) => (
-            <div key={index} className="border border-gray-300 p-2 min-w-16">
-              <div style={{ display: "inline" }}>{cls}</div>
-              <button
-                style={{ display: "inline", cursor: "pointer" }}
-                onClick={() => removeClass(index)}
-              >
-                <X />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div>
-          <input
-            type="text"
-            placeholder="Add new tag"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const newTag = (e.target as HTMLInputElement).value
-                  .trim()
-                  .toLowerCase();
-                if (newTag && !classes.includes(newTag)) {
-                  addClass(newTag);
-                  (e.target as HTMLInputElement).value = "";
-                } else if (classes.includes(newTag)) {
-                  alert("Tag already exists!");
-                }
-              }
-            }}
-          />
-        </div>
+        <p>
+          fetch uploaded videos from server display gallery map each to similar
+          popover button to move onto annotate (route to annotate page)
+        </p>
       </div>
     </div>
   );
