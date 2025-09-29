@@ -2,62 +2,65 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next//navigation";
 
 const style = {
   backgroundColor: "white",
   borderTop: "1px solid #eaeaea",
 };
 const Home = () => {
+  const router = useRouter();
   let [isLoggedIn, setIsLoggedIn] = React.useState(false);
   let [username, setUsername] = React.useState("");
   let [password, setPassword] = React.useState("");
 
   return (
     <div className="items-center flex flex-col min-w-screen">
-    <div className="items-center flex flex-col min-w-screen">
-      <div className="flex flex-col items-center py-2 w-fit bg-white p-16 m-12 border-t-4 border-blue-600 shadow-lg">
-        <h1>Nocodile AI</h1>
-        <small>Train your AI model in minutes!</small>
-        <form className="flex flex-col items-cente justify-center py-2 gap-2">
-          <div>
-            <label>Username:</label>
-            <br />
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>Password:</label>
-            <br />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+      <div className="items-center flex flex-col min-w-screen">
+        <div className="flex flex-col items-center py-2 w-fit bg-white p-16 m-12 border-t-4 border-blue-600 shadow-lg">
+          <h1>Nocodile AI</h1>
+          <small>Train your AI model in minutes!</small>
+          <form className="flex flex-col items-cente justify-center py-2 gap-2">
+            <div>
+              <label>Username:</label>
+              <br />
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label>Password:</label>
+              <br />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
 
-          <Link href="dashboard">
-            <button
-              className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
-              onClick={async () => {
-                console.warn("submit POST req", { username, password });
-                await fetch("localhost:5000/login/", {
-                  method: "POST",
-                  body: JSON.stringify({ username, password }),
-                })
-                  .then((res) => res.json())
-                  .then(({ success, userId }) => {
-                    useNavigate(`/dashboard?userId=${userId}`);
+            <Link href="dashboard">
+              <button
+                className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
+                onClick={async () => {
+                  console.warn("submit POST req", { username, password });
+                  await fetch("localhost:5000/login/", {
+                    method: "POST",
+                    body: JSON.stringify({ username, password }),
                   })
-                  .catch((err) => alert("Login failed: " + err.message));
-              }}
-            >
-              Login
-            </button>
-          </Link>
-        </form>
+                    .then((res) => res.json())
+                    .then(({ success, userId }) => {
+                      router.push(`/dashboard?userId=${userId}`);
+                    })
+                    .catch((err) => alert("Login failed: " + err.message));
+                }}
+              >
+                Login
+              </button>
+            </Link>
+          </form>
+        </div>
       </div>
     </div>
   );
