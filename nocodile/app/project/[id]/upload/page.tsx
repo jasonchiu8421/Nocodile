@@ -3,41 +3,47 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 
-const page = () => {
-  const [classes, setClasses] = useState<string[]>(() => {
-    const savedClasses = localStorage.getItem("classes");
-    return savedClasses
-      ? JSON.parse(savedClasses)
-      : ["Owo", "duck", "birds", "hand", "person", "cat", "dog", "car", "tree"];
-  });
+const UploadPage = ({}) => {
+  // default placeholders befoer localstorage is loaded
+  const [classes, setClasses] = useState<string[]>(["Owo", "duck", "birds"]);
+  const [videos, setVideos] = useState<File[]>([]);
 
-  const [files, setFiles] = useState<File[]>(() => {
-    const savedFiles = localStorage.getItem("files");
-    return savedFiles ? JSON.parse(savedFiles) : [];
-  });
+  useEffect(() => {
+    setClasses(
+      localStorage.getItem("classes")
+        ? JSON.parse(localStorage.getItem("classes")!)
+        : []
+    );
+    setVideos(
+      localStorage.getItem("videos")
+        ? JSON.parse(localStorage.getItem("videos")!)
+        : []
+    );
+  }, []);
 
+  // shorten this.....
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files || []);
-    const validFiles = selectedFiles.filter((file) =>
+    const selectedVideos = Array.from(event.target.files || []);
+    const validVideos = selectedVideos.filter((file) =>
       ["video/mp4", "video/mov", "video/x-matroska"].includes(file.type)
     );
-    setFiles((prevFiles) => {
-      const updatedFiles = [...prevFiles, ...validFiles];
-      localStorage.setItem("files", JSON.stringify(updatedFiles));
-      return updatedFiles;
+    setVideos((prevVideos) => {
+      const updatedVideos = [...prevVideos, ...validVideos];
+      localStorage.setItem("videos", JSON.stringify(updatedVideos));
+      return updatedVideos;
     });
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const droppedFiles = Array.from(event.dataTransfer.files);
-    const validFiles = droppedFiles.filter((file) =>
+    const validVideos = droppedFiles.filter((file) =>
       ["video/mp4", "video/mov", "video/x-matroska"].includes(file.type)
     );
-    setFiles((prevFiles) => {
-      const updatedFiles = [...prevFiles, ...validFiles];
-      localStorage.setItem("files", JSON.stringify(updatedFiles));
-      return updatedFiles;
+    setVideos((prevVideos) => {
+      const updatedVideos = [...prevVideos, ...validVideos];
+      localStorage.setItem("videos", JSON.stringify(updatedVideos));
+      return updatedVideos;
     });
   };
 
@@ -90,11 +96,11 @@ const page = () => {
             borderRadius: "8px",
           }}
         >
-          {files.length === 0 ? (
+          {videos.length === 0 ? (
             <p>Drag and drop videos here</p>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-              {files.map((file, index) => (
+              {videos.map((video, index) => (
                 <div
                   key={index}
                   style={{
@@ -106,7 +112,7 @@ const page = () => {
                   }}
                 >
                   <p style={{ fontSize: "12px", wordBreak: "break-word" }}>
-                    {file.name}
+                    {video.name}
                   </p>
                 </div>
               ))}
@@ -126,7 +132,7 @@ const page = () => {
               transform: "translateX(-50%)",
             }}
           >
-            {files.length === 0 ? "Add Video" : "Add More"}
+            {videos.length === 0 ? "Add Video" : "Add More"}
           </button>
           <input
             id="fileInput"
@@ -181,4 +187,4 @@ const page = () => {
   );
 };
 
-export default page;
+export default UploadPage;

@@ -4,38 +4,26 @@ import React, { useState } from "react";
 import { Plus, Image, Video } from "lucide-react";
 import { useRouter } from "next/navigation";
 import "../../css/dashboard.css";
-
-// Mock data for demonstration
-const projects = [
-  { id: 1, name: "Road Sign Detection", Videos: 75, images: 75 },
-  { id: 2, name: "Vehicle Classification", Videos: 45, images: 45 },
-  { id: 3, name: "Pedestrain Tracking", Videos: 100, images: 100 },
-  { id: 4, name: "No Name for this project", Videos: 30, images: 30 },
-  { id: 5, name: "Hello", Videos: 10000, images: 100000 },
-];
+import Link from "next/link";
+import { getProjectsInfo } from "../home/get_project_info";
 
 const ProjectCard = ({
   id,
   name,
-  Videos,
-  images,
+  videoCount,
+  imageCount,
 }: {
   id: number;
   name: string;
-  Videos: number;
-  images: number;
+  videoCount: number;
+  imageCount: number;
 }) => {
   const router = useRouter();
 
-  //todo change the id to be dynamic
-  const handleProjectClick = () => {
-    router.push(`/project/${id}/upload`);
-  };
-
   return (
-    <div
+    <Link
       className="project-card fade-in project-card-clickable"
-      onClick={handleProjectClick}
+      href={`/project/${id}/upload`}
     >
       <div className="project-header">
         <h3 className="project-title">{name}</h3>
@@ -46,7 +34,7 @@ const ProjectCard = ({
             <Image className="icon" />
           </div>
           <div className="media-info">
-            <span className="media-count">{images}</span>
+            <span className="media-count">{imageCount}</span>
             <span className="media-label">Images</span>
           </div>
         </div>
@@ -55,17 +43,19 @@ const ProjectCard = ({
             <Video className="icon" />
           </div>
           <div className="media-info">
-            <span className="media-count">{Videos}</span>
+            <span className="media-count">{videoCount}</span>
             <span className="media-label">Videos</span>
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const projects = getProjectsInfo(98989898); // Replace with actual user ID
+  // Turn into fetch in the future
 
   return (
     <div className="dashboard-container">
@@ -102,8 +92,8 @@ export default function Dashboard() {
                   key={project.id}
                   id={project.id}
                   name={project.name}
-                  Videos={project.Videos}
-                  images={project.images}
+                  videoCount={project.videoCount}
+                  imageCounts={project.imageCounts}
                 />
               ))}
             </div>
