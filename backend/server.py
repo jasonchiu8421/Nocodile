@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI, Request, status, Depends, HTTPException, Cookie, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -14,6 +14,8 @@ import os
 from cv_models import KCF, SAM
 import numpy as np
 import base64
+import aiofiles
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -146,8 +148,7 @@ class Project():
             "videos": self.videos,
             "owner": self.owner,
             "shared users": self.shared_users,
-            "status": self.status,
-            "classes": self.classes
+            "status": self.status
         }
         return details
         
@@ -201,7 +202,46 @@ class Project():
 
         return folder_path
     
-    def save_data(self):
+    def get_auto_annotation_progress(self):
+        finished_frames = 0
+        total_frames = 0
+        for videoID in self.videos:
+            video = Video(projectID=self.projectID, videoID=videoID)
+            annotation_status, last_annotated_frame = video.get_annotation_status()
+            frame_count = video.get_frame_count()
+            if annotation_status == "auto annotation in progress":
+                total_frames = last_annotated_frame + 1
+            elif annotation_status == "completed":
+                finished_frames += frame_count
+            total_frames += frame_count
+        overall_progress = finished_frames / total_frames if total_frames > 0 else 0
+
+        return overall_progress
+    
+    def get_uploaded_videos(self):
+        videos_info = []
+        for videoID in self.videos:
+            video = Video(projectID=self.projectID, videoID=videoID)
+            video_info = video.get_video_info()
+            videos_info.append(video_info)
+        return videos_info
+    
+    def save_classes(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    def save_status(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    def save_videos(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    def save_video_count(self):
         ### db ###
         success = True if data saved successfully else False
         return success
@@ -231,6 +271,32 @@ class Video(Project):
             self.bbox_data = [None for _ in range(self.frame_count)]
             self.save_bbox_data()
         self.cap = cv2.VideoCapture(self.video_path)
+    
+    def get_video_info(self):
+        info = {
+            "video name": self.get_video_name,
+            "video": self.get_video,
+            "video path": self.get_video_path
+        }
+        return info
+    
+    async def get_video(self, file_path: str):
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found.")
+        ext = os.path.splitext(file_path)[-1].lower()
+        media_types = {
+            '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+            '.webm': 'video/webm',
+            '.mkv': 'video/x-matroska'
+        }
+        # Read the file contents for response
+        async with aiofiles.open(file_path, "rb") as f:
+            contents = await f.read()
+        return Response(contents, media_type=media_types.get(ext, "application/octet-stream"),
+                        headers={"Content-Disposition": f"attachment; filename={os.path.basename(file_path)}"})
+
 
     def get_video_name(self):
         ### db ###
@@ -278,10 +344,6 @@ class Video(Project):
         else:
             bbox_data = [None in range(self.frame_count)]
         return bbox_data
-    
-    def save_bbox_data(self):
-        df = pd.DataFrame(self.bbox_data, columns=['bbox'])
-        df.to_csv(self.bbox_data_path, index=False)
     
     def get_annotation_status(self):
         ### db ###
@@ -338,27 +400,10 @@ class Video(Project):
             logger.error(f"Error in annotate: {str(e)}")
             return f"Error in annotate: {str(e)}"
     
-    def auto_annotate(self):
-        try:
-            self.save_bbox_data()  # Save current user-bounded data before auto-annotation
-            self.annotation_status = "auto annotation in progress"
-            annotator = AutoAnnotator(self.video_path, self.bbox_data_path)
-            annotator.auto_annotate()
-            self.annotation_status = "completed"
-            return True
-        except Exception as e:
-            logger.error(f"Error in auto_annotate: {str(e)}")
-            return f"Error in auto_annotate: {str(e)}"
-    
     def save_data(self):
         ### db ###
         success = True if data saved successfully else False
         return success
-
-class AutoAnnotator():
-    def __init__(self, video_path: str, user_bounded_data_path: str):
-        self.video_path = video_path
-        self.user_bounded_data_path = user_bounded_data_path
 
     @staticmethod
     def _calculate_iou(bbox1, bbox2):
@@ -390,6 +435,8 @@ class AutoAnnotator():
         return iou
 
     def auto_annotate(self):
+        self.annotation_status = "auto annotation in progress"
+        
         df = pd.read_csv(self.user_bounded_data_path)
 
         # Find all annotated frames
@@ -435,8 +482,14 @@ class AutoAnnotator():
                     df.iloc[index]['bbox'] = best_bbox
                     print(f"Best matching bbox for frame {index+1}: {best_bbox}")
 
+                    # Save the number of frame in progress
+                    self.last_annotated_frame = index
+                    self.save_last_annotated_frame()
+
         cap.release()
         df.to_csv(self.user_bounded_data_path, index=False)
+
+        self.annotation_status = "completed"
 
         return True
 
@@ -460,8 +513,9 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc)},
     )
 
-################ Page 1 - Login ################
+################ Page 1 - Login #####################
 
+# User login
 @app.post("/login")
 async def login(request: LoginRequest):
     try:
@@ -485,8 +539,9 @@ async def login(request: LoginRequest):
             content={"error": str(e)}
         )
     
-################ Page 2 - Project Management ################
+################ Page 2 - Project Management #####################
 
+# Get all projects IDs for a user
 @app.post("/get_projects_info")
 async def get_project_info(request: UserRequest):
     try: 
@@ -507,6 +562,7 @@ async def get_project_info(request: UserRequest):
             content={"error": str(e)}
         )
 
+# Get project details when loading dashboard
 @app.post("/get_project_details")
 async def get_project_details(request: ProjectRequest):
     try:
@@ -520,6 +576,7 @@ async def get_project_details(request: ProjectRequest):
             content={"error": str(e)}
         )
 
+# Create new project
 @app.post("/create_project")
 async def create_project(request: CreateProjectRequest):
     try:
@@ -561,7 +618,8 @@ async def create_project(request: CreateProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
+# Change project name
 @app.post("/change_project_name")
 async def change_project_name(request: ProjectRequest, new_name: str):
     try:
@@ -598,14 +656,16 @@ async def change_project_name(request: ProjectRequest, new_name: str):
             content={"error": str(e)}
         )
     
-################ Page 3 - Video Upload & Management ################
+################ Page 3 - Video Upload & Management #####################
+
+# Upload video
 @app.post("/upload")
 async def upload(projectID: str, file: UploadFile = File(...)):
     try:
         if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
             raise HTTPException(status_code=400, detail="Invalid file type.")
         
-        videoID = "### generate new videoID ###"
+        videoID = "### db ### generate new videoID ###"
         
         ### db change path if necessary ###
         name, ext = os.path.splitext(file.filename)
@@ -616,7 +676,15 @@ async def upload(projectID: str, file: UploadFile = File(...)):
         
         data_saved = False
         while data_saved:
-            data_saved = video.save_data()
+            data_saved = video.save_video_path()
+        
+        video.super.video_count += 1
+        video.super.videos.append(videoID)
+
+        data_saved = False
+        while data_saved:
+            data_saved = video.super.save_video_count()
+            data_saved = data_saved and video.super.save_videos()
         
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -632,6 +700,25 @@ async def upload(projectID: str, file: UploadFile = File(...)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+
+# Get all uploaded videos for a project
+@app.post("get_uploaded_videos")
+def get_uploaded_videos(request: ProjectRequest):
+    try:
+        project = Project(projectID = request.projectID)
+        videos_info = project.get_uploaded_videos()
+        return {
+            "success": True,
+            "videos": videos_info
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+##################### Page 4 - Annotation #####################
 
 @app.post("/add_class")
 async def add_class(request: ProjectRequest, class_name: str):
@@ -734,8 +821,6 @@ async def add_class(request: ProjectRequest, class_name: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
-################ Page 4 - Annotation ################
 
 @app.post("/get_next_frame_to_annotate")
 async def get_next_frame_to_annotate(request: VideoRequest):
@@ -890,10 +975,6 @@ async def create_dataset(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
-@app.post("/check_auto_annotation_progress")
-async def check_auto_annotation(request: ProjectRequest):
-
     
 @app.post("/train")
 async def train(request: ProjectRequest):
