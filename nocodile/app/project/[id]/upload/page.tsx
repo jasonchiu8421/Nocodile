@@ -15,29 +15,13 @@ import { uploadedVid, getUploadedVids } from "./getUploadedVids";
 const UploadPage = () => {
   const { id: project_id } = useParams();
 
-  // default placeholders befoer localstorage is loaded
-  const [classes, setClasses] = useState<string[]>(["Owo", "duck", "birds"]);
-  const [pendingVideos, setPendingVideos] = useState<File[]>([]); // files before upload, NOT saved to servr
-  const [uploadedVideos, setUploadedVideos] = useState<uploadedVid[]>([]); // list of links to uplaoded vidoes
+  const [pendingVideos, setPendingVideos] = useState<File[]>(() => {
+    return localStorage.getItem("pendingVideos") || [];
+  });
 
-  // load saved vals
-  useEffect(() => {
-    setClasses(
-      localStorage.getItem("classes")
-        ? JSON.parse(localStorage.getItem("classes")!)
-        : []
-    );
-    setPendingVideos(
-      localStorage.getItem("pendingVideos")
-        ? JSON.parse(localStorage.getItem("pendingVideos")!)
-        : []
-    );
-    setUploadedVideos(
-      localStorage.getItem("uploadedVideos")
-        ? JSON.parse(localStorage.getItem("uploadedVideos")!)
-        : []
-    );
-  }, []);
+  const [uploadedVideos, setUploadedVideos] = useState<uploadedVid[]>(() => {
+    return localStorage.getItem("uploadedVideos") || [];
+  });
 
   // shorten this.....
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,22 +102,6 @@ const UploadPage = () => {
     localStorage.setItem("uploadedVideos", JSON.stringify(uploadedVideos));
   }, [pendingVideos, uploadedVideos]);
 
-  const removeClass = (index: number) => {
-    setClasses((prevClasses) => {
-      const updatedClasses = prevClasses.filter((_, i) => i !== index);
-      localStorage.setItem("classes", JSON.stringify(updatedClasses));
-      return updatedClasses;
-    });
-  };
-
-  const addClass = (newTag: string) => {
-    setClasses((prevClasses) => {
-      const updatedClasses = [...prevClasses, newTag];
-      localStorage.setItem("classes", JSON.stringify(updatedClasses));
-      return updatedClasses;
-    });
-  };
-
   const PendingCard = ({
     file,
     rpv,
@@ -177,7 +145,7 @@ const UploadPage = () => {
         </video>
         <div className="flex flex-row gap-2">
           <Link
-            href={`/project/${project_id}/annotate?url=${vid.url}`}
+            href={`/project/${project_id}/annotate/${vid.url}`}
             className="btn-secondary w-fit"
           >
             Annotate this video
