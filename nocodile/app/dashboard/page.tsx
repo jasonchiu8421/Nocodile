@@ -93,7 +93,7 @@ export default function Dashboard() {
                   id={project.id}
                   name={project.name}
                   videoCount={project.videoCount}
-                  imageCounts={project.imageCounts}
+                  imageCount={project.imageCount}
                 />
               ))}
             </div>
