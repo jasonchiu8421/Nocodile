@@ -1,12 +1,23 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
-const UploadPage = ({}) => {
+const UploadPage = () => {
+  const { id: project_id } = useParams();
+
   // default placeholders befoer localstorage is loaded
   const [classes, setClasses] = useState<string[]>(["Owo", "duck", "birds"]);
-  const [videos, setVideos] = useState<File[]>([]);
+  const [pendingVideos, setPendingVideos] = useState<File[]>([]); // files before upload, NOT saved to servr
+  const [uploadedVideos, setUploadedVideos] = useState<String[]>([]); // list of links to uplaoded vidoes
 
   useEffect(() => {
     setClasses(
@@ -14,36 +25,48 @@ const UploadPage = ({}) => {
         ? JSON.parse(localStorage.getItem("classes")!)
         : []
     );
-    setVideos(
-      localStorage.getItem("videos")
-        ? JSON.parse(localStorage.getItem("videos")!)
+    setPendingVideos(
+      localStorage.getItem("pendingVideos")
+        ? JSON.parse(localStorage.getItem("pendingVideos")!)
         : []
     );
   }, []);
 
   // shorten this.....
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedVideos = Array.from(event.target.files || []);
-    const validVideos = selectedVideos.filter((file) =>
+    const selectedPendingVideos = Array.from(event.target.files || []);
+    const validPendingVideos = selectedPendingVideos.filter((file) =>
       ["video/mp4", "video/mov", "video/x-matroska"].includes(file.type)
     );
-    setVideos((prevVideos) => {
-      const updatedVideos = [...prevVideos, ...validVideos];
-      localStorage.setItem("videos", JSON.stringify(updatedVideos));
-      return updatedVideos;
+    setPendingVideos((prevPendingVideos) => {
+      const updatedPendingVideos = [
+        ...prevPendingVideos,
+        ...validPendingVideos,
+      ];
+      localStorage.setItem(
+        "pendingPendingVideos",
+        JSON.stringify(updatedPendingVideos)
+      );
+      return updatedPendingVideos;
     });
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const droppedFiles = Array.from(event.dataTransfer.files);
-    const validVideos = droppedFiles.filter((file) =>
+    const validPendingVideos = droppedFiles.filter((file) =>
       ["video/mp4", "video/mov", "video/x-matroska"].includes(file.type)
     );
-    setVideos((prevVideos) => {
-      const updatedVideos = [...prevVideos, ...validVideos];
-      localStorage.setItem("videos", JSON.stringify(updatedVideos));
-      return updatedVideos;
+    setPendingVideos((prevPendingVideos) => {
+      const updatedPendingVideos = [
+        ...prevPendingVideos,
+        ...validPendingVideos,
+      ];
+      localStorage.setItem(
+        "pendingVideos",
+        JSON.stringify(updatedPendingVideos)
+      );
+      return updatedPendingVideos;
     });
   };
 
@@ -51,6 +74,31 @@ const UploadPage = ({}) => {
     event.preventDefault();
   };
 
+  const removePendingVideo = (fileToRemove: File) => {
+    setPendingVideos((prevPendingVideos) => {
+      const updatedPendingVideos = prevPendingVideos.filter(
+        (file) => file !== fileToRemove
+      );
+      localStorage.setItem(
+        "pendingVideos",
+        JSON.stringify(updatedPendingVideos)
+      );
+      return updatedPendingVideos;
+    });
+  };
+
+  const handleUpload = async () => {
+    const vids = pendingVideos;
+    const body = { projectID: project_id, files: vids };
+    console.warn("upload", body);
+    fetch("http://localhost:5000/upload", {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  };
   useEffect(() => {
     //setValue(localStorage.getItem("myKey"));
   }, []);
@@ -76,72 +124,78 @@ const UploadPage = ({}) => {
     });
   };
 
+  const PendingCard = ({
+    file,
+    rpv,
+  }: {
+    file: File;
+    rpv: (file: File) => void;
+  }) => (
+    <div
+      style={{
+        border: "1px solid #ccc",
+        padding: "10px",
+        borderRadius: "4px",
+        position: "relative",
+        width: "100%",
+      }}
+    >
+      <Popover>
+        <PopoverTrigger>
+          <a>{file.name}</a>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <video controls src={URL.createObjectURL(file)} poster="" />
+        </PopoverContent>
+      </Popover>
+      <button
+        onClick={() => rpv(file)}
+        style={{ padding: "5px", position: "absolute", top: 5, right: 5 }}
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div
         id="classes"
-        className="flex flex-col border p-4 rounded-md border-gray-300 gap-4"
+        className="flex flex-col border p-4 rounded-md border-gray-300 gap-4 overflow-x-auto w-full"
       >
-        <h2>Add videos</h2>
+        <h2>Add Videos</h2>
         <div
           id="upload"
+          className="flex flex-col border border-dashed p-4 rounded-md border-gray-300 gap-2"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          style={{
-            border: "2px dashed #ccc",
-            padding: "20px",
-            flexDirection: "column",
-            display: "flex",
-            alignItems: "center",
-            borderRadius: "8px",
-          }}
         >
-          {videos.length === 0 ? (
-            <p>Drag and drop videos here</p>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-              {videos.map((video, index) => (
-                <div
-                  key={index}
-                  style={{
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    padding: "10px",
-                    width: "150px",
-                    textAlign: "center",
-                  }}
-                >
-                  <p style={{ fontSize: "12px", wordBreak: "break-word" }}>
-                    {video.name}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-          <button
-            onClick={() => document.getElementById("fileInput")?.click()}
-            style={{
-              padding: ".5em",
-              backgroundColor: "#007BFF",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              bottom: "10px",
-              left: "50%",
-              transform: "translateX(-50%)",
-            }}
-          >
-            {videos.length === 0 ? "Add Video" : "Add More"}
-          </button>
+          {pendingVideos.map((video, index) => (
+            <PendingCard key={index} file={video} rpv={removePendingVideo} />
+          ))}
+
           <input
-            id="fileInput"
+            id="pendingVideos"
             type="file"
             multiple
             accept=".mp4,.mov,.mkv"
             style={{ display: "none" }}
             onChange={handleFileSelect}
           />
+        </div>
+
+        <div className={"flex flex-row gap-4"}>
+          <button
+            onClick={() => document.getElementById("pendingVideos")?.click()}
+            className="flex-grow btn-primary"
+          >
+            {pendingVideos.length === 0 ? "Add Video" : "Add More"}
+          </button>
+          {pendingVideos.length === 0 ? null : (
+            <button className="flex-grow btn-primary" onClick={handleUpload}>
+              Upload
+            </button>
+          )}
         </div>
       </div>
       <div

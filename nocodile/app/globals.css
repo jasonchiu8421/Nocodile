@@ -149,4 +149,14 @@ input[type="email"] {
   h2 {
     @apply text-2xl font-semibold text-primary;
   }
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+
+  button {
+    cursor: pointer;
+  }
 }
