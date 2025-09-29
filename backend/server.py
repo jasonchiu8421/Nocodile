@@ -890,6 +890,10 @@ async def create_dataset(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+
+@app.post("/check_auto_annotation_progress")
+async def check_auto_annotation(request: ProjectRequest):
+
     
 @app.post("/train")
 async def train(request: ProjectRequest):
