@@ -6,8 +6,7 @@ import React from "react";
 import { useParams } from "next/navigation";
 
 const layout = ({ children }: { children: React.ReactNode }) => {
-  const params = useParams();
-  const curProjId = params.id;
+  const { id: curProjId } = useParams();
 
   useEffect(() => {
     //setCurProjId(localStorage.getItem("curProjId"));
