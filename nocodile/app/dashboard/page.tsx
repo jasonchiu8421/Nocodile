@@ -3,26 +3,28 @@
 import React, { useState } from "react";
 import { 
   Plus,
-  Image,
   Video,
+  CircleDot
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import "../../css/dashboard.css";
+import NewProjectForm from "../../components/NewProjectForm";
 
 // Mock data for demonstration
-const projects = [
-  { id: 1, name: "Road Sign Detection", Videos: 75, images: 75},
-  { id: 2, name: "Vehicle Classification", Videos: 45, images: 45},
-  { id: 3, name: "Pedestrain Tracking", Videos: 100, images: 100},
-  { id: 4, name: "No Name for this project", Videos: 30, images: 30},
-  { id: 5, name: "Hello", Videos: 10000, images: 100000}
+const initialProjects = [
+  { id: "PROJ_1", name: "Road Sign Detection", Videos: 75, description: "AI model for detecting road signs in images and videos", createdAt: "2024-01-15T10:30:00Z",Status:"Completed"},
+  { id: "PROJ_2", name: "Vehicle Classification", Videos: 45, description: "Classify different types of vehicles", createdAt: "2024-01-20T14:15:00Z",Status:"Annotating"},
+  { id: "PROJ_3", name: "Pedestrain Tracking", Videos: 100, description: "Track pedestrians in video streams", createdAt: "2024-01-25T09:45:00Z",Status:"Training"},
+  { id: "PROJ_4", name: "No Name for this project", Videos: 30,  description: "", createdAt: "2024-02-01T16:20:00Z",Status:"Completed"},
+  { id: "PROJ_5", name: "Hello", Videos: 10000, description: "Test project", createdAt: "2024-02-05T11:10:00Z", Status:"Annotating"}
 ];
 
-const ProjectCard = ({ id, name, Videos, images }: {
-  id: number;
+const ProjectCard = ({ id, name, Videos, Status, description }: {
+  id: string;
   name: string;
   Videos: number;
-  images: number;
+  Status?: string;
+  description?: string;
 }) => {
   const router = useRouter();
 
@@ -34,17 +36,12 @@ const ProjectCard = ({ id, name, Videos, images }: {
     <div className="project-card fade-in project-card-clickable" onClick={handleProjectClick}>
       <div className="project-header">
         <h3 className="project-title">{name}</h3>
+        <div className="project-id">ID: {id}</div>
+        {description && (
+          <p className="project-description">{description}</p>
+        )}
       </div>
       <div className="media-stats">
-        <div className="media-item">
-          <div className="media-icon">
-            <Image className="icon" />
-          </div>
-          <div className="media-info">
-            <span className="media-count">{images}</span>
-            <span className="media-label">Images</span>
-          </div>
-        </div>
         <div className="media-item">
           <div className="media-icon">
             <Video className="icon" />
@@ -54,6 +51,15 @@ const ProjectCard = ({ id, name, Videos, images }: {
             <span className="media-label">Videos</span>
           </div>
         </div>
+        <div className="media-item">
+          <div className="media-icon">
+            <CircleDot className="icon" />
+          </div>
+          <div className="media-info">
+            <span className="media-count">{Status ?? "—"}</span>
+            <span className="media-label">Status</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -61,6 +67,8 @@ const ProjectCard = ({ id, name, Videos, images }: {
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [projects, setProjects] = useState(initialProjects);
+  const [isNewProjectFormOpen, setIsNewProjectFormOpen] = useState(false);
 
   return (
     <div className="dashboard-container">
@@ -72,7 +80,10 @@ export default function Dashboard() {
               <h1 className="header-title">My Projects</h1>
             </div>
             <div className="header-actions">
-              <button className="btn-primary">
+              <button 
+                className="btn-primary"
+                onClick={() => setIsNewProjectFormOpen(true)}
+              >
                 <Plus />
                 <span>New Project</span>
               </button>
@@ -99,13 +110,23 @@ export default function Dashboard() {
                   id={project.id}
                   name={project.name}
                   Videos={project.Videos}
-                  images={project.images}
+                  Status={project.Status}
+                  description={project.description}
                 />
               ))}
             </div>
           </div>
         </div>
       </main>
+
+      {/* New Project Form Modal */}
+      <NewProjectForm
+        isOpen={isNewProjectFormOpen}
+        onClose={() => setIsNewProjectFormOpen(false)}
+        onProjectCreated={(newProject) => {
+          setProjects(prev => [{ ...newProject, Status: (newProject as any).Status ?? "Annotating" }, ...prev]);
+        }}
+      />
     </div>
   );
 }
