@@ -53,7 +53,7 @@ class AnnotationRequest(BaseModel):
     projectID: str
     videoID: str
     frame_num: int
-    coordinates: str
+    coordinates: list
 
 class User():
     def __init__(self, userID: str):
