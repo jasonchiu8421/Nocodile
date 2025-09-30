@@ -16,7 +16,6 @@ import numpy as np
 import base64
 import aiofiles
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -246,6 +245,16 @@ class Project():
         success = True if data saved successfully else False
         return success
     
+    def save_project_name(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    def save_project_type(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
 class Video(Project):
     def __init__(self, projectID: str, videoID, bbox_data_path=None, video_path=None, initialize=False):
         super().__init__(projectID)
@@ -254,6 +263,7 @@ class Video(Project):
             self.video_path = self.get_video_path()
         else:
             self.video_path = video_path
+            self.save_video_path()
         self.video_name = self.get_video_name()
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
@@ -265,11 +275,12 @@ class Video(Project):
         self.bbox_data = self.get_bbox_data()
         if initialize:
             self.annotation_status, self.last_annotated_frame = "yet to start", None
+            self.save_annotation_status()
+            self.save_last_annotated_frame()
         else:
             self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
         if initialize:
-            self.bbox_data = [None for _ in range(self.frame_count)]
-            self.save_bbox_data()
+            self.initialize_bbox_data()
         self.cap = cv2.VideoCapture(self.video_path)
     
     def get_video_info(self):
@@ -296,7 +307,6 @@ class Video(Project):
             contents = await f.read()
         return Response(contents, media_type=media_types.get(ext, "application/octet-stream"),
                         headers={"Content-Disposition": f"attachment; filename={os.path.basename(file_path)}"})
-
 
     def get_video_name(self):
         ### db ###
@@ -384,7 +394,7 @@ class Video(Project):
             raise ValueError("Could not read frame")
         return frame_encoded
     
-    def annotate(self, frame_num: int, coordinates: str):
+    def annotate(self, frame_num: int, coordinates: list):
         try:
             self.annotation_status = "manual annotation in progress"
             if frame_num < 0 or frame_num >= self.frame_count:
@@ -393,17 +403,12 @@ class Video(Project):
             x, y, w, h = coordinates[1:5]
             x_center, y_center = x + w/2, y + h/2
             x_normalized, y_normalized, w_normalized, h_normalized = x_center/width, y_center/height, w/width, h/height
-            self.bbox_data[frame_num] = f"{coordinates[0]} {x_normalized} {y_normalized} {w_normalized} {h_normalized}"
+            self.bbox_data[frame_num].append(f"{coordinates[0]} {x_normalized} {y_normalized} {w_normalized} {h_normalized}")
             self.last_annotated_frame = frame_num
             return True
         except Exception as e:
             logger.error(f"Error in annotate: {str(e)}")
             return f"Error in annotate: {str(e)}"
-    
-    def save_data(self):
-        ### db ###
-        success = True if data saved successfully else False
-        return success
 
     @staticmethod
     def _calculate_iou(bbox1, bbox2):
@@ -492,6 +497,43 @@ class Video(Project):
         self.annotation_status = "completed"
 
         return True
+
+    # Save video path to database
+    def save_video_path(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    # Save video name to database
+    def save_video_name(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    # Save annotation status to database
+    def save_annotation_status(self):
+        ### db ### 
+        success = True if data saved successfully else False
+        return success
+    
+    # Save last annotated frame to database
+    def save_last_annotated_frame(self):
+        ### db ###
+        success = True if data saved successfully else False
+        return success
+    
+    # Initialize bbox data database
+    def initialize_bbox_data(self):
+        self.bbox_data = [[] for _ in range(self.frame_count)]
+        ### db ###
+        success = True if bbox data table created successfully else False
+        return success
+    
+    def update_bbox_data(self, frame_num: int):
+        ### db ###
+        # Only update the bbox data for the specified frame_num
+        success = True if data saved successfully else False
+        return success
 
 class ModelTraining(Project):
     def __init__(self, projectID: str):
