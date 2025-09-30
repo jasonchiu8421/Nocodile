@@ -16,11 +16,22 @@ const UploadPage = () => {
   const { id: project_id } = useParams();
 
   const [pendingVideos, setPendingVideos] = useState<File[]>(() => {
-    return localStorage.getItem("pendingVideos") || [];
+    // for some reason this doesnt work because json.parse becomes [{}] which makes the video tag bug
+    /*
+    const stuff = localStorage.getItem("pendingVideos");
+    if (!stuff) return [];
+    return JSON.parse(stuff);
+    */
+
+    const stuff = JSON.parse(localStorage.getItem("pendingVideos") || []);
+    if (Object.keys(stuff[0]).length === 0) return [];
+    return stuff;
   });
 
   const [uploadedVideos, setUploadedVideos] = useState<uploadedVid[]>(() => {
-    return localStorage.getItem("uploadedVideos") || [];
+    const stuff = JSON.parse(localStorage.getItem("uploadedVideos") || []);
+    if (Object.keys(stuff[0]).length === 0) return [];
+    return stuff;
   });
 
   // shorten this.....
@@ -108,34 +119,36 @@ const UploadPage = () => {
   }: {
     file: File;
     rpv: (file: File) => void;
-  }) => (
-    <div
-      style={{
-        border: "1px solid #ccc",
-        padding: "10px",
-        borderRadius: "4px",
-        position: "relative",
-        width: "100%",
-      }}
-    >
-      <Popover>
-        <PopoverTrigger>
-          <a>{file.name}</a>
-        </PopoverTrigger>
-        <PopoverContent className="w-[80vh]">
-          <video controls poster="">
-            <source src={URL.createObjectURL(file)} type="video/mp4" />
-          </video>
-        </PopoverContent>
-      </Popover>
-      <button
-        onClick={() => rpv(file)}
-        style={{ padding: "5px", position: "absolute", top: 5, right: 5 }}
+  }) => {
+    return (
+      <div
+        style={{
+          border: "1px solid #ccc",
+          padding: "10px",
+          borderRadius: "4px",
+          position: "relative",
+          width: "100%",
+        }}
       >
-        <X size={20} />
-      </button>
-    </div>
-  );
+        <Popover>
+          <PopoverTrigger>
+            <a>{file.name}</a>
+          </PopoverTrigger>
+          <PopoverContent className="w-[80vh]">
+            <video controls poster="">
+              <source src={URL.createObjectURL(file)} type="video/mp4" />
+            </video>
+          </PopoverContent>
+        </Popover>
+        <button
+          onClick={() => rpv(file)}
+          style={{ padding: "5px", position: "absolute", top: 5, right: 5 }}
+        >
+          <X size={20} />
+        </button>
+      </div>
+    );
+  };
 
   const UploadedCard = (vid: uploadedVid) => {
     return (
@@ -170,7 +183,7 @@ const UploadPage = () => {
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
-          {pendingVideos.length > 0
+          {pendingVideos && pendingVideos.length > 0
             ? pendingVideos.map((video, index) => (
                 <PendingCard
                   key={index}
