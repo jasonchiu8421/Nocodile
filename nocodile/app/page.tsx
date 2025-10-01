@@ -22,11 +22,11 @@ export default function Home() {
           </div>
         </Link>
         
-        <Link href="/photos" className="flex p-6 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-lg">
+        <Link href="/deploy" className="flex p-6 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors shadow-lg">
           <div className="text-center">
-            <div className="text-2xl mb-2">🖼️</div>
-            <div className="font-semibold">Photos</div>
-            <div className="text-sm opacity-90">圖片管理</div>
+            <div className="text-2xl mb-2">🚀</div>
+            <div className="font-semibold">Deploy</div>
+            <div className="text-sm opacity-90">部署模型</div>
           </div>
         </Link>
         
