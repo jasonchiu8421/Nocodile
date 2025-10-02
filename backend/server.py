@@ -200,7 +200,7 @@ class Project():
             class_id_dict[_class] = id
             id += 1
         print("Class id defined as: "+class_id_dict)
-        self.save_class_ids()
+        self.save_class_ids(class_id_dict)
 
         for videoID in self.videos:
             video = Video(self.projectID, videoID)
@@ -226,7 +226,7 @@ class Project():
             cap = cv2.VideoCapture(video.get_video_path())
             frame_idx = 0
             while cap.isOpened():
-                ret, frame = self.cap.read()
+                ret, frame = cap.read()
                 if not ret:
                     break
                 image_path = f"{image_dir}{video.videoID}_frame_"+str(frame_idx)+".png"
