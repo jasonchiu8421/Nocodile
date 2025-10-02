@@ -418,6 +418,10 @@ class Project():
     def get_model_path(self):
         model_path = Path(self.get_project_path()) / "output" / "best.pt"
         return model_path.resolve()
+
+    def get_model_performance(self):
+        ### YOLO ###
+        return performance
     
 class Video(Project):
     def __init__(self, projectID: str, videoID=None, initialize=False):
@@ -1251,6 +1255,25 @@ async def get_training_progress(request: ProjectRequest):
         )
     
 ##################### Page 6 - Deployment #####################
+
+@app.post("/get_model_performance")
+async def get_model_performance(request: ProjectRequest):
+    try:
+        project = Project(projectID = request.projectID)
+
+        # Get model performance
+        performance = project.get_model_performance()
+
+        return {
+            "success": True,
+            "model performance": performance
+        }
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/get_model_path")
 async def get_model_path(request: ProjectRequest):
