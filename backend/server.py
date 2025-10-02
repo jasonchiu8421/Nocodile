@@ -462,16 +462,32 @@ class Video(Project):
 
     def get_video_name(self):
         ### db ###
+        connection=self._get_connection()
+        video_name="Untitled"
+        with connection.cursor() as cursor:
+            sql="SELECT video_name FROM your_table_name LIMIT1"
+            cursor.execute(sql)
+            result=cursor.fetchone()
+            if result and 'video_name' in result and result['video_name']:
+                video_name=result['video_name']
+        connection.close()
         video_name = "Untitled"
         return video_name
     
     def update_video_name(self, new_name: str):
         ### db ###
         self.video_name = new_name
-        
+        connection = self._get_connection()
+        with connection.cursor() as cursor:
+            sql = "UPDATE video SET video_name = %s WHERE id = %s"
+            cursor.execute(sql, (new_name,))
+        connection.commit()
+        updated = cursor.rowcount > 0
+        connection.close()
     def get_video_path(self):
         ### db ###
         video_path = "sample_video.mp4"
+        
         return video_path
     
     def get_frame_count(self):
@@ -653,6 +669,7 @@ class Video(Project):
     # Save video path to database
     def save_video_path(self):
         ### db ###
+        
         success = True if data saved successfully else False
         return success
     
