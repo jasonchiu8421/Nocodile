@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
+from flask import Flask, jsonify, request
+from mysql.connector import Error
 import shutil
 import uuid
 import cv2
@@ -15,6 +17,7 @@ from cv_models import KCF, SAM
 import numpy as np
 import base64
 import aiofiles
+import mysql.connector
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
