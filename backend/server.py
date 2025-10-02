@@ -186,20 +186,33 @@ class Project():
         return False
     
     def create_dataset(self):
-        folder_path = f"{self.get_project_path}datasets/label/_"
-        for video in self.videos:
+        label_dir = f"{self.get_project_path()}/datasets/labels/"
+        image_dir = f"{self.get_project_path()}/datasets/images/"
+        for videoID in self.videos:
+            video = Video(self.projectID, videoID)
+
+            # Write labels
             bbox_data = video.get_bbox_data()
             for frame_num, frame_bbox in enumerate(bbox_data):
                 if not isinstance(frame_bbox, str):
                     raise ValueError(f"Video {video.videoID} has unannotated frames. Please complete annotation before creating dataset.")
                 
                 ### db change path if necessary ###
-                filename = f"{folder_path}{video.videoID}_frame{frame_num+1}.txt"
+                filename = f"{label_dir}{video.videoID}_frame_{frame_num}.txt"
                 with open(filename, 'w') as file:
                     for bbox in frame_bbox:
                         file.write(f"{bbox}\n")
 
-        return folder_path
+            # Write images
+            cap = cv2.VideoCapture(video.get_video_path())
+            frame_idx = 0
+            while cap.isOpened():
+                ret, frame = self.cap.read()
+                if not ret:
+                    break
+                image_path = f"{image_dir}{video.videoID}_frame_"+str(frame_idx)+".png"
+                cv2.imwrite(image_path, frame)
+                frame_idx += 1
     
     def get_auto_annotation_progress(self):
         finished_frames = 0
