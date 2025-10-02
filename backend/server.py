@@ -288,6 +288,12 @@ class Project():
         ### db ###
         success = True if data saved successfully else False
         return success
+
+    def save_class_ids(self, class_id_dict):
+        # class_id_dict = {name1: 0, name2: 1, ...}
+        # save to the classes table
+        success = True if data saved successfully else False
+        return success
     
 class Video(Project):
     def __init__(self, projectID: str, videoID, bbox_data_path=None, video_path=None, initialize=False):
