@@ -184,24 +184,43 @@ class Project():
                 del self.classes[index]
                 return True
         return False
-    
+        
     def create_dataset(self):
         label_dir = f"{self.get_project_path()}/datasets/labels/"
         image_dir = f"{self.get_project_path()}/datasets/images/"
+
+        # Create the class_ID, class_name dictionary
+        self.classes = self.get_classes()
+        class_list = [key for key in self.classes]
+        class_list.sort()
+        print("classes sorted in alphabetical order")
+        class_id_dict = {}
+        id = 0
+        for _class in class_list:
+            class_id_dict[_class] = id
+            id += 1
+        print("Class id defined as: "+class_id_dict)
+        self.save_class_ids()
+
         for videoID in self.videos:
             video = Video(self.projectID, videoID)
 
             # Write labels
             bbox_data = video.get_bbox_data()
-            for frame_num, frame_bbox in enumerate(bbox_data):
-                if not isinstance(frame_bbox, str):
+            for data in bbox_data:
+                # bbox_data = [[frame_num, class_name, coordinates]]
+                frame_num = data[0]
+                class_name = data[1]
+                coordinates = data[2]
+
+                if not isinstance(coordinates, str):
                     raise ValueError(f"Video {video.videoID} has unannotated frames. Please complete annotation before creating dataset.")
                 
                 ### db change path if necessary ###
                 filename = f"{label_dir}{video.videoID}_frame_{frame_num}.txt"
-                with open(filename, 'w') as file:
-                    for bbox in frame_bbox:
-                        file.write(f"{bbox}\n")
+
+                with open(filename, 'a') as file:
+                    file.write(f"{class_id_dict[class_name]} {coordinates}\n")
 
             # Write images
             cap = cv2.VideoCapture(video.get_video_path())
@@ -213,6 +232,8 @@ class Project():
                 image_path = f"{image_dir}{video.videoID}_frame_"+str(frame_idx)+".png"
                 cv2.imwrite(image_path, frame)
                 frame_idx += 1
+
+        return True
     
     def get_auto_annotation_progress(self):
         finished_frames = 0
