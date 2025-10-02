@@ -335,16 +335,40 @@ class Project():
     
     def save_classes(self):
         ### db ###
+        insert_sql= "INSERT INTO 'class'(class_name,color) VALUES(%s,%s)"
+        for c in self.classes_to_save:
+            cur = self.conn.cursor()
+            cur.execute(insert_sql,c.get('class_name'),c.get('color'))
+            self.conn.commit()
         success = True if data saved successfully else False
         return success
     
     def save_status(self):
         ### db ###
+        with self.conn.cursor() as cur:
+            insert_sql="INSERT INTO 'annotation_status'(annotation_status) VALUES(%s)"
+            status_value=getattr(self,'status_value','default_status')
+            cur.execute(insert_sql,(status_value))
+        self.conn.commit()    
         success = True if data saved successfully else False
         return success
     
     def save_videos(self):
         ### db ###
+        insert_sql = """
+                    INSERT INTO `video` (project_id, video_path, video_name, annotation_status, last_annotated_frame, total_frames)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+        for v in getattr(self, 'videos_to_save', []):
+            cur=self.conn.cursor()
+            cur.execute(insert_sql, (
+                v.get('project_id')
+                v.get('video_path'),
+                v.get('video_name'),
+                v.get('annotation_status'),
+                v.get('last_annotated_frame', 0),
+            ))
+        self.conn.commit()
         success = True if data saved successfully else False
         return success
     
@@ -355,11 +379,25 @@ class Project():
     
     def save_project_name(self):
         ### db ###
+        connection=None
+        success=False
+        with connection.cursor() as cursor:
+            sql="INSERT INTO my_project_name('project_name')VALUES(%s)"
+            cursor.execute(sql,('project_name,'))
+        connection.commit()
+        success = True if data saved successfully else False
+        return success
         success = True if data saved successfully else False
         return success
     
     def save_project_type(self):
         ### db ###
+        connection=None
+        success=False
+        with connection.cursor() as cursor:
+            sql="INSERT INTO {self.project_type} (project_type) VALUES(%s)"
+            cursor.execute(sql,('project_type,'))
+        connection.commit()
         success = True if data saved successfully else False
         return success
 
