@@ -9,7 +9,7 @@ from passlib.context import CryptContext
 from flask import Flask, jsonify, request
 from mysql.connector import Error
 import shutil
-import uuid
+import uiud
 import cv2
 import pandas as pd
 import os
@@ -177,6 +177,23 @@ class Project():
         # return shared users' userID (excluding owner)
         ### db ###
         shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
+        conn= None
+        cursor= None
+        shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
+        conn = mysql.connector.connect(
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database
+        )
+        cursor = conn.cursor()
+        query = """
+                SELECT DISTINCT user_id
+                FROM project_shared_users
+                WHERE project_id = %s AND user_id <> %s
+            """
+        cursor.execute(query, (self.project_id, self.owner_user_id))
+        rows = cursor.fetchall()
         return shared_users
     
     def get_classes(self):
@@ -186,7 +203,9 @@ class Project():
     
     def get_status(self):
         ### db ###
-        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained" ###    
+        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained" ###
+        query = "SELECT project_status FROM project WHERE project_id = %s"
+        project_status = self._fetch_scalar(query, (self.project_id,))   
         return project_status
     
     def get_project_details(self):
@@ -204,7 +223,8 @@ class Project():
     def get_project_path(self):
         ### db change the path if needed ###
         project_path = f"./{self.projectID}/"
-
+        query = "SELECT dataset_path FROM project WHERE project_id = %s"
+        project_path = self._fetch_scalar(query, (self.project_id,))
         if not os.path.exists(project_path):
             os.makedirs(project_path)
         return project_path
