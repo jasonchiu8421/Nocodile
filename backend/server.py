@@ -158,6 +158,10 @@ class Project():
         if not os.path.exists(project_path):
             os.makedirs(project_path)
         return project_path
+        
+    def get_class_ids(self):
+        ### db ###
+        return class_ids
     
     def change_project_name(self, new_name: str):
         self.project_name = new_name
