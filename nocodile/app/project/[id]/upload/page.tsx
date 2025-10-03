@@ -14,6 +14,7 @@ import { uploadedVid, getUploadedVids } from "./getUploadedVids";
 
 const UploadPage = () => {
   const { id: project_id } = useParams();
+  if (!project_id) return <div>Invalid project ID</div>;
   useEffect(() => {}, []);
   const [pendingVideos, setPendingVideos] = useState<File[]>(() => {
     // for some reason this doesnt work because json.parse becomes [{}] which makes the video tag bug

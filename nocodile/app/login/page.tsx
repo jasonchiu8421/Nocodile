@@ -14,7 +14,7 @@ const Home = () => {
   const handleLogin = async () => {
     console.warn("submit POST req", { username, password });
     const userId = 98989898; //get from server
-    cookieStore.set("userId", userId);
+    cookieStore.set("userId", String(userId));
     router.push(`/dashboard?userId=${userId}`);
     /*await fetch("localhost:5000/login/", {
                     method: "POST",

@@ -1,9 +1,5 @@
-export type uploadedVid = {
-  url: string;
-  title: string;
-  file: File;
-};
-export function getUploadedVids(projectId: string): uploadedVid[] {
+export type uploadedVid = { url: string; title: string; file: File };
+export function getUploadedVids(projectId: number): uploadedVid[] {
   /*return fetch(`http://localhost:5000/projects/${projectId}/videos`)
     .then((response) => response.json())
     .then((data) => {
