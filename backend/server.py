@@ -264,6 +264,16 @@ class Project():
         self.classes = self.get_classes()
         self.classes[class_name] = colour
         ### db ###
+        self_classes=self.get_glasses()
+        self_classes[class_name]=colour
+        sql = """
+        INSERT INTO `class` (`class_name`, `colour`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `colour` = VALUES(`colour`)
+    """
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql,(class_name,colour))
+            db.connection.commit
         # Only add one class, do not replace all class info
         return True
     
