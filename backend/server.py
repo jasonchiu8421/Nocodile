@@ -287,9 +287,14 @@ class Project():
     def delete_class(self, class_name: str):
         self.classes.pop(class_name)
                 ### db ###
-                # Only delete one class, do not replace all class info
+        self.classes = self.get_classes()
+        self.classes.pop(class_name, None)
+        sql = "DELETE FROM `class` WHERE `class_name` = %s"
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (class_name,))
+        db_connection.commit()
         return True
-        
+
     def create_dataset(self):
         label_dir = f"{self.get_project_path()}/datasets/labels/"
         image_dir = f"{self.get_project_path()}/datasets/images/"
