@@ -390,12 +390,24 @@ class Project():
     # Save project name to database
     def save_project_name(self):
         ### db ###
+        connection=None
+        success=False
+        with connection.cursor() as cursor:
+            sql="INSERT INTO my_project_name('project_name')VALUES(%s)"
+            cursor.execute(sql,('project_name,'))
+        connection.commit()
         success = True if data saved successfully else False
         return success
     
     # Save project type to database
     def save_project_type(self):
         ### db ###
+        connection=None
+        success=False
+        with connection.cursor() as cursor:
+            sql="INSERT INTO {self.project_type} (project_type) VALUES(%s)"
+            cursor.execute(sql,('project_type,'))
+        connection.commit()
         success = True if data saved successfully else False
         return success
     
