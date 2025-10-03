@@ -452,7 +452,16 @@ class Project():
     # Save owner ID to database
     def save_owner(self):
         ### db ###
-        
+        username=None
+        password=None
+        sql = """
+        INSERT INTO `user` (`username`, `password`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `password` = VALUES(`password`)
+    """
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (username, password))
+        db_connection.commit()
         success = True if data saved successfully else False
         return success
     
