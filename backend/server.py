@@ -467,6 +467,13 @@ class Project():
     
     def save_training_progress(self, training_progress: int):
         ### db ###
+        sql = """
+        INSERT INTO `training_progress_table` (`training_progress`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `training_progress` = VALUES(`training_progress`)
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (training_progress))
+        db_connection.commit()
         success = True if data_saved_successfully else False
         return success
     
