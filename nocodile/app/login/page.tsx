@@ -1,19 +1,31 @@
 "use client";
 
 import React from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next//navigation";
+import { useRouter } from "next/navigation";
 
 const style = { backgroundColor: "white", borderTop: "1px solid #eaeaea" };
 const Home = () => {
   const router = useRouter();
-  let [isLoggedIn, setIsLoggedIn] = React.useState(false);
-  let [username, setUsername] = React.useState("");
-  let [password, setPassword] = React.useState("");
+  let [username, setUsername] = useState("");
+  let [password, setPassword] = useState("");
 
-  const handleLogin = () => {
-    console.warn("submit POST req", { email, password });
-    setIsLoggedIn(true);
+  const handleLogin = async () => {
+    console.warn("submit POST req", { username, password });
+    const userId = 98989898; //get from server
+    cookieStore.set("userId", userId);
+    router.push(`/dashboard?userId=${userId}`);
+    /*await fetch("localhost:5000/login/", {
+                    method: "POST",
+                    body: JSON.stringify({ username, password }),
+                  })
+                    .then((res) => res.json())
+                    .then(({ success, userId }) => {
+                      cookieStore.set("userId", userId);
+                      router.push(`/dashboard?userId=${userId}`);
+                    })
+                    .catch((err) => alert("Login failed: " + err.message));*/
   };
 
   return (
@@ -45,22 +57,7 @@ const Home = () => {
             <Link href="dashboard">
               <button
                 className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
-                onClick={async () => {
-                  console.warn("submit POST req", { username, password });
-                  const userId = 98989898; //get from server
-                  cookieStore.set("userId", userId);
-                  router.push(`/dashboard?userId=${userId}`);
-                  /*await fetch("localhost:5000/login/", {
-                    method: "POST",
-                    body: JSON.stringify({ username, password }),
-                  })
-                    .then((res) => res.json())
-                    .then(({ success, userId }) => {
-                      cookieStore.set("userId", userId);
-                      router.push(`/dashboard?userId=${userId}`);
-                    })
-                    .catch((err) => alert("Login failed: " + err.message));*/
-                }}
+                onClick={handleLogin}
               >
                 Login
               </button>

@@ -1,25 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Plus, Image, Video } from "lucide-react";
-import { useRouter } from "next/navigation";
 import "../../css/dashboard.css";
 import Link from "next/link";
-import { getProjectsInfo } from "./get_project_info";
+import { getProjectsInfo, ProjectInfo } from "./get_project_info";
+import NewProjectForm from "./NewProjectForm";
+import { CircleDot } from "lucide-react";
 
 const ProjectCard = ({
   id,
   name,
   videoCount,
   imageCount,
+  description,
+  status,
 }: {
   id: number;
   name: string;
   videoCount: number;
   imageCount: number;
+  description?: string;
+  status?: string;
 }) => {
-  const router = useRouter();
-
   return (
     <Link
       className="project-card fade-in project-card-clickable"
@@ -28,7 +31,6 @@ const ProjectCard = ({
       <div className="project-header">
         <h3 className="project-title">{name}</h3>
         <div className="project-id">ID: {id}</div>
-        {description && <p className="project-description">{description}</p>}
       </div>
       <div className="media-stats">
         <div className="media-item">
@@ -54,7 +56,7 @@ const ProjectCard = ({
             <CircleDot className="icon" />
           </div>
           <div className="media-info">
-            <span className="media-count">{Status ?? "—"}</span>
+            <span className="media-count">{status ?? "—"}</span>
             <span className="media-label">Status</span>
           </div>
         </div>
@@ -64,8 +66,22 @@ const ProjectCard = ({
 };
 
 export default function Dashboard() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const projects = getProjectsInfo(98989898); // Replace with actual user ID
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [isNewProjectFormOpen, setIsNewProjectFormOpen] = useState(false);
+  const [userId, setUserId] = useState<number>(-1);
+  useEffect(() => {
+    if (cookieStore.get("userId") !== undefined) {
+      cookieStore
+        .get("userId")
+        .then((value) => setUserId(value))
+        .then(() => {
+          const test = getProjectsInfo(userId);
+          setProjects(test);
+        });
+    }
+    if (userId !== -1) {
+    }
+  }, []);
   // Turn into fetch in the future
 
   return (
@@ -123,7 +139,7 @@ export default function Dashboard() {
           setProjects((prev) => [
             {
               ...newProject,
-              Status: (newProject as any).Status ?? "Annotating",
+              status: (newProject as any).status ?? "Annotating",
             },
             ...prev,
           ]);
