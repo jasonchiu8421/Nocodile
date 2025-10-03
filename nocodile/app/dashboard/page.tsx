@@ -27,6 +27,8 @@ const ProjectCard = ({
     >
       <div className="project-header">
         <h3 className="project-title">{name}</h3>
+        <div className="project-id">ID: {id}</div>
+        {description && <p className="project-description">{description}</p>}
       </div>
       <div className="media-stats">
         <div className="media-item">
@@ -45,6 +47,15 @@ const ProjectCard = ({
           <div className="media-info">
             <span className="media-count">{videoCount}</span>
             <span className="media-label">Videos</span>
+          </div>
+        </div>
+        <div className="media-item">
+          <div className="media-icon">
+            <CircleDot className="icon" />
+          </div>
+          <div className="media-info">
+            <span className="media-count">{Status ?? "—"}</span>
+            <span className="media-label">Status</span>
           </div>
         </div>
       </div>
@@ -67,7 +78,10 @@ export default function Dashboard() {
               <h1 className="header-title">My Projects</h1>
             </div>
             <div className="header-actions">
-              <button className="btn-primary">
+              <button
+                className="btn-primary"
+                onClick={() => setIsNewProjectFormOpen(true)}
+              >
                 <Plus />
                 <span>New Project</span>
               </button>
@@ -100,6 +114,21 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+
+      {/* New Project Form Modal */}
+      <NewProjectForm
+        isOpen={isNewProjectFormOpen}
+        onClose={() => setIsNewProjectFormOpen(false)}
+        onProjectCreated={(newProject) => {
+          setProjects((prev) => [
+            {
+              ...newProject,
+              Status: (newProject as any).Status ?? "Annotating",
+            },
+            ...prev,
+          ]);
+        }}
+      />
     </div>
   );
 }

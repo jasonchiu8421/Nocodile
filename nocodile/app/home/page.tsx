@@ -4,15 +4,17 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next//navigation";
 
-const style = {
-  backgroundColor: "white",
-  borderTop: "1px solid #eaeaea",
-};
+const style = { backgroundColor: "white", borderTop: "1px solid #eaeaea" };
 const Home = () => {
   const router = useRouter();
   let [isLoggedIn, setIsLoggedIn] = React.useState(false);
   let [username, setUsername] = React.useState("");
   let [password, setPassword] = React.useState("");
+
+  const handleLogin = () => {
+    console.warn("submit POST req", { email, password });
+    setIsLoggedIn(true);
+  };
 
   return (
     <div className="items-center flex flex-col min-w-screen">
