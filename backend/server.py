@@ -281,6 +281,11 @@ class Project():
         self.classes = self.get_classes()
         self.classes[new_class_name] = self.classes.pop(original_class_name)
                 ### db ###
+        self.classes[new_class_name] = colour
+        del self.classes[original_class_name]
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (new_class_name, original_class_name))
+        db_connection.commit()
                 # Only modify one class, do not replace all class info
         return True
     
