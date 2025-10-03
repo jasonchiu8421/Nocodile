@@ -627,6 +627,21 @@ class Video(Project):
         ### default is "yet to start" ###
         ### last_annotated_frame is the last frame number that has been annotated (0-indexed) ###
         ### default is None, not 0 ###
+        annotation_status='yet to start'
+        last_annotated_frame=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="SELECT annotation_status,last_annotated_frame FROM video_annotation_status LIMIT1"
+            cursor.execeute(sql)
+        result=cursor.fetchone()
+        if result:
+            if annotation_status in result and result['annotation_status']:
+                annotation_status=result['annotation_status']
+            if last_annotated_frame in result:
+                last_annotated_frame=result['last_annotated_frame']
+            if last_annotated_frame is not None and last_annotated_frame==0:
+                pass
+        connection.close()
         return annotation_status, last_annotated_frame
     
     ###### Selecting Frame for Manual Annotation ######
@@ -798,12 +813,22 @@ class Video(Project):
     # Save annotation status to database
     def save_annotation_status(self):
         ### db ### 
+          success=False
+        annotation_status='not yet started'
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET annotation_status = %s WHERE id = %s"
+            cursor.execute(sql,(annotation_status))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
         ### db ###
+        
         success = True if data saved successfully else False
         return success
     
