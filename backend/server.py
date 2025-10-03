@@ -228,7 +228,14 @@ class Project():
         return project_status
         
     def get_project_path(self):
-        ### db change the path if needed ###
+    with db_connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT model_path, dataset_path
+            FROM your_table_name
+            WHERE projectID = %s
+            LIMIT 1
+        """, (self.projectID,))
+        row = cursor.fetchone()
         project_path = f"./{self.projectID}/"
 
         if not os.path.exists(project_path):
