@@ -222,7 +222,9 @@ class Project():
     
     def get_project_status(self):
         ### db ###
-        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Training completed" ###    
+        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Training completed" ###
+        query = "SELECT project_status FROM project WHERE project_id = %s"
+        project_status = self._fetch_scalar(query, (self.project_id,))   
         return project_status
         
     def get_project_path(self):
@@ -350,6 +352,7 @@ class Project():
     
     def get_class_ids(self):
         ### db ###
+        
         return class_ids
     
     # Save project status to database
@@ -361,6 +364,20 @@ class Project():
     # Save video IDs to database
     def save_videos(self):
         ### db ###
+        insert_sql = """
+                    INSERT INTO `video` (project_id, video_path, video_name, annotation_status, last_annotated_frame, total_frames)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+        for v in getattr(self, 'videos_to_save', []):
+            cur=self.conn.cursor()
+            cur.execute(insert_sql, (
+                v.get('project_id')
+                v.get('video_path'),
+                v.get('video_name'),
+                v.get('annotation_status'),
+                v.get('last_annotated_frame', 0),
+            ))
+        self.conn.commit()
         success = True if data saved successfully else False
         return success
     
