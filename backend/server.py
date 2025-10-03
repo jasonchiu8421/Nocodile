@@ -811,7 +811,7 @@ class Video(Project):
     # Save annotation status to database
     def save_annotation_status(self):
         ### db ### 
-          success=False
+        success=False
         annotation_status='not yet started'
         connection=self._get_connection()
         with connection.cursor() as cursor:
