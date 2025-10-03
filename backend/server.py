@@ -574,16 +574,8 @@ class Video(Project):
 
     def get_video_name(self):
         ### db ###
-        success=False
-        video_name=None
-        connection=self._get_connection()
-        with connection.cursor() as cursor:
-            sql="UPDATE video SET video_name = %s WHERE id=%s"
-            cursor.execute(sql,(video_name))
-        connection.commit()
-        success=cursor.rowcount>0
-        connection.close()
-        video_name = "Untitled"
+        query="SELECT video_name FROM video where ID=%s"
+        video_name=self._fetch_scalar(query,(video_name))
         return video_name
     
     def update_video_name(self, new_name: str):
