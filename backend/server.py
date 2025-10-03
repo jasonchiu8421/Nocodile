@@ -138,7 +138,8 @@ class Project():
     
     def get_project_name(self):
         ### db ###
-        
+        query = "SELECT project_name FROM project WHERE project_id = %s"
+        project_name = self._fetch_scalar(query, (self.project_id,))
         return project_name
     
     def get_project_type(self):
