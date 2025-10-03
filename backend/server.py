@@ -616,9 +616,15 @@ class Video(Project):
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         return (width, height)
     
-    def get_bbox_data(self):
+    def get_bbox_data(self)->Dict[int,Tuple[float,float,float]]:
         # Output format: {frame_num: (x, y, w, h), ...}
         ### db ###
+        bbox_data=()
+        with self._connect as conn:
+            cursor=conn.cursor()
+            cursor.execute("SELECT frame_num,x,y,w,h FROM bounding_boxes ORDER BY frame_num")
+            for frmae_num,x,y,w,h in cursor:
+                bbox_data[frame_num]=(x,y,w,h)
         return bbox_data
     
     def get_annotation_status(self):
