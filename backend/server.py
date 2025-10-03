@@ -145,12 +145,30 @@ class Project():
     def get_project_type(self):
         ### db ###
         project_type = "YOLO object detection"
+        query = "SELECT project_type FROM project WHERE project_id = %s"
+        project_type = self._fetch_scalar(query, (self.project_id,))
         return project_type
     
     def get_videos(self):
         ### db ###
         video1 = "### db video1ID ###"
         video2 = "### db video2ID ###"
+        onn = None
+        cursor= None
+        conn=mysql.connector.connect(
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database
+        )
+        cursor=conn.cursor()
+        if self.project_id is not None:
+            query = "SELECT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
+            cursor.execute(query, (self.project_id,))
+        else:
+            query = "SELECT video_id FROM video ORDER BY video_id ASC"
+            cursor.execute(query)
+        rows = cursor.fetchall()
         return [video1, video2, ...]
     
     def get_video_count(self):
