@@ -684,6 +684,10 @@ class Video(Project):
     def update_bbox_data(self, frame_num: int):
         ### db ###
         # Only update the bbox data for the specified frame_num
+        success=False
+        df=pd.read_csv(self.user_bounded_data_path)
+        df=pd.DataFrame(columns=['frame_num','bbox','class_name'])
+        df.to_csv(self.user_bounded_data_path,index=False)
         success = True if data saved successfully else False
         return success
 
