@@ -390,6 +390,12 @@ class Project():
     # Save project status to database
     def save_project_status(self):
         ### db ###
+        sql = "SELECT `class_id` FROM `class` ORDER BY `class_id` ASC"
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            class_ids = [row<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a> for row in rows]
+        db.connection.commit()
         success = True if data saved successfully else False
         return success
     
