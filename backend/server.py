@@ -828,7 +828,15 @@ class Video(Project):
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
         ### db ###
-        
+        success=False
+        last_annotated_frame=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET annotation_status =%s WHERE id = %s"
+            cursor.execute(sql,(last_annotated_frame))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
