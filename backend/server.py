@@ -209,6 +209,15 @@ class Project():
     def get_classes(self):
         ### db ###
         classes = {"class 1": "blue", ...}
+        conn= None
+        cursor= None
+        conn = mysql.connector.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                database=self.database
+            )
+        cursor = conn.cursor()
         return classes
     
     def get_project_status(self):
