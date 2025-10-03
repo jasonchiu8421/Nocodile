@@ -14,7 +14,7 @@ import { uploadedVid, getUploadedVids } from "./getUploadedVids";
 
 const UploadPage = () => {
   const { id: project_id } = useParams();
-
+  useEffect(() => {}, []);
   const [pendingVideos, setPendingVideos] = useState<File[]>(() => {
     // for some reason this doesnt work because json.parse becomes [{}] which makes the video tag bug
     /*
@@ -23,13 +23,13 @@ const UploadPage = () => {
     return JSON.parse(stuff);
     */
 
-    const stuff = JSON.parse(localStorage.getItem("pendingVideos") || []);
+    const stuff = JSON.parse(localStorage.getItem("pendingVideos") || "");
     if (Object.keys(stuff[0]).length === 0) return [];
     return stuff;
   });
 
   const [uploadedVideos, setUploadedVideos] = useState<uploadedVid[]>(() => {
-    const stuff = JSON.parse(localStorage.getItem("uploadedVideos") || []);
+    const stuff = JSON.parse(localStorage.getItem("uploadedVideos") || "");
     if (Object.keys(stuff[0]).length === 0) return [];
     return stuff;
   });
