@@ -844,6 +844,20 @@ class Video(Project):
     def initialize_bbox_data(self):
         self.bbox_data = [[] for _ in range(self.frame_count)]
         ### db ###
+        success = False
+        connection = self._get_connection()
+        with connection.cursor() as cursor:
+            create_table_sql = """
+                CREATE TABLE IF NOT EXISTS bbox_annotations (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    frame_num INT NOT NULL,
+                    class_name VARCHAR(100) NOT NULL,
+                    bbox_data JSON NOT NULL,
+                    UNIQUE KEY uniq_frame_class (frame_num, class_name)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            cursor.execute(create_table_sql)
+        connection.commit()
         success = True if bbox data table created successfully else False
         return success
     
