@@ -178,12 +178,31 @@ class Project():
     def get_owner(self):
         # return owner userID
         ### db ###
+        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+        ownerID = self._fetch_scalar(query, (self.project_id,))
         ownerID = "### owner ID ###"
         return ownerID
     
     def get_shared_users(self):
         # return shared users' userID (excluding owner)
         ### db ###
+        conn= None
+        cursor= None
+        shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
+        conn = mysql.connector.connect(
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database
+        )
+        cursor = conn.cursor()
+        query = """
+                SELECT DISTINCT user_id
+                FROM project_shared_users
+                WHERE project_id = %s AND user_id <> %s
+            """
+        cursor.execute(query, (self.project_id, self.owner_user_id))
+        rows = cursor.fetchall()
         shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
         return shared_users
     
