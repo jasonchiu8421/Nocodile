@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
+from flask import Flask, jsonify, request
+from mysql.connector import Error
 import shutil
 import uuid
 import cv2
@@ -18,6 +20,7 @@ import aiofiles
 from ultralytics import YOLO
 import yaml
 import random
+import mysql.connector
 from shutil import copy2, rmtree
 from pathlib import Path
 
