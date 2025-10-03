@@ -967,6 +967,23 @@ async def login(request: LoginRequest):
         status = True if "### username and passowrd are correct ###" else False
         # if status is True, get userID from database, else None
         userID = "### userID from database ###" if status else None
+        if not username or password is None:
+            return {"status": False, "userID": None}
+
+        sql_select = """
+            SELECT `user_id`, `password`
+            FROM `user`
+            WHERE `username` = %s
+            LIMIT 1
+        """
+
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql_select, (username,))
+            row = cursor.fetchone()
+            if not row:
+                return {"status": False, "userID": None}
+
+            user_id, stored_hash = row
 
         return {
             "status": status,
