@@ -7,7 +7,7 @@ const steps = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Upload", href: "/upload" },
   { label: "Annotate", href: "/annotate" },
-  { label: "Train", href: "/training" },
+  { label: "Train", href: "/train" },
   { label: "Deploy", href: "/deploy" },
 ];
 
@@ -40,18 +40,23 @@ export default function DeployPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6">
         {/* Sidebar */}
         <aside className="bg-white rounded-xl border border-gray-200 p-4 h-fit">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">Workflow Steps</h2>
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">
+            Workflow Steps
+          </h2>
           <ol className="space-y-1">
             {steps.map((step) => (
               <li key={step.label}>
                 <Link
                   href={step.href}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 ${
-                    step.label === "Deploy" ? "bg-blue-50 text-blue-700 border border-blue-200" : ""
+                    step.label === "Deploy"
+                      ? "bg-blue-50 text-blue-700 border border-blue-200"
+                      : ""
                   }`}
                 >
                   <span className="w-6 text-center">
-                    {String(steps.findIndex((s) => s.label === step.label) + 1)}.
+                    {String(steps.findIndex((s) => s.label === step.label) + 1)}
+                    .
                   </span>
                   <span>{step.label}</span>
                 </Link>
@@ -67,20 +72,34 @@ export default function DeployPage() {
             <h1 className="text-lg font-semibold">My Projects</h1>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-sm font-medium text-gray-600">Model Performance</div>
-                <div className="mt-2 text-3xl font-bold text-green-600">92% mAP</div>
+                <div className="text-sm font-medium text-gray-600">
+                  Model Performance
+                </div>
+                <div className="mt-2 text-3xl font-bold text-green-600">
+                  92% mAP
+                </div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-sm font-medium text-gray-600">Precision</div>
-                <div className="mt-2 text-2xl font-bold text-green-600">94%</div>
+                <div className="text-sm font-medium text-gray-600">
+                  Precision
+                </div>
+                <div className="mt-2 text-2xl font-bold text-green-600">
+                  94%
+                </div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="text-sm font-medium text-gray-600">Recall</div>
-                <div className="mt-2 text-2xl font-bold text-orange-600">89%</div>
+                <div className="mt-2 text-2xl font-bold text-orange-600">
+                  89%
+                </div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-sm font-medium text-gray-600">F1-Score</div>
-                <div className="mt-2 text-2xl font-bold text-purple-600">91%</div>
+                <div className="text-sm font-medium text-gray-600">
+                  F1-Score
+                </div>
+                <div className="mt-2 text-2xl font-bold text-purple-600">
+                  91%
+                </div>
               </div>
             </div>
           </section>
@@ -94,10 +113,13 @@ export default function DeployPage() {
               <div className="rounded-lg border border-gray-200 p-4">
                 <h3 className="font-semibold">Option 1: Deploy to Car Model</h3>
                 <p className="mt-1 text-sm text-gray-600">
-                  Download the trained model file compatible with your vehicle's system.
+                  Download the trained model file compatible with your vehicle's
+                  system.
                 </p>
                 <div className="mt-3 flex items-center justify-between">
-                  <div className="text-xs text-gray-500">Model format: ONNX</div>
+                  <div className="text-xs text-gray-500">
+                    Model format: ONNX
+                  </div>
                   <button className="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                     Download Model File
                   </button>
@@ -111,12 +133,15 @@ export default function DeployPage() {
                   Use our hosted API for inference. Here's how to get started:
                 </p>
                 <pre className="mt-3 bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm">
-{`curl -X POST "https://api.autovision.ai/v1/predict" \
+                  {`curl -X POST "https://api.autovision.ai/v1/predict" \
   -H "Authorization: Bearer <YOUR_API_KEY>" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@/path/to/image.jpg"`}
                 </pre>
-                <Link href="#" className="mt-2 inline-flex text-blue-600 hover:underline">
+                <Link
+                  href="#"
+                  className="mt-2 inline-flex text-blue-600 hover:underline"
+                >
                   Get API Key
                 </Link>
               </div>
@@ -126,7 +151,7 @@ export default function DeployPage() {
             <div className="flex flex-col sm:flex-row gap-3 justify-between pt-2">
               <div className="flex gap-3">
                 <Link
-                  href="/training"
+                  href="/train"
                   className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
                 >
                   Back to Training
@@ -151,5 +176,3 @@ export default function DeployPage() {
     </div>
   );
 }
-
-
