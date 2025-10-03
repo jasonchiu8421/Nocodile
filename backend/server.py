@@ -479,6 +479,14 @@ class Project():
     
     def save_auto_annotation_progress(self, auto_annotation_progress: int):
         ### db ###
+        sql = """
+        INSERT INTO `auto_annotation_progress_table` (`progress_id`, `auto_annotation_progress`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `auto_annotation_progress` = VALUES(`auto_annotation_progress`)
+    """
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (progress_id, auto_annotation_progress))
+        db_connection.commit()
         success = True if data saved successfully else False
         return success
     
