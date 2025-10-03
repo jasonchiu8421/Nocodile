@@ -69,6 +69,29 @@ class User():
     
     def get_username(self):
         ### db ###
+        DB_CONFIG ={
+            'host': 'localhost',
+            'database': 'your_database',
+            'user': 'your_username',
+            'password': 'your_password'
+        }
+        connection= None
+        username=None
+        try:
+            connection = mysql.connector.connect(**DB_CONFIG)
+            if connection.is_connected():
+                cursor = connection.cursor()
+                query= "SELECT username FROM user WHERE user_id =%s"
+                cursor.execute(query, (user_id,))
+                result = cursor.fetchone()
+                if result:
+                    username=result[0]
+        except Error as e:
+            print(f"Database Error: {e}")
+        finally:
+            if connection and connection.is_connected():
+                cursor.close()
+                connection.close()  
         return username
 
 class Project():
@@ -115,6 +138,7 @@ class Project():
     
     def get_project_name(self):
         ### db ###
+        
         return project_name
     
     def get_project_type(self):
