@@ -414,6 +414,7 @@ class Project():
     # Save owner ID to database
     def save_owner(self):
         ### db ###
+        
         success = True if data saved successfully else False
         return success
     
@@ -568,20 +569,30 @@ class Video(Project):
     def get_videoID(self):
         ### db ###
         # get videoID when video is first uploaded
+        
         return videoID
 
     def get_video_name(self):
         ### db ###
+        success=False
+        video_name=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET video_name = %s WHERE id=%s"
+            cursor.execute(sql,(video_name))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         video_name = "Untitled"
         return video_name
     
     def update_video_name(self, new_name: str):
         ### db ###
+        
         self.video_name = new_name
         
     def get_video_path(self):
         ### db ###
-        
         return video_path
     
     def initialize_video_path(self, ext):
@@ -756,12 +767,31 @@ class Video(Project):
     # Save video path to database
     def save_video_path(self):
         ### db ###
+        success=False
+        video_path=None
+        record_id=None
+        connection = self._get_connection()
+        with connection.cursor() as cursor:
+            sql = "UPDATE video SET video_path = %s WHERE id = %s"
+            cursor.execute(sql, (video_path, record_id))
+        connection.commit()
+        success = cursor.rowcount > 0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
     # Save video name to database
     def save_video_name(self):
         ### db ###
+        success=False
+        video_name=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET video_name = %s WHERE id=%s"
+            cursor.execute(sql,(video_name))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
