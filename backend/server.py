@@ -380,7 +380,7 @@ class Project():
     def get_class_ids(self):
         ### db ###
         sql = "SELECT `class_id` FROM `class` ORDER BY `class_id` ASC"
-         with db_connection.cursor() as cursor:
+        with db_connection.cursor() as cursor:
             cursor.execute(sql)
             rows = cursor.fetchall()
             class_ids = [row<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a> for row in rows]
