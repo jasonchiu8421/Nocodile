@@ -209,14 +209,20 @@ class Project():
     def get_project_name(self):
         ### db ###
         query = "SELECT project_name FROM project WHERE project_id = %s"
-        project_name = self._fetch_scalar(query, (self.project_id,))
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (self.project_name,))
+                row = cur.fetchone()
         return project_name
     
     def get_project_type(self):
         ### db ###
         project_type = "YOLO object detection"
         query = "SELECT project_type FROM project WHERE project_id = %s"
-        project_type = self._fetch_scalar(query, (self.project_id,))
+        with self._get_connection() as conn:
+            with conn.cursor()as conn:
+                cur.execute(query,(self.project_type,))
+                row=cur.fetchone
         return project_type
     
     def get_videos(self):
