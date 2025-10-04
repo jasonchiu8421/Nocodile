@@ -1146,8 +1146,6 @@ async def create_project(request: CreateProjectRequest):
         temp_projectID = -1
         project = Project(projectID=temp_projectID, initialize=True)
         project.initialize(project_name, project_type, userID)
-        projectID = project.get_projectID()
-        fff
 
         return {
             "success": True,
