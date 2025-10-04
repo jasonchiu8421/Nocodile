@@ -235,8 +235,8 @@ class Project():
         return project_type
     
     def get_videos(self):
-        ?
-        onn = None
+        
+        conn = None
         cursor= None
         conn=mysql.connector.connect(
             host=self.host,
@@ -262,7 +262,9 @@ class Project():
         # return owner userID
         ### db ###
         query = "SELECT project_owner_id FROM project WHERE project_id = %s"
-        ownerID = self._fetch_scalar(query, (self.project_id,))
+        with conn.cursor()as cur:
+            cur.execute(query,(self.project_owner_id))
+        row=cur.fetchone()
         ownerID = "### owner ID ###"
         return ownerID
     
