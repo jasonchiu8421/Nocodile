@@ -160,42 +160,36 @@ class User():
         return shared_projects
 
 class Project():
-    def __init__(self, projectID: str, project_name=None, project_type=None, owner=None, initialize=False):
-        self.projectID = projectID
-        if not project_name:
-            self.project_name = self.get_project_name()
+    def __init__(self, projectID: str, initialize=False):
+        if initialize:
+            self.initilialize()
         else:
-            self.project_name = project_name
-            self.save_project_name()
+            self.projectID = projectID
+            self.project_name = self.get_project_name()
+            self.project_type = self.get_project_type()
+            self.videos = self.get_videos()
+            self.video_count = self.get_video_count()
+            self.owner = self.get_owner()
+            self.shared_users = self.get_shared_users()
+            self.project_status = self.get_project_status()
+
+    def initilialize(self, project_name, project_type, owner):
+        self.project_name = project_name
         if self.project_name.strip() == '':
             self.project_name = "Untitled"
             i = 1
             while self.project_name_exists():
                 self.project_name = f"{self.project_name} {i}"
                 i += 1
-            self.save_project_name()
-        if not project_type:
-            self.project_type = self.get_project_type()
-        else:
-            self.project_type = project_type
-            self.save_project_type()
-        self.videos = self.get_videos()
-        self.video_count = self.get_video_count()
-        if not owner:
-            self.owner = self.get_owner()
-        else:
-            self.owner = owner
-            self.save_owner()
-        self.shared_users = self.get_shared_users()
-        if initialize:
-            self.initialize_classes()
-        else:
-            self.classes = self.get_classes()
-        if initialize:
-            self.project_status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
-            self.save_project_status()
-        else:
-            self.project_status = self.get_project_status()
+        self.save_project_name()
+        self.project_type = project_type
+        self.owner = owner
+        self.save_owner()
+        self.initialize_classes()
+        self.project_status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
+        self.save_project_status()
+        # Create project directory
+        self.get_project_path()
     
     def project_name_exists(self):
         ### db ###
@@ -1140,24 +1134,12 @@ async def create_project(request: CreateProjectRequest):
         project_name = request.project_name
         project_type = request.project_type
 
-        ### db ###
-        # check if project_name already exists for this user
-        project_name_exists = False if "### project name does not exist ###" else True
-        if project_name_exists:
-            return {
-                "success": False,
-                "message": "Project name already exists."
-            }
-        
-        # create new project in database and get projectID
-        temp_projectID = -1
-
         # initialize project
-        project = Project(projectID=temp_projectID, project_name=project_name, project_type=project_type, owner=userID, initialize=True)
+        temp_projectID = -1
+        project = Project(projectID=temp_projectID, initialize=True)
+        project.initialize(project_name, project_type, userID)
         projectID = project.get_projectID()
-        
-        # create project directory
-        project_path = project.get_project_path()
+        fff
 
         return {
             "success": True,
