@@ -2,28 +2,35 @@
 
 import React from "react";
 import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 
 const style = { backgroundColor: "white", borderTop: "1px solid #eaeaea" };
 const Home = () => {
-  const router = useRouter();
   let [username, setUsername] = useState("");
   let [password, setPassword] = useState("");
+  let [errorMsg, setErrorMsg] = useState("");
+
+  if (cookieStore.get("userId") !== undefined) {
+    redirect("/dashboard");
+  }
 
   const handleLogin = async () => {
     console.warn("submit POST req", { username, password });
     const userId = 98989898; //get from server
     cookieStore.set("userId", String(userId));
-    router.push(`/dashboard?userId=${userId}`);
+    redirect(`/dashboard`);
     /*await fetch("localhost:5000/login/", {
                     method: "POST",
                     body: JSON.stringify({ username, password }),
                   })
                     .then((res) => res.json())
-                    .then(({ success, userId }) => {
-                      cookieStore.set("userId", userId);
-                      router.push(`/dashboard?userId=${userId}`);
+                    .then(({ success, userId, message }) => {
+                      if (!success) {
+                        setErrorMsg("Login failed: " + message);
+                      } else {
+                        cookieStore.set("userId", String(userId));
+                        router.push(`/dashboard?userId=${userId}`);
+                      }
                     })
                     .catch((err) => alert("Login failed: " + err.message));*/
   };
@@ -53,15 +60,14 @@ const Home = () => {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+            <div className="text-red-500">{errorMsg}</div>
 
-            <Link href="dashboard">
-              <button
-                className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
-                onClick={handleLogin}
-              >
-                Login
-              </button>
-            </Link>
+            <button
+              className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
+              onClick={handleLogin}
+            >
+              Login
+            </button>
           </form>
         </div>
       </div>
