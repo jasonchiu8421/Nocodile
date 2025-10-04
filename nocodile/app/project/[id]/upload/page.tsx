@@ -95,7 +95,7 @@ const UploadPage = () => {
     const body = { projectID: project_id, files: vids };
     console.warn("upload", body);
     /*fetch("http://localhost:5000/upload", {
-      method: "POST",
+      method: "PUT",
       body: JSON.stringify(body),
       headers: {
         "Content-Type": "application/json",
@@ -159,7 +159,10 @@ const UploadPage = () => {
         </video>
         <div className="flex flex-row gap-2">
           <Link
-            href={`/project/${project_id}/annotate/${vid.url}`}
+            href={{
+              pathname: `/project/${project_id}/annotate`,
+              query: { v: vid.url },
+            }}
             className="btn-secondary w-fit"
           >
             Annotate this video

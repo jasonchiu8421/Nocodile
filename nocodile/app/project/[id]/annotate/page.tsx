@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,12 @@ interface Class {
 }
 
 export default function AnnotatePage() {
-  const { url: url } = useParams();
+  const searchParams = useSearchParams();
+
+  const videoId = searchParams.get("v");
+  console.log("videoId is", videoId);
+
+  /*fetch(things)*/
   /*
   const removeClass = (index: number) => {
     setClasses((prevClasses) => {
@@ -370,6 +375,12 @@ export default function AnnotatePage() {
       setSelectedClass(remaining[0]?.id || "");
     }
   };
+
+  /*setCurrentImage(
+    fetch("http://localhost:5000/get_current_image", { body: videoId }).then(
+      (res) => res.json()
+    )
+  );*/
 
   const isLastImage = currentImage >= totalImages;
   const isLastVideo = currentVideo >= totalVideos;

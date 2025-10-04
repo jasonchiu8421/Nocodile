@@ -1,6 +1,6 @@
 export type uploadedVid = { url: string; title: string; file: File };
 export function getUploadedVids(projectId: number): uploadedVid[] {
-  /*return fetch(`http://localhost:5000/projects/${projectId}/videos`)
+  /*return fetch(`http://localhost:5000/get_uploaded_videos/`, {body: JSON.stringify({ projectId })})
     .then((response) => response.json())
     .then((data) => {
       const uploadedVideos: uploadedVid[] = data.map((item: any) => ({
