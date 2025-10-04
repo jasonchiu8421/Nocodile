@@ -857,7 +857,12 @@ class Video(Project):
             x_normalized, y_normalized, w_normalized, h_normalized = x_center/width, y_center/height, w/width, h/height
             self.bbox_data[frame_num].append(f"{coordinates[0]} {x_normalized} {y_normalized} {w_normalized} {h_normalized}")
             self.last_annotated_frame = frame_num
+
+            # Save data
+            self.save_last_annotated_frame()
+            self.save_bbox_data(frame_num)
             return True
+        
         except Exception as e:
             logger.error(f"Error in annotate: {str(e)}")
             return f"Error in annotate: {str(e)}"
@@ -1032,15 +1037,10 @@ class Video(Project):
         success = True if bbox data table created successfully else False
         return success
     
-    def update_bbox_data(self, frame_num: int):
+    def save_bbox_data(self, frame_num: int):
         ### db ###
-        # Only update the bbox data for the specified frame_num
-        success=False
-        df=pd.read_csv(self.user_bounded_data_path)
-        df=pd.DataFrame(columns=['frame_num','bbox','class_name'])
-        df.to_csv(self.user_bounded_data_path,index=False)
-        success = True if data saved successfully else False
-        return success
+        # Only save for frame_num
+        return True
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -1098,6 +1098,37 @@ async def login(request: LoginRequest):
             content={"error": str(e)}
         )
 
+# @app.post("/login")
+# async def login(request: LoginRequest):
+#     try:
+#         username = request.username
+#         password = request.password
+
+#         # Check if password is correct
+#         userlogin = UserLogin(username, password)
+#         success, message = userlogin.login()
+
+#         if success:
+#             # if status is True, get userID from database, else None
+#             userID = UserLogin.get_userID()
+
+#             return {
+#                 "success": success,
+#                 "userID": userID
+#             }
+        
+#         else:
+#             return{
+#                 "success": success,
+#                 "message": message
+#             }
+    
+#     except Exception as e:
+#         return JSONResponse(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             content={"error": str(e)}
+#         )
+
 @app.post("/login")
 async def login(request: LoginRequest):
     try:
@@ -1114,12 +1145,14 @@ async def login(request: LoginRequest):
 
             return {
                 "success": success,
-                "userID": userID
+                "userID": userID,
+                "message": "Login successful"
             }
         
         else:
             return{
                 "success": success,
+                "userID": None,
                 "message": message
             }
     
