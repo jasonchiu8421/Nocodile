@@ -199,7 +199,8 @@ class Project():
         return projectID
     
     def project_name_exists(self):
-        ### db ###
+        if self.project_name == self.get_project_name():
+            return True
         return False
     
     def get_project_name(self):
