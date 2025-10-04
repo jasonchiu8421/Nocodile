@@ -565,6 +565,7 @@ class Project():
         INSERT INTO `training_progress_table` (`training_progress`)
         VALUES (%s, %s)
         ON DUPLICATE KEY UPDATE `training_progress` = VALUES(`training_progress`)
+        """
         with db_connection.cursor() as cursor:
             cursor.execute(sql, (training_progress))
         db_connection.commit()
