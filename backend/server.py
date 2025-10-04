@@ -62,6 +62,59 @@ class AnnotationRequest(BaseModel):
     frame_num: int
     coordinates: list
 
+class UserLogin():
+    def __init__(self, username, password, status=True):
+        self.username = username
+        self.password = password  # In production, hash this!
+        self.status = status      # True if active
+        self.login_attempts = 0
+
+    def get_password_hash(self):
+        ### db ###
+        # Find hashed password from database
+        return password_hash
+    
+    def get_userID(self):
+        ### db ###
+        # Find userID given self.username
+        return userID
+
+    def login(self, max_attempts=3):
+        if not self.status:
+            return False, "Account locked."
+        
+        # Hash the password input
+        salt, pwd_hash = self._hash_password(self.password)
+        stored_hash = self.get_password_hash()
+        is_correct = self._verify_password(stored_hash, salt, self.password)
+
+        if is_correct:
+            self.login_attempts = 0
+            return True, "Login successful."
+
+        else:
+            self.login_attempts += 1
+            if self.login_attempts >= max_attempts:
+                self.status = False
+                return "Login attempts exceeded. Account locked."
+            return False, "Invalid password."
+        
+    @staticmethod
+    def _hash_password(self, password, salt=None):
+        # Generate a random salt if not provided
+        if salt is None:
+            salt = os.urandom(16)
+        # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
+        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
+        return salt, pwd_hash
+
+    @staticmethod
+    def _verify_password(self, stored_hash, stored_salt, provided_password):
+        # Hash the provided password using the stored salt
+        _, pwd_hash = self._hash_password(provided_password, stored_salt)
+        # Use hmac.compare_digest to avoid timing attacks
+        return hmac.compare_digest(pwd_hash, stored_hash)
+
 class User():
     def __init__(self, userID: str):
         self.userID = userID
@@ -93,6 +146,18 @@ class User():
                 cursor.close()
                 connection.close()  
         return username
+
+    def get_owned_projects(self):
+        ### db ###
+        owned_projects = # list of project IDs
+        self.owned_projects = owned_projects
+        return owned_projects
+    
+    def get_shared_projects(self):
+        ### db ###
+        shared_projects = # list of project IDs
+        self.shared_projects = shared_projects
+        return shared_projects
 
 class Project():
     def __init__(self, projectID: str, project_name=None, project_type=None, owner=None, initialize=False):
@@ -931,15 +996,6 @@ class Video(Project):
         success = True if data saved successfully else False
         return success
 
-class ModelTraining(Project):
-    def __init__(self, projectID: str):
-        super().__init__(projectID)
-    
-    def train(self):
-        ### YOLO ###
-        
-        return True, model_save_path
-
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     body = request._body.decode() if hasattr(request, "_body") else ""
@@ -995,6 +1051,37 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    try:
+        username = request.username
+        password = request.password
+
+        # Check if password is correct
+        userlogin = UserLogin(username, password)
+        success, message = userlogin.login()
+
+        if success:
+            # if status is True, get userID from database, else None
+            userID = UserLogin.get_userID()
+
+            return {
+                "success": success,
+                "userID": userID
+            }
+        
+        else:
+            return{
+                "success": success,
+                "message": message
+            }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
     
 ################ Page 2 - Project Management #####################
 
@@ -1002,13 +1089,14 @@ async def login(request: LoginRequest):
 # Input: userID
 # Output: owner project IDs, shared project IDs
 @app.post("/get_projects_info")
-async def get_project_info(request: UserRequest):
+async def get_users_projects(request: UserRequest):
     try: 
         userID = request.userID
 
         ### db ###
-        owned_projects = ["project1 ID", ...]
-        shared_projects = ["project2 ID", ...]
+        user = User(userID)
+        owned_projects = user.get_owned_projects()
+        shared_projects = user.get_shared_projects()
         
         return {
             "owned projects": owned_projects,
