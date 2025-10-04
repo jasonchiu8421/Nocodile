@@ -700,9 +700,9 @@ class Video(Project):
     
     def get_video_info(self):
         info = {
-            "video name": self.get_video_name,
-            "video": self.get_video,
-            "video path": self.get_video_path
+            "name": self.get_video_name,
+            "file": self.get_video,
+            "path": self.get_video_path
         }
         return info
     
@@ -1255,7 +1255,7 @@ async def upload(projectID: str, file: UploadFile = File(...)):
         )
 
 # Get all uploaded videos for a project
-# Output: videos_info = [{"video name": video_name, "video": video, "video path": video_path}, ... ]
+# Output: videos_info = [{"name": video_name, "file": video, "path": video_path}, ... ]
 @app.post("get_uploaded_videos")
 def get_uploaded_videos(request: ProjectRequest):
     try:
