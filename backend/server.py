@@ -190,6 +190,13 @@ class Project():
         self.save_project_status()
         # Create project directory
         self.get_project_path()
+
+        # Get project ID
+        self.get_projectID()
+
+    def get_projectID(self):
+        ### db ###
+        return projectID
     
     def project_name_exists(self):
         ### db ###
