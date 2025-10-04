@@ -679,12 +679,24 @@ class Video(Project):
         if not initialize:
             self.video_path = self.get_video_path()
         if initialize:
-            self.annotation_status, self.last_annotated_frame = "yet to start", None
-            self.save_annotation_status()
-            self.save_last_annotated_frame()
-            self.initialize_bbox_data()
-            self.videoID = self.get_videoID()
+            self.initialize()
         self.cap = cv2.VideoCapture(self.video_path)
+
+    def initialize(self, ext):
+        self.annotation_status, self.last_annotated_frame = "yet to start", None
+        self.save_annotation_status()
+        self.save_last_annotated_frame()
+        self.initialize_bbox_data()
+        self.videoID = self.get_videoID()
+        self.initialize_video_path(ext)
+        self.save_video_path()
+        self.video_count += 1
+        self.videoID = self.get_videoID()
+        self.videos.append(self.videoID)
+        self.save_video_count()
+        self.save_videos()
+
+        return self.videoID, self.video_path
     
     def get_video_info(self):
         info = {
@@ -790,6 +802,8 @@ class Video(Project):
     ###### Selecting Frame for Manual Annotation ######
     # For testing purpose, annotate every second
     def get_next_frame_to_annotate(self):
+        self.frame_count = self.get_frame_count()
+        self.fps = self.get_fps()!
         if self.annotation_status == "yet to start":
             return self.get_frame(0)
         elif self.annotation_status == "completed":
@@ -1218,27 +1232,12 @@ async def upload(projectID: str, file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Invalid file type.")
         
         video = Video(projectID=projectID, initialize=True)
+        name, ext = os.path.splitext(file.filename)
+        videoID, file_location = video.initialize(ext)
 
         # Change project status to "Awaiting Labelling"
         video.project_status = "Awaiting Labelling"
         video.save_project_status()
-        
-        # Video path
-        name, ext = os.path.splitext(file.filename)
-        file_location = video.initialize_video_path(ext)
-
-        data_saved = False
-        while data_saved:
-            data_saved = video.save_video_path()
-        
-        video.video_count += 1
-        videoID = video.get_videoID()
-        video.videos.append(videoID)
-
-        data_saved = False
-        while data_saved:
-            data_saved = video.save_video_count()
-            data_saved = data_saved and video.save_videos()
         
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -1256,6 +1255,7 @@ async def upload(projectID: str, file: UploadFile = File(...)):
         )
 
 # Get all uploaded videos for a project
+# Output: videos_info = [{"video name": video_name, "video": video, "video path": video_path}, ... ]
 @app.post("get_uploaded_videos")
 def get_uploaded_videos(request: ProjectRequest):
     try:
