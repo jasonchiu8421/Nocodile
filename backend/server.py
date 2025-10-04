@@ -188,11 +188,14 @@ class Project():
         self.initialize_classes()
         self.project_status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
         self.save_project_status()
+        
         # Create project directory
         self.get_project_path()
 
         # Get project ID
-        self.get_projectID()
+        projectID = self.get_projectID()
+
+        return projectID
 
     def get_projectID(self):
         ### db ###
