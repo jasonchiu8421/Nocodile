@@ -301,6 +301,9 @@ class Project():
                 database=self.database
             )
         cursor = conn.cursor()
+        query="SELECT class_name, color FROM project_classes WHERE class_id=%s"
+        cursor.execute(query,(self.class_name,self.color))
+        rows=cursor.fetchall()
         return classes
     
     def get_project_status(self):
