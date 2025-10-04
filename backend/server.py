@@ -317,7 +317,8 @@ class Project():
         ### db ###
         ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Training completed" ###
         query = "SELECT project_status FROM project WHERE project_id = %s"
-        project_status = self._fetch_scalar(query, (self.project_id,))   
+        cursor.execute(query,(self.project_status))
+        row=cursor.fetchone()
         return project_status
         
     def get_project_path(self):
