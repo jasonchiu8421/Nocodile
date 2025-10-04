@@ -77,6 +77,7 @@ class UserLogin():
         cursor.execute(query, (username,))
         row = cursor.fetchone()
         cursor.close()
+        
     def verify_password(self, username: str, password: str) -> bool:
         hash_from_db = self.get_password_hash(username)
         if hash_from_db is None:
