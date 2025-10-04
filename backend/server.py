@@ -1111,7 +1111,8 @@ async def get_users_projects(request: UserRequest):
 
 # Get project details when loading dashboard
 # Input: Project ID
-# Output: 
+# Output: {"project name": project_name, "project type": project_type, "video count": video_count, "status": project_status}
+
 @app.post("/get_project_details")
 async def get_project_details(request: ProjectRequest):
     try:
@@ -1120,10 +1121,7 @@ async def get_project_details(request: ProjectRequest):
             "project name": project.get_project_name(),
             "project type": project.get_project_type(),
             "video count": project.get_video_count(),
-            "videos": project.get_videos(),
-            "owner": self.owner,
-            "shared users": self.shared_users,
-            "status": self.status
+            "status": project.get_project_status()
         }
 
         return project_details
@@ -1152,10 +1150,11 @@ async def create_project(request: CreateProjectRequest):
             }
         
         # create new project in database and get projectID
-        projectID = "### new projectID ###"
+        temp_projectID = -1
 
         # initialize project
-        project = Project(projectID=projectID, project_name=project_name, project_type=project_type, owner=userID, initialize=True)
+        project = Project(projectID=temp_projectID, project_name=project_name, project_type=project_type, owner=userID, initialize=True)
+        projectID = project.get_projectID()
         
         # create project directory
         project_path = project.get_project_path()
