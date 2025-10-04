@@ -220,9 +220,7 @@ class Project():
         return project_type
     
     def get_videos(self):
-        ### db ###
-        video1 = "### db video1ID ###"
-        video2 = "### db video2ID ###"
+        ?
         onn = None
         cursor= None
         conn=mysql.connector.connect(
