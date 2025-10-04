@@ -208,7 +208,7 @@ class Project():
     
     def get_project_name(self):
         ### db ###
-        query = "SELECT project_name FROM project WHERE project_id = %s"
+        query = "SELECT project_name FROM project WHERE project_name = %s"
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(query, (self.project_name,))
