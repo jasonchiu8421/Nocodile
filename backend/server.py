@@ -78,7 +78,7 @@ class UserLogin():
         row = cursor.fetchone()
         cursor.close()
     def verify_password(self, username: str, password: str) -> bool:
-       hash_from_db = self.get_password_hash(username)
+        hash_from_db = self.get_password_hash(username)
         if hash_from_db is None:
             return False
         return pwd_context.verify(password, hash_from_db)
@@ -88,7 +88,7 @@ class UserLogin():
         # Find userID given self.username
         cursor=self.db.cursor()
         query="SELECT user_id FROM user WHERE username=%s"
-        cursor.execute(query,(use_id,)
+        cursor.execute(query,(use_id,))
         row=cursor.fetchone()
         cursor.close()
         return userID
