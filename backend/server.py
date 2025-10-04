@@ -72,7 +72,16 @@ class UserLogin():
     def get_password_hash(self):
         ### db ###
         # Find hashed password from database
-        return password_hash
+        cursor=self.db.cursor()
+        query = "SELECT password FROM users WHERE username = %s"
+        cursor.execute(query, (username,))
+        row = cursor.fetchone()
+        cursor.close()]
+    def verify_password(self, username: str, password: str) -> bool:
+       hash_from_db = self.get_password_hash(username)
+        if hash_from_db is None:
+            return False
+        return pwd_context.verify(password, hash_from_db)
     
     def get_userID(self):
         ### db ###
