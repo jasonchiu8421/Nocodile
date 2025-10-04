@@ -1170,7 +1170,7 @@ async def create_project(request: CreateProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
+        
 # Change project name
 @app.post("/change_project_name")
 async def change_project_name(request: ProjectRequest, new_name: str):
@@ -1178,19 +1178,19 @@ async def change_project_name(request: ProjectRequest, new_name: str):
         project = Project(projectID = request.projectID)
         
         # check if new_name already exists for this user
-        project_name_exists = False if "### project name does not exist ###" else True
-        if project_name_exists:
-            return {
-                "success": False,
-                "message": "Project name already exists."
-            }
+        # project_name_exists = False if "### project name does not exist ###" else True
+        # if project_name_exists:
+        #     return {
+        #         "success": False,
+        #         "message": "Project name already exists."
+        #     }
         
         success = project.change_project_name(new_name)
         
         if success:
             return {
                 "success": True,
-                "message": "Project name changed successfully."
+                "message": f"Project name changed to {new_name}"
             }
         else:
             return {
