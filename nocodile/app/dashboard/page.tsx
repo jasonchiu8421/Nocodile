@@ -70,17 +70,16 @@ export default function Dashboard() {
   const [isNewProjectFormOpen, setIsNewProjectFormOpen] = useState(false);
   const [userId, setUserId] = useState<number>(-1);
   useEffect(() => {
-    if (cookieStore.get("userId") !== undefined) {
-      cookieStore
-        .get("userId")
-        .then((value) => setUserId(value))
-        .then(() => {
-          const test = getProjectsInfo(userId);
-          setProjects(test);
-        });
-    }
-    if (userId !== -1) {
-    }
+    cookieStore
+      .get("userId")
+      .then((res) => {
+        console.log("dashboard: userid is", res.value);
+        setUserId(res.value);
+      })
+      .then(() => {
+        const test = getProjectsInfo(userId);
+        setProjects(test);
+      });
   }, []);
   // Turn into fetch in the future
 

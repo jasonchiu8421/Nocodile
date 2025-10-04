@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useState } from "react";
 import { redirect } from "next/navigation";
 
@@ -10,9 +10,14 @@ const Home = () => {
   let [password, setPassword] = useState("");
   let [errorMsg, setErrorMsg] = useState("");
 
-  if (cookieStore.get("userId") !== undefined) {
-    redirect("/dashboard");
-  }
+  //COOKIES ARE ASYNC
+  useEffect(() => {
+    cookieStore.get("userId").then((val) => {
+      if (val !== undefined && val !== null) {
+        redirect("/dashboard");
+      }
+    });
+  }, []);
 
   const handleLogin = async () => {
     console.warn("submit POST req", { username, password });
@@ -29,7 +34,7 @@ const Home = () => {
                         setErrorMsg("Login failed: " + message);
                       } else {
                         cookieStore.set("userId", String(userId));
-                        router.push(`/dashboard?userId=${userId}`);
+                        redirect(`/dashboard`);
                       }
                     })
                     .catch((err) => alert("Login failed: " + err.message));*/
