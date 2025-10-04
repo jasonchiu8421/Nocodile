@@ -1261,10 +1261,7 @@ def get_uploaded_videos(request: ProjectRequest):
     try:
         project = Project(projectID = request.projectID)
         videos_info = project.get_uploaded_videos()
-        return {
-            "success": True,
-            "videos": videos_info
-        }
+        return videos_info
     
     except Exception as e:
         return JSONResponse(
