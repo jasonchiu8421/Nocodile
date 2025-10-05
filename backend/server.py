@@ -522,11 +522,6 @@ class Project():
         success = True if data saved successfully else False
         return success
     
-    # Save video count to database
-    def inc_video_count(self):
-        ### db ###
-        success = True if data saved successfully else False
-        return success
     
     # Save project name to database
     def save_project_name(self):
