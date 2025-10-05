@@ -709,8 +709,8 @@ class Video(Project):
         self.videoID = self.get_videoID()
         self.videos.append(self.videoID)
         self.save_videos()
-        # video count +1
-        self.inc_video_count()
+        self.get_video_count()
+        self.video_count += 1
 
         return self.videoID, self.video_path
     
