@@ -163,6 +163,11 @@ class User():
 
     def get_owned_projects(self):
         ### db ###
+        cursor=self.conn.cursor()
+        query="SELECT project_owner_id FROM project WHERE project_id =%s"
+        cursor.execute(query,(owned_projects)
+        rows=fetchall()
+        cursor.close()
         owned_projects = # list of project IDs
         self.owned_projects = owned_projects
         return owned_projects
