@@ -523,7 +523,7 @@ class Project():
         return success
     
     # Save video count to database
-    def save_video_count(self):
+    def inc_video_count(self):
         ### db ###
         success = True if data saved successfully else False
         return success
@@ -711,11 +711,11 @@ class Video(Project):
         self.videoID = self.get_videoID()
         self.initialize_video_path(ext)
         self.save_video_path()
-        self.video_count += 1
         self.videoID = self.get_videoID()
         self.videos.append(self.videoID)
-        self.save_video_count()
         self.save_videos()
+        # video count +1
+        self.inc_video_count()
 
         return self.videoID, self.video_path
     
