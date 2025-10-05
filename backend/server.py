@@ -1,6 +1,6 @@
 import logging
-from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTask
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware # Corrected import
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from typing import Dict, List
@@ -22,6 +22,7 @@ import random
 import mysql.connector
 from shutil import copy2, rmtree
 from pathlib import Path
+import hashlib # Missing import
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -121,13 +122,21 @@ class UserLogin():
         # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
         pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
         return salt, pwd_hash
-
+    
     @staticmethod
     def _verify_password(self, stored_hash, stored_salt, provided_password):
         # Hash the provided password using the stored salt
         _, pwd_hash = self._hash_password(provided_password, stored_salt)
         # Use hmac.compare_digest to avoid timing attacks
         return hmac.compare_digest(pwd_hash, stored_hash)
+
+# This should be outside the class or in a config file
+DB_CONFIG = {
+    'host': 'localhost',
+    'database': 'your_database',
+    'user': 'your_username',
+    'password': 'your_password'
+}
 
 class User():
     def __init__(self, userID: str):
@@ -136,23 +145,16 @@ class User():
     
     def get_username(self):
         ### db ###
-        DB_CONFIG ={
-            'host': 'localhost',
-            'database': 'your_database',
-            'user': 'your_username',
-            'password': 'your_password'
-        }
-        connection= None
-        username=None
+        username = None
         try:
-            connection = mysql.connector.connect(**DB_CONFIG)
+            connection = mysql.connector.connect(**DB_CONFIG) # Use global config
             if connection.is_connected():
                 cursor = connection.cursor()
-                query= "SELECT username FROM user WHERE user_id =%s"
-                cursor.execute(query, (user_id,))
+                query = "SELECT username FROM user WHERE user_id = %s"
+                cursor.execute(query, (self.userID,)) # Use self.userID
                 result = cursor.fetchone()
                 if result:
-                    username=result[0]
+                    username = result[0]
         except Error as e:
             print(f"Database Error: {e}")
         finally:
@@ -163,11 +165,11 @@ class User():
 
     def get_owned_projects(self):
         ### db ###
-        cursor=self.conn.cursor()
-        query="SELECT project_owner_id FROM project WHERE project_id =%s"
-        cursor.execute(query,(owned_projects)
-        rows=fetchall()
-        cursor.close()
+        # cursor=self.conn.cursor()
+        # query="SELECT project_owner_id FROM project WHERE project_id =%s"
+        # cursor.execute(query,(owned_projects))
+        # rows=fetchall()
+        # cursor.close()
         owned_projects = # list of project IDs
         self.owned_projects = owned_projects
         return owned_projects
@@ -232,20 +234,20 @@ class Project():
     def get_project_name(self):
         ### db ###
         query = "SELECT project_name FROM project WHERE project_name = %s"
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, (self.project_name,))
-                row = cur.fetchone()
+        # with self._get_connection() as conn:
+        #     with conn.cursor() as cur:
+        #         cur.execute(query, (self.project_name,))
+        #         row = cur.fetchone()
         return project_name
     
     def get_project_type(self):
         ### db ###
         project_type = "YOLO object detection"
         query = "SELECT project_type FROM project WHERE project_id = %s"
-        with self._get_connection() as conn:
-            with conn.cursor()as cur:
-                cur.execute(query,(self.project_type,))
-                row=cur.fetchone
+        # with self._get_connection() as conn:
+        #     with conn.cursor()as cur:
+        #         cur.execute(query,(self.project_type,))
+        #         row=cur.fetchone()
         return project_type
     
     def get_videos(self):
@@ -275,11 +277,11 @@ class Project():
     def get_owner(self):
         # return owner userID
         ### db ###
-        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
-        with self._get_connection() as conn:
-            with conn.cursor()as cur:
-                cur.execute(query,(self.project_owner_id))
-                row=cur.fetchone()
+        # query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+        # with self._get_connection() as conn:
+        #     with conn.cursor()as cur:
+        #         cur.execute(query,(self.project_owner_id))
+        #         row=cur.fetchone()
         ownerID = "### owner ID ###"
         return ownerID
     
@@ -326,9 +328,9 @@ class Project():
     def get_project_status(self):
         ### db ###
         ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Training completed" ###
-        query = "SELECT project_status FROM project WHERE project_id = %s"
-        cursor.execute(query,(self.project_status))
-        row=cursor.fetchone()
+        # query = "SELECT project_status FROM project WHERE project_id = %s"
+        # cursor.execute(query,(self.project_status))
+        # row=cursor.fetchone()
         return project_status
         
     def get_project_path(self):
@@ -369,7 +371,7 @@ class Project():
         self.classes = self.get_classes()
         self.classes[class_name] = colour
         ### db ###
-        self_classes=self.get_glasses()
+        self_classes=self.get_classes()
         self_classes[class_name]=colour
         sql = """
         INSERT INTO `class` (`class_name`, `colour`)
@@ -377,7 +379,7 @@ class Project():
         ON DUPLICATE KEY UPDATE `colour` = VALUES(`colour`)
     """
         with self.db_connection() as db_connection:
-
+    
             with db_connection.cursor() as cursor:
                 cursor.execute(sql,(class_name,colour))
                 db_connection.commit()
@@ -487,11 +489,11 @@ class Project():
     def get_class_ids(self):
         ### db ###
         sql = "SELECT `class_id` FROM `class` ORDER BY `class_id` ASC"
-        with db_connection.cursor() as cursor:
-            cursor.execute(sql)
-            rows = cursor.fetchall()
-            class_ids = [row<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a> for row in rows]
-        db_connection.commit()
+        # with db_connection.cursor() as cursor:
+        #     cursor.execute(sql)
+        #     rows = cursor.fetchall()
+        #     class_ids = [row[0] for row in rows]
+        # db_connection.commit()
         return class_ids
     
     # Save project status to database
@@ -657,7 +659,7 @@ class Project():
         # Train epoch-by-epoch to track progress
         for epoch in range(total_epochs):
             model.train(
-                data=str(yaml_path),
+                data=str(yaml_path.resolve()), # Use resolved path
                 epochs=1,
                 imgsz=640,
                 batch=4,
@@ -665,7 +667,7 @@ class Project():
                 save=True,
                 exist_ok=True
             )
-            progress = int((epoch + 1) / total_epochs * 100) # YOUR TRAINING VARIABLE
+            progress = int(((epoch + 1) / total_epochs) * 100) # YOUR TRAINING VARIABLE
             print(f"Training progress: {progress:.2f}%")
             self.save_training_progress(progress)
 
@@ -690,6 +692,30 @@ class Project():
 
     def get_model_performance(self):
         ### YOLO ###
+        model_path = self.get_model_path()
+        if not model_path.exists():
+            raise FileNotFoundError("Model file 'best.pt' not found. Please train the model first.")
+
+        dataset_dir = Path(self.get_project_path()) / "dataset"
+        yaml_path = dataset_dir / "data.yaml"
+        if not yaml_path.exists():
+            raise FileNotFoundError("Dataset configuration file 'data.yaml' not found.")
+
+        # Load the trained model
+        model = YOLO(model_path)
+
+        # Run validation on the validation set
+        metrics = model.val(data=str(yaml_path.resolve()))
+
+        # Extract the key performance metrics from the results object.
+        # For object detection, we use mAP as the primary "accuracy" metric.
+        # The other metrics are averaged over all classes.
+        performance = {
+            "accuracy": float(metrics.box.map50),  # Using mAP50 as the main accuracy indicator
+            "precision": float(metrics.box.p.mean()), # Mean Precision over all classes
+            "recall": float(metrics.box.r.mean()),    # Mean Recall over all classes
+            "f1-score": float(metrics.box.f1.mean())  # Mean F1-score over all classes
+        }
         return performance
     
 class Video(Project):
@@ -751,9 +777,9 @@ class Video(Project):
 
     def get_video_name(self):
         ### db ###
-        query="SELECT video_name FROM video where ID=%s"
-        cursor.execute(query,(self.video_name))
-        row=cursor.fetchone()
+        # query="SELECT video_name FROM video where ID=%s"
+        # cursor.execute(query,(self.video_name))
+        # row=cursor.fetchone()
         return video_name
     
     def update_video_name(self, new_name: str):
@@ -805,19 +831,19 @@ class Video(Project):
         ### default is None, not 0 ###
         annotation_status='yet to start'
         last_annotated_frame=None
-        connection=self._get_connection()
-        with connection.cursor() as cursor:
-            sql="SELECT annotation_status,last_annotated_frame FROM video_annotation_status LIMIT1"
-            cursor.execeute(sql)
-        result=cursor.fetchone()
-        if result:
-            if annotation_status in result and result['annotation_status']:
-                annotation_status=result['annotation_status']
-            if last_annotated_frame in result:
-                last_annotated_frame=result['last_annotated_frame']
-            if last_annotated_frame is not None and last_annotated_frame==0:
-                pass
-        connection.close()
+        # connection=self._get_connection()
+        # with connection.cursor() as cursor:
+        #     sql="SELECT annotation_status,last_annotated_frame FROM video_annotation_status LIMIT1"
+        #     cursor.execute(sql)
+        # result=cursor.fetchone()
+        # if result:
+        #     if 'annotation_status' in result and result['annotation_status']:
+        #         annotation_status=result['annotation_status']
+        #     if 'last_annotated_frame' in result:
+        #         last_annotated_frame=result['last_annotated_frame']
+        #     if last_annotated_frame is not None and last_annotated_frame==0:
+        #         pass
+        # connection.close()
         return annotation_status, last_annotated_frame
     
     ###### Selecting Frame for Manual Annotation ######
@@ -825,7 +851,7 @@ class Video(Project):
     def get_next_frame_to_annotate(self):
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()!
-        if self.annotation_status == "yet to start":
+        if self.get_annotation_status()[0] == "yet to start": # Use method to get current status
             return self.get_frame(0)
         elif self.annotation_status == "completed":
             return None
@@ -1542,7 +1568,7 @@ async def next_video(request: ProjectRequest, current_videoID: str):
     
 ##################### Page 5 - Training #####################
 @app.post("/create_dataset")
-async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks):
+async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks): # Corrected type hint
     background_tasks.add_task(_create_dataset, request.projectID)
     return {
         "success": True,
@@ -1601,7 +1627,7 @@ async def get_auto_annotation_progress(request: ProjectRequest):
         )
     
 @app.post("/train")
-async def train(request: ProjectRequest, background_tasks: BackgroundTasks):
+async def train(request: ProjectRequest, background_tasks: BackgroundTasks): # Corrected type hint
     try:
         project = Project(projectID = request.projectID)
 
