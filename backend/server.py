@@ -243,7 +243,7 @@ class Project():
         project_type = "YOLO object detection"
         query = "SELECT project_type FROM project WHERE project_id = %s"
         with self._get_connection() as conn:
-            with conn.cursor()as conn:
+            with conn.cursor()as cur:
                 cur.execute(query,(self.project_type,))
                 row=cur.fetchone
         return project_type
