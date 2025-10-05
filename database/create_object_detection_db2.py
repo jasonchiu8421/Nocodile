@@ -126,7 +126,7 @@ class ObjectDetectionDB:
                 FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
-            cursor.execute(create_class_table)
+            cursor.execute(create_bbox_table)
             print("class表创建成功")
             
 #====================================创建project_shared_users表（多对多关系）====================================
