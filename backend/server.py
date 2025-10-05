@@ -376,9 +376,11 @@ class Project():
         VALUES (%s, %s)
         ON DUPLICATE KEY UPDATE `colour` = VALUES(`colour`)
     """
-        with db_connection.cursor() as cursor:
-            cursor.execute(sql,(class_name,colour))
-            db.connection.commit
+        with self.db_connection() as db_connection:
+
+            with db_connection.cursor() as cursor:
+                cursor.execute(sql,(class_name,colour))
+                db_connection.commit()
         # Only add one class, do not replace all class info
         return True
     
