@@ -1533,39 +1533,34 @@ async def next_video(request: ProjectRequest, current_videoID: str):
         )
     
 ##################### Page 5 - Training #####################
-    
 @app.post("/create_dataset")
 async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(_create_dataset, request.projectID)
+    return {
+        "success": True,
+        "message": "Training started in the background."
+    }
+
+async def _create_dataset(request: ProjectRequest):
     try:
         project = Project(projectID = request.projectID)
 
         for videoID in project.videos:
             # check if video is ready for auto-annotation
+            video = Video(projectID = request.projectID, videoID = videoID)
             if video.annotation_status == "completed":
                 continue
-            elif video.annotation_status != "manual annotation completed":
+            elif video.annotation_status == "manual annotation in progress" or video.annotation_status == "not yet started":
                 return {
                     "success": False,
                     "message": f"Video {videoID} is not ready for auto-annotation. Please complete manual annotation first.",
-                    "dataset_path": None
                 }
-            
-            # perform auto-annotation
-            success = False
-            while not success:
-                video = Video(projectID = request.projectID, videoID = videoID)
+            else:
+                # perform auto-annotation
                 success = video.auto_annotate()
 
-        # check if all videos are annotated
-        for videoID in project.videos:
-            video = Video(projectID = request.projectID, videoID = videoID)
-            if video.annotation_status != "completed":
-                return {
-                    "success": False,
-                    "message": f"Video {videoID} is not fully annotated. Please complete annotation before creating dataset."
-                }
         
-        background_tasks.add_task(project.create_dataset)
+        success = success and project.create_dataset()
         
         return {
             "success": True,
