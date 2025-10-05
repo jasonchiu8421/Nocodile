@@ -276,9 +276,10 @@ class Project():
         # return owner userID
         ### db ###
         query = "SELECT project_owner_id FROM project WHERE project_id = %s"
-        with conn.cursor()as cur:
-            cur.execute(query,(self.project_owner_id))
-        row=cur.fetchone()
+        with self._get_connection() as conn:
+            with conn.cursor()as cur:
+                cur.execute(query,(self.project_owner_id))
+                row=cur.fetchone()
         ownerID = "### owner ID ###"
         return ownerID
     
