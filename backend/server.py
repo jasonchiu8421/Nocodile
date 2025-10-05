@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
+from flask import Flask, jsonify, request
+from mysql.connector import Error
 import shutil
 import uuid
 import cv2
@@ -18,6 +20,7 @@ import aiofiles
 from ultralytics import YOLO
 import yaml
 import random
+import mysql.connector
 from shutil import copy2, rmtree
 from pathlib import Path
 
@@ -59,6 +62,68 @@ class AnnotationRequest(BaseModel):
     frame_num: int
     coordinates: list
 
+class UserLogin():
+    def __init__(self, username, password, status=True):
+        self.username = username
+        self.password = password  # In production, hash this!
+        self.status = status      # True if active
+        self.login_attempts = 0
+
+    def get_password_hash(self):
+        ### db ###
+        # Find hashed password from database
+        cursor=self.db.cursor()
+        query = "SELECT password FROM users WHERE username = %s"
+        cursor.execute(query, (username,))
+        row = cursor.fetchone()
+        cursor.close()]
+    def verify_password(self, username: str, password: str) -> bool:
+       hash_from_db = self.get_password_hash(username)
+        if hash_from_db is None:
+            return False
+        return pwd_context.verify(password, hash_from_db)
+    
+    def get_userID(self):
+        ### db ###
+        # Find userID given self.username
+        return userID
+
+    def login(self, max_attempts=3):
+        if not self.status:
+            return False, "Account locked."
+        
+        # Hash the password input
+        salt, pwd_hash = self._hash_password(self.password)
+        stored_hash = self.get_password_hash()
+        is_correct = self._verify_password(stored_hash, salt, self.password)
+
+        if is_correct:
+            self.login_attempts = 0
+            return True, "Login successful."
+
+        else:
+            self.login_attempts += 1
+            if self.login_attempts >= max_attempts:
+                self.status = False
+                return "Login attempts exceeded. Account locked."
+            return False, "Invalid password."
+        
+    @staticmethod
+    def _hash_password(self, password, salt=None):
+        # Generate a random salt if not provided
+        if salt is None:
+            salt = os.urandom(16)
+        # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
+        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
+        return salt, pwd_hash
+
+    @staticmethod
+    def _verify_password(self, stored_hash, stored_salt, provided_password):
+        # Hash the provided password using the stored salt
+        _, pwd_hash = self._hash_password(provided_password, stored_salt)
+        # Use hmac.compare_digest to avoid timing attacks
+        return hmac.compare_digest(pwd_hash, stored_hash)
+
 class User():
     def __init__(self, userID: str):
         self.userID = userID
@@ -66,63 +131,127 @@ class User():
     
     def get_username(self):
         ### db ###
+        DB_CONFIG ={
+            'host': 'localhost',
+            'database': 'your_database',
+            'user': 'your_username',
+            'password': 'your_password'
+        }
+        connection= None
+        username=None
+        try:
+            connection = mysql.connector.connect(**DB_CONFIG)
+            if connection.is_connected():
+                cursor = connection.cursor()
+                query= "SELECT username FROM user WHERE user_id =%s"
+                cursor.execute(query, (user_id,))
+                result = cursor.fetchone()
+                if result:
+                    username=result[0]
+        except Error as e:
+            print(f"Database Error: {e}")
+        finally:
+            if connection and connection.is_connected():
+                cursor.close()
+                connection.close()  
         return username
 
+    def get_owned_projects(self):
+        ### db ###
+        owned_projects = # list of project IDs
+        self.owned_projects = owned_projects
+        return owned_projects
+    
+    def get_shared_projects(self):
+        ### db ###
+        shared_projects = # list of project IDs
+        self.shared_projects = shared_projects
+        return shared_projects
+
 class Project():
-    def __init__(self, projectID: str, project_name=None, project_type=None, owner=None, initialize=False):
-        self.projectID = projectID
-        if not project_name:
-            self.project_name = self.get_project_name()
+    def __init__(self, projectID: str, initialize=False):
+        if initialize:
+            self.initilialize()
         else:
-            self.project_name = project_name
-            self.save_project_name()
+            self.projectID = projectID
+            self.project_name = self.get_project_name()
+            self.project_type = self.get_project_type()
+            self.videos = self.get_videos()
+            self.video_count = self.get_video_count()
+            self.owner = self.get_owner()
+            self.shared_users = self.get_shared_users()
+            self.project_status = self.get_project_status()
+
+    def initilialize(self, project_name, project_type, owner):
+        self.project_name = project_name
         if self.project_name.strip() == '':
             self.project_name = "Untitled"
             i = 1
             while self.project_name_exists():
                 self.project_name = f"{self.project_name} {i}"
                 i += 1
-            self.save_project_name()
-        if not project_type:
-            self.project_type = self.get_project_type()
-        else:
-            self.project_type = project_type
-            self.save_project_type()
-        self.videos = self.get_videos()
-        self.video_count = self.get_video_count()
-        if not owner:
-            self.owner = self.get_owner()
-        else:
-            self.owner = owner
-            self.save_owner()
-        self.shared_users = self.get_shared_users()
-        if initialize:
-            self.initialize_classes()
-        else:
-            self.classes = self.get_classes()
-        if initialize:
-            self.project_status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
-            self.save_project_status()
-        else:
-            self.project_status = self.get_project_status()
+        self.save_project_name()
+        self.project_type = project_type
+        self.owner = owner
+        self.save_owner()
+        self.initialize_classes()
+        self.project_status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
+        self.save_project_status()
+        
+        # Create project directory
+        self.get_project_path()
+
+        # Get project ID
+        projectID = self.get_projectID()
+
+        return projectID
+
+    def get_projectID(self):
+        ### db ###
+        return projectID
     
     def project_name_exists(self):
-        ### db ###
+        if self.project_name == self.get_project_name():
+            return True
         return False
     
     def get_project_name(self):
         ### db ###
+        query = "SELECT project_name FROM project WHERE project_name = %s"
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (self.project_name,))
+                row = cur.fetchone()
         return project_name
     
     def get_project_type(self):
         ### db ###
         project_type = "YOLO object detection"
+        query = "SELECT project_type FROM project WHERE project_id = %s"
+        with self._get_connection() as conn:
+            with conn.cursor()as conn:
+                cur.execute(query,(self.project_type,))
+                row=cur.fetchone
         return project_type
     
     def get_videos(self):
-        ### db ###
-        video1 = "### db video1ID ###"
-        video2 = "### db video2ID ###"
+        ?
+        onn = None
+        cursor= None
+        conn=mysql.connector.connect(
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database
+        )
+        cursor=conn.cursor()
+        if self.project_id is not None:
+            query = "SELECT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
+            cursor.execute(query, (self.project_id,))
+        else:
+            query = "SELECT video_id FROM video ORDER BY video_id ASC"
+            cursor.execute(query)
+        rows = cursor.fetchall()
         return [video1, video2, ...]
     
     def get_video_count(self):
@@ -132,27 +261,64 @@ class Project():
     def get_owner(self):
         # return owner userID
         ### db ###
+        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+        ownerID = self._fetch_scalar(query, (self.project_id,))
         ownerID = "### owner ID ###"
         return ownerID
     
     def get_shared_users(self):
         # return shared users' userID (excluding owner)
         ### db ###
+        conn= None
+        cursor= None
+        shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
+        conn = mysql.connector.connect(
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            database=self.database
+        )
+        cursor = conn.cursor()
+        query = """
+                SELECT DISTINCT user_id
+                FROM project_shared_users
+                WHERE project_id = %s AND user_id <> %s
+            """
+        cursor.execute(query, (self.project_id, self.owner_user_id))
+        rows = cursor.fetchall()
         shared_users = ["### user1 ID ###", "### user2 ID ###", ...]
         return shared_users
     
     def get_classes(self):
         ### db ###
         classes = {"class 1": "blue", ...}
+        conn= None
+        cursor= None
+        conn = mysql.connector.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                database=self.database
+            )
+        cursor = conn.cursor()
         return classes
     
     def get_project_status(self):
         ### db ###
-        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Training completed" ###    
+        ### Project_status can be "Not started", "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Training completed" ###
+        query = "SELECT project_status FROM project WHERE project_id = %s"
+        project_status = self._fetch_scalar(query, (self.project_id,))   
         return project_status
         
     def get_project_path(self):
-        ### db change the path if needed ###
+    with db_connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT model_path, dataset_path
+            FROM your_table_name
+            WHERE projectID = %s
+            LIMIT 1
+        """, (self.projectID,))
+        row = cursor.fetchone()
         project_path = f"./{self.projectID}/"
 
         if not os.path.exists(project_path):
@@ -181,6 +347,16 @@ class Project():
         self.classes = self.get_classes()
         self.classes[class_name] = colour
         ### db ###
+        self_classes=self.get_glasses()
+        self_classes[class_name]=colour
+        sql = """
+        INSERT INTO `class` (`class_name`, `colour`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `colour` = VALUES(`colour`)
+    """
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql,(class_name,colour))
+            db.connection.commit
         # Only add one class, do not replace all class info
         return True
     
@@ -188,15 +364,25 @@ class Project():
         self.classes = self.get_classes()
         self.classes[new_class_name] = self.classes.pop(original_class_name)
                 ### db ###
+        self.classes[new_class_name] = colour
+        del self.classes[original_class_name]
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (new_class_name, original_class_name))
+        db_connection.commit()
                 # Only modify one class, do not replace all class info
         return True
     
     def delete_class(self, class_name: str):
         self.classes.pop(class_name)
                 ### db ###
-                # Only delete one class, do not replace all class info
+        self.classes = self.get_classes()
+        self.classes.pop(class_name, None)
+        sql = "DELETE FROM `class` WHERE `class_name` = %s"
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (class_name,))
+        db_connection.commit()
         return True
-        
+
     def create_dataset(self):
         label_dir = f"{self.get_project_path()}/datasets/labels/"
         image_dir = f"{self.get_project_path()}/datasets/images/"
@@ -276,17 +462,43 @@ class Project():
     
     def get_class_ids(self):
         ### db ###
+        sql = "SELECT `class_id` FROM `class` ORDER BY `class_id` ASC"
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            class_ids = [row<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a> for row in rows]
+        db_connection.commit()
         return class_ids
     
     # Save project status to database
     def save_project_status(self):
         ### db ###
+        sql = "SELECT `class_id` FROM `class` ORDER BY `class_id` ASC"
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            class_ids = [row<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a> for row in rows]
+        db.connection.commit()
         success = True if data saved successfully else False
         return success
     
     # Save video IDs to database
     def save_videos(self):
         ### db ###
+        insert_sql = """
+                    INSERT INTO `video` (project_id, video_path, video_name, annotation_status, last_annotated_frame, total_frames)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+        for v in getattr(self, 'videos_to_save', []):
+            cur=self.conn.cursor()
+            cur.execute(insert_sql, (
+                v.get('project_id')
+                v.get('video_path'),
+                v.get('video_name'),
+                v.get('annotation_status'),
+                v.get('last_annotated_frame', 0),
+            ))
+        self.conn.commit()
         success = True if data saved successfully else False
         return success
     
@@ -299,28 +511,65 @@ class Project():
     # Save project name to database
     def save_project_name(self):
         ### db ###
+        connection=None
+        success=False
+        with connection.cursor() as cursor:
+            sql="INSERT INTO my_project_name('project_name')VALUES(%s)"
+            cursor.execute(sql,('project_name,'))
+        connection.commit()
         success = True if data saved successfully else False
         return success
     
     # Save project type to database
     def save_project_type(self):
         ### db ###
+        connection=None
+        success=False
+        with connection.cursor() as cursor:
+            sql="INSERT INTO {self.project_type} (project_type) VALUES(%s)"
+            cursor.execute(sql,('project_type,'))
+        connection.commit()
         success = True if data saved successfully else False
         return success
     
     # Save owner ID to database
     def save_owner(self):
         ### db ###
+        username=None
+        password=None
+        sql = """
+        INSERT INTO `user` (`username`, `password`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `password` = VALUES(`password`)
+    """
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (username, password))
+        db_connection.commit()
         success = True if data saved successfully else False
         return success
     
     def save_training_progress(self, training_progress: int):
         ### db ###
+        sql = """
+        INSERT INTO `training_progress_table` (`training_progress`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `training_progress` = VALUES(`training_progress`)
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (training_progress))
+        db_connection.commit()
         success = True if data_saved_successfully else False
         return success
     
     def save_auto_annotation_progress(self, auto_annotation_progress: int):
         ### db ###
+        sql = """
+        INSERT INTO `auto_annotation_progress_table` (`progress_id`, `auto_annotation_progress`)
+        VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE `auto_annotation_progress` = VALUES(`auto_annotation_progress`)
+    """
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql, (progress_id, auto_annotation_progress))
+        db_connection.commit()
         success = True if data saved successfully else False
         return success
     
@@ -465,20 +714,22 @@ class Video(Project):
     def get_videoID(self):
         ### db ###
         # get videoID when video is first uploaded
+        
         return videoID
 
     def get_video_name(self):
         ### db ###
-        video_name = "Untitled"
+        query="SELECT video_name FROM video where ID=%s"
+        video_name=self._fetch_scalar(query,(video_name))
         return video_name
     
     def update_video_name(self, new_name: str):
         ### db ###
+        
         self.video_name = new_name
         
     def get_video_path(self):
         ### db ###
-        
         return video_path
     
     def initialize_video_path(self, ext):
@@ -502,9 +753,15 @@ class Video(Project):
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         return (width, height)
     
-    def get_bbox_data(self):
+    def get_bbox_data(self)->Dict[int,Tuple[float,float,float]]:
         # Output format: {frame_num: (x, y, w, h), ...}
         ### db ###
+        bbox_data=()
+        with self._connect as conn:
+            cursor=conn.cursor()
+            cursor.execute("SELECT frame_num,x,y,w,h FROM bounding_boxes ORDER BY frame_num")
+            for frmae_num,x,y,w,h in cursor:
+                bbox_data[frame_num]=(x,y,w,h)
         return bbox_data
     
     def get_annotation_status(self):
@@ -513,6 +770,21 @@ class Video(Project):
         ### default is "yet to start" ###
         ### last_annotated_frame is the last frame number that has been annotated (0-indexed) ###
         ### default is None, not 0 ###
+        annotation_status='yet to start'
+        last_annotated_frame=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="SELECT annotation_status,last_annotated_frame FROM video_annotation_status LIMIT1"
+            cursor.execeute(sql)
+        result=cursor.fetchone()
+        if result:
+            if annotation_status in result and result['annotation_status']:
+                annotation_status=result['annotation_status']
+            if last_annotated_frame in result:
+                last_annotated_frame=result['last_annotated_frame']
+            if last_annotated_frame is not None and last_annotated_frame==0:
+                pass
+        connection.close()
         return annotation_status, last_annotated_frame
     
     ###### Selecting Frame for Manual Annotation ######
@@ -653,24 +925,61 @@ class Video(Project):
     # Save video path to database
     def save_video_path(self):
         ### db ###
+        success=False
+        video_path=None
+        record_id=None
+        connection = self._get_connection()
+        with connection.cursor() as cursor:
+            sql = "UPDATE video SET video_path = %s WHERE id = %s"
+            cursor.execute(sql, (video_path, record_id))
+        connection.commit()
+        success = cursor.rowcount > 0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
     # Save video name to database
     def save_video_name(self):
         ### db ###
+        success=False
+        video_name=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET video_name = %s WHERE id=%s"
+            cursor.execute(sql,(video_name))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
     # Save annotation status to database
     def save_annotation_status(self):
         ### db ### 
+        success=False
+        annotation_status='not yet started'
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET annotation_status = %s WHERE id = %s"
+            cursor.execute(sql,(annotation_status))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
         ### db ###
+        success=False
+        last_annotated_frame=None
+        connection=self._get_connection()
+        with connection.cursor() as cursor:
+            sql="UPDATE video SET annotation_status =%s WHERE id = %s"
+            cursor.execute(sql,(last_annotated_frame))
+        connection.commit()
+        success=cursor.rowcount>0
+        connection.close()
         success = True if data saved successfully else False
         return success
     
@@ -678,23 +987,32 @@ class Video(Project):
     def initialize_bbox_data(self):
         self.bbox_data = [[] for _ in range(self.frame_count)]
         ### db ###
+        success = False
+        connection = self._get_connection()
+        with connection.cursor() as cursor:
+            create_table_sql = """
+                CREATE TABLE IF NOT EXISTS bbox_annotations (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    frame_num INT NOT NULL,
+                    class_name VARCHAR(100) NOT NULL,
+                    bbox_data JSON NOT NULL,
+                    UNIQUE KEY uniq_frame_class (frame_num, class_name)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            cursor.execute(create_table_sql)
+        connection.commit()
         success = True if bbox data table created successfully else False
         return success
     
     def update_bbox_data(self, frame_num: int):
         ### db ###
         # Only update the bbox data for the specified frame_num
+        success=False
+        df=pd.read_csv(self.user_bounded_data_path)
+        df=pd.DataFrame(columns=['frame_num','bbox','class_name'])
+        df.to_csv(self.user_bounded_data_path,index=False)
         success = True if data saved successfully else False
         return success
-
-class ModelTraining(Project):
-    def __init__(self, projectID: str):
-        super().__init__(projectID)
-    
-    def train(self):
-        ### YOLO ###
-        
-        return True, model_save_path
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -723,11 +1041,59 @@ async def login(request: LoginRequest):
         status = True if "### username and passowrd are correct ###" else False
         # if status is True, get userID from database, else None
         userID = "### userID from database ###" if status else None
+        if not username or password is None:
+            return {"status": False, "userID": None}
+
+        sql_select = """
+            SELECT `user_id`, `password`
+            FROM `user`
+            WHERE `username` = %s
+            LIMIT 1
+        """
+
+        with db_connection.cursor() as cursor:
+            cursor.execute(sql_select, (username,))
+            row = cursor.fetchone()
+            if not row:
+                return {"status": False, "userID": None}
+
+            user_id, stored_hash = row
 
         return {
             "status": status,
             "userID": userID
         }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    try:
+        username = request.username
+        password = request.password
+
+        # Check if password is correct
+        userlogin = UserLogin(username, password)
+        success, message = userlogin.login()
+
+        if success:
+            # if status is True, get userID from database, else None
+            userID = UserLogin.get_userID()
+
+            return {
+                "success": success,
+                "userID": userID
+            }
+        
+        else:
+            return{
+                "success": success,
+                "message": message
+            }
     
     except Exception as e:
         return JSONResponse(
@@ -741,13 +1107,14 @@ async def login(request: LoginRequest):
 # Input: userID
 # Output: owner project IDs, shared project IDs
 @app.post("/get_projects_info")
-async def get_project_info(request: UserRequest):
+async def get_users_projects(request: UserRequest):
     try: 
         userID = request.userID
 
         ### db ###
-        owned_projects = ["project1 ID", ...]
-        shared_projects = ["project2 ID", ...]
+        user = User(userID)
+        owned_projects = user.get_owned_projects()
+        shared_projects = user.get_shared_projects()
         
         return {
             "owned projects": owned_projects,
@@ -762,7 +1129,8 @@ async def get_project_info(request: UserRequest):
 
 # Get project details when loading dashboard
 # Input: Project ID
-# Output: 
+# Output: {"project name": project_name, "project type": project_type, "video count": video_count, "status": project_status}
+
 @app.post("/get_project_details")
 async def get_project_details(request: ProjectRequest):
     try:
@@ -771,10 +1139,7 @@ async def get_project_details(request: ProjectRequest):
             "project name": project.get_project_name(),
             "project type": project.get_project_type(),
             "video count": project.get_video_count(),
-            "videos": project.get_videos(),
-            "owner": self.owner,
-            "shared users": self.shared_users,
-            "status": self.status
+            "status": project.get_project_status()
         }
 
         return project_details
@@ -793,23 +1158,10 @@ async def create_project(request: CreateProjectRequest):
         project_name = request.project_name
         project_type = request.project_type
 
-        ### db ###
-        # check if project_name already exists for this user
-        project_name_exists = False if "### project name does not exist ###" else True
-        if project_name_exists:
-            return {
-                "success": False,
-                "message": "Project name already exists."
-            }
-        
-        # create new project in database and get projectID
-        projectID = "### new projectID ###"
-
         # initialize project
-        project = Project(projectID=projectID, project_name=project_name, project_type=project_type, owner=userID, initialize=True)
-        
-        # create project directory
-        project_path = project.get_project_path()
+        temp_projectID = -1
+        project = Project(projectID=temp_projectID, initialize=True)
+        project.initialize(project_name, project_type, userID)
 
         return {
             "success": True,
@@ -822,7 +1174,7 @@ async def create_project(request: CreateProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
+        
 # Change project name
 @app.post("/change_project_name")
 async def change_project_name(request: ProjectRequest, new_name: str):
@@ -830,19 +1182,19 @@ async def change_project_name(request: ProjectRequest, new_name: str):
         project = Project(projectID = request.projectID)
         
         # check if new_name already exists for this user
-        project_name_exists = False if "### project name does not exist ###" else True
-        if project_name_exists:
-            return {
-                "success": False,
-                "message": "Project name already exists."
-            }
+        # project_name_exists = False if "### project name does not exist ###" else True
+        # if project_name_exists:
+        #     return {
+        #         "success": False,
+        #         "message": "Project name already exists."
+        #     }
         
         success = project.change_project_name(new_name)
         
         if success:
             return {
                 "success": True,
-                "message": "Project name changed successfully."
+                "message": f"Project name changed to {new_name}"
             }
         else:
             return {

@@ -45,15 +45,19 @@ const Home = () => {
                 className="bg-blue-500 text-white rounded-lg px-4 py-2 hover:bg-blue-600"
                 onClick={async () => {
                   console.warn("submit POST req", { username, password });
-                  await fetch("localhost:5000/login/", {
+                  const userId = 98989898; //get from server
+                  cookieStore.set("userId", userId);
+                  router.push(`/dashboard?userId=${userId}`);
+                  /*await fetch("localhost:5000/login/", {
                     method: "POST",
                     body: JSON.stringify({ username, password }),
                   })
                     .then((res) => res.json())
                     .then(({ success, userId }) => {
+                      cookieStore.set("userId", userId);
                       router.push(`/dashboard?userId=${userId}`);
                     })
-                    .catch((err) => alert("Login failed: " + err.message));
+                    .catch((err) => alert("Login failed: " + err.message));*/
                 }}
               >
                 Login

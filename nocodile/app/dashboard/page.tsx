@@ -5,7 +5,7 @@ import { Plus, Image, Video } from "lucide-react";
 import { useRouter } from "next/navigation";
 import "../../css/dashboard.css";
 import Link from "next/link";
-import { getProjectsInfo } from "../home/get_project_info";
+import { getProjectsInfo } from "./get_project_info";
 
 const ProjectCard = ({
   id,
