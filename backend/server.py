@@ -745,7 +745,7 @@ class Video(Project):
     def get_video_name(self):
         ### db ###
         query="SELECT video_name FROM video where ID=%s"
-        cursor.execute(query,(self.video_name)
+        cursor.execute(query,(self.video_name))
         row=cursor.fetchone()
         return video_name
     
