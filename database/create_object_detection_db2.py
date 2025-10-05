@@ -114,6 +114,20 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_video_table)
             print("video表创建成功")
+
+#====================================创建bbox表====================================
+            create_bbox_table = """
+            CREATE TABLE IF NOT EXISTS bbox (
+                video_id INT NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                class_name VARCHAR(50) NOT NULL,
+                coordinates VARCHAR(50) NOT NULL,
+                frame_num INT NOT NULL,
+                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_class_table)
+            print("class表创建成功")
             
 #====================================创建project_shared_users表（多对多关系）====================================
             create_shared_users_table = """
