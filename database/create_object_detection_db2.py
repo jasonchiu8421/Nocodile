@@ -74,7 +74,8 @@ class ObjectDetectionDB:
                 class_id INT AUTO_INCREMENT PRIMARY KEY,
                 class_name VARCHAR(100) NOT NULL,
                 color VARCHAR(10) NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_class_table)
@@ -107,7 +108,7 @@ class ObjectDetectionDB:
                 video_path VARCHAR(500) NOT NULL,
                 video_name VARCHAR(200) NOT NULL,
                 annotation_status VARCHAR(200) NOT NULL,
-                last_annotated_frame INT DEFAULT 0,
+                last_annotated_frame INT DEFAULT -1,
                 total_frames INT DEFAULT 0,
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -127,7 +128,7 @@ class ObjectDetectionDB:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_bbox_table)
-            print("class表创建成功")
+            print("bbox表创建成功")
             
 #====================================创建project_shared_users表（多对多关系）====================================
             create_shared_users_table = """
