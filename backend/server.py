@@ -1535,7 +1535,7 @@ async def next_video(request: ProjectRequest, current_videoID: str):
 ##################### Page 5 - Training #####################
     
 @app.post("/create_dataset")
-async def create_dataset(request: ProjectRequest):
+async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks):
     try:
         project = Project(projectID = request.projectID)
 
@@ -1556,26 +1556,20 @@ async def create_dataset(request: ProjectRequest):
                 video = Video(projectID = request.projectID, videoID = videoID)
                 success = video.auto_annotate()
 
-                data_saved = False
-                while data_saved:
-                    data_saved = video.save_data()
-
         # check if all videos are annotated
         for videoID in project.videos:
             video = Video(projectID = request.projectID, videoID = videoID)
             if video.annotation_status != "completed":
                 return {
                     "success": False,
-                    "message": f"Video {videoID} is not fully annotated. Please complete annotation before creating dataset.",
-                    "dataset_path": None
+                    "message": f"Video {videoID} is not fully annotated. Please complete annotation before creating dataset."
                 }
         
-        dataset_path = project.create_dataset()
+        background_tasks.add_task(project.create_dataset)
         
         return {
             "success": True,
-            "message": "Dataset created successfully.",
-            "dataset_path": dataset_path
+            "message": "Dataset is creating in the background."
         }
 
     except Exception as e:
@@ -1604,22 +1598,16 @@ async def get_auto_annotation_progress(request: ProjectRequest):
         )
     
 @app.post("/train")
-async def train(request: ProjectRequest):
+async def train(request: ProjectRequest, background_tasks: BackgroundTasks):
     try:
         project = Project(projectID = request.projectID)
 
         # Train the model
-        success = project.train()
+        background_tasks.add_task(project.train, request.projectID)
         
-        if success:
-            return {
-                "success": True,
-                "message": "Model trained successfully."
-            }
-        else:
-            return {
-                    "success": False,
-                    "message": "Failed to train model."
+        return {
+            "success": True,
+            "message": "Model is training in the background."
             }
 
     except Exception as e:
