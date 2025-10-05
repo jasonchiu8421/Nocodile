@@ -1,12 +1,11 @@
 import logging
-from fastapi import FastAPI, Request, status, Depends, HTTPException, Cookie, UploadFile, File
+from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
-from flask import Flask, jsonify, request
 from mysql.connector import Error
 import shutil
 import uuid
