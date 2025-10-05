@@ -176,7 +176,7 @@ class User():
 class Project():
     def __init__(self, projectID: str, initialize=False):
         if initialize:
-            self.initilialize()
+            self.initialize()
         else:
             self.projectID = projectID
             self.project_name = self.get_project_name()
@@ -187,7 +187,7 @@ class Project():
             self.shared_users = self.get_shared_users()
             self.project_status = self.get_project_status()
 
-    def initilialize(self, project_name, project_type, owner):
+    def initialize(self, project_name, project_type, owner):
         self.project_name = project_name
         if self.project_name.strip() == '':
             self.project_name = "Untitled"
