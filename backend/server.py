@@ -332,18 +332,19 @@ class Project():
         return project_status
         
     def get_project_path(self):
-    with db_connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT model_path, dataset_path
-            FROM your_table_name
-            WHERE projectID = %s
-            LIMIT 1
-        """, (self.projectID,))
-        row = cursor.fetchone()
-        project_path = f"./{self.projectID}/"
+       with self.db_connection as db_connection:
+            with db_connection.cursor() as cursor:
+                cursor.execute("""
+                SELECT model_path, dataset_path
+                FROM your_table_name
+                WHERE projectID = %s
+                LIMIT 1
+            """, (self.projectID,))
+                row = cursor.fetchone()
+                project_path = f"./{self.projectID}/"
 
-        if not os.path.exists(project_path):
-            os.makedirs(project_path)
+            if not os.path.exists(project_path):
+                os.makedirs(project_path)
         return project_path
     
     def change_project_name(self, new_name: str):
