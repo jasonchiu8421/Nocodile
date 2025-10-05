@@ -948,9 +948,9 @@ class Video(Project):
                     self.save_last_annotated_frame()
 
         cap.release()
-        df.to_csv(self.user_bounded_data_path, index=False)
 
         self.annotation_status = "completed"
+        self.save_annotation_status()
 
         return True
 
