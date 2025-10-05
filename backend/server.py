@@ -266,7 +266,7 @@ class Project():
             query = "SELECT video_id FROM video ORDER BY video_id ASC"
             cursor.execute(query)
         rows = cursor.fetchall()
-        return [video1, video2, ...]
+        return [1, 2, ...]
     
     def get_video_count(self):
         video_count = len(self.videos)
