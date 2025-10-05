@@ -213,6 +213,10 @@ class Project():
 
     def get_projectID(self):
         ### db ###
+        cursor=self.conn.cursor()
+        query="SELECT project_id FROM project_shared_users WHERE id=%s"
+        cursor.execute(query,(self.(project_id))
+        row=cursor.fetchone()
         return projectID
     
     def project_name_exists(self):
