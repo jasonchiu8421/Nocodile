@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./nocodile
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+  backend:
+    image :transformer123/bk:latest
+    ports:
+      - "8000:8000"
+    depends_on:
+      - database
+
+  database:
+    image: transformer123/database:latest
+    ports:
+      - "8888:8888"
+    volumes:
+      - database_data:/app
+
+volumes:
+  database_data:
