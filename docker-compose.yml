@@ -18,7 +18,9 @@ services:
       - database
 
   database:
-    image: transformer123/database:latest
+    build:
+      context: ./database
+      dockerfile: Dockerfile
     ports:
       - "8888:8888"
     volumes:
