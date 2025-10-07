@@ -43,6 +43,27 @@ const TrainingPage = () => {
           Are all your videos all annotated? <span>Yes/No</span>
         </p>
         <button
+          onClick={() => {
+            fetch("/create_dataset", {
+              method: "POST",
+              body: JSON.stringify({
+                project_id: projectId,
+              }),
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                console.log("Dataset creation response:", data);
+                if (data.success) {
+                  alert("Dataset created successfully!");
+                } else {
+                  alert(data.message);
+                }
+              });
+          }}
+        >
+          Create a dataset here
+        </button>
+        <button
           className="btn-primary"
           onClick={handleStart}
           /*{isTraining ? disabled: null}*/
