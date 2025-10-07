@@ -89,15 +89,20 @@ class UserLogin():
         self.status = status      # True if active
         self.login_attempts = 0
 
-    def get_password_hash(self):
+    def get_password(self):
         ### db ###
         # Find hashed password from database
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT password FROM user WHERE username = %s"
         cursor.execute(query, (self.username,))
-        hashed_password = cursor.fetchone()['password']
+        password = cursor.fetchone()['password']
         cursor.close()
-        return hashed_password
+
+        decoded_bytes = base64.b64decode(password)
+        decoded_str = decoded_bytes.decode('utf-8')
+        salt, pwd_hash = decoded_str.split(':', 1)
+        
+        return pwd_hash, salt
     
     def get_userID(self):
         ### db ###
@@ -114,8 +119,8 @@ class UserLogin():
             return False, "Account locked."
         
         # Hash the password input
-        salt, pwd_hash = self._hash_password(self.password)
-        stored_hash = self.get_password_hash()
+        stored_hash, salt = self.get_password()
+        salt, pwd_hash = self._hash_password(self.password, salt)
         is_correct = self._verify_password(stored_hash, salt, pwd_hash)
 
         if is_correct:
@@ -139,10 +144,7 @@ class UserLogin():
         return salt, pwd_hash
 
     @staticmethod
-    def _verify_password(self, stored_hash, stored_salt, provided_password):
-        # Hash the provided password using the stored salt
-        _, pwd_hash = self._hash_password(provided_password, stored_salt)
-        # Use hmac.compare_digest to avoid timing attacks
+    def _verify_password(self, stored_hash, pwd_hash):
         return hmac.compare_digest(pwd_hash, stored_hash)
 
 class User():

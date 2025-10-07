@@ -70,12 +70,9 @@ class ObjectDetectionDB:
 #====================================创建class表====================================
             create_class_table = """
             CREATE TABLE IF NOT EXISTS class (
-                project_id INT NOT NULL,
                 class_id INT AUTO_INCREMENT PRIMARY KEY,
                 class_name VARCHAR(100) NOT NULL,
-                color VARCHAR(10) NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
+                color VARCHAR(7) NOT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_class_table)
@@ -90,7 +87,6 @@ class ObjectDetectionDB:
                 project_owner_id INT NOT NULL,
                 project_status VARCHAR(200) NOT NULL,
                 auto_annotation_progress DECIMAL DEFAULT 0.00,
-                last_annotated_frame INT DEFAULT 0,
                 training_progress DECIMAL DEFAULT 0.00,
                 model_path VARCHAR(500) NOT NULL,
                 dataset_path VARCHAR(500) NOT NULL,
@@ -108,27 +104,13 @@ class ObjectDetectionDB:
                 video_path VARCHAR(500) NOT NULL,
                 video_name VARCHAR(200) NOT NULL,
                 annotation_status VARCHAR(200) NOT NULL,
-                last_annotated_frame INT DEFAULT -1,
+                last_annotated_frame INT DEFAULT 0,
                 total_frames INT DEFAULT 0,
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_video_table)
             print("video表创建成功")
-
-#====================================创建bbox表====================================
-            create_bbox_table = """
-            CREATE TABLE IF NOT EXISTS bbox (
-                video_id INT NOT NULL,
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                class_name VARCHAR(50) NOT NULL,
-                coordinates VARCHAR(50) NOT NULL,
-                frame_num INT NOT NULL,
-                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_bbox_table)
-            print("bbox表创建成功")
             
 #====================================创建project_shared_users表（多对多关系）====================================
             create_shared_users_table = """
@@ -142,7 +124,23 @@ class ObjectDetectionDB:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_shared_users_table)
-            print("project_shared_users表创建成功")           
+            print("project_shared_users表创建成功")
+            
+#====================================创建project_classes表（多对多关系）====================================
+            create_project_classes_table = """
+            CREATE TABLE IF NOT EXISTS project_classes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                project_id INT NOT NULL,
+                class_id INT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                FOREIGN KEY (class_id) REFERENCES class(class_id) ON DELETE CASCADE,
+                UNIQUE KEY unique_project_class (project_id, class_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_project_classes_table)
+            print("project_classes表创建成功")
+            
+            
         
             self.connection.commit()
             print("所有表创建成功")
