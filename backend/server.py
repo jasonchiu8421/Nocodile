@@ -706,11 +706,14 @@ class Video(Project):
         self.fps = self.get_fps()
         if self.annotation_status == "yet to start":
             self.last_annotated_frame = 0
+            self.save_last_annotated_frame()
+            print(f"Fetching frame {self.last_annotate_frame}")
             return self.get_frame(0)
         elif self.annotation_status == "completed":
             return None
         elif isinstance(self.last_annotated_frame, int):
             next_frame = self.last_annotated_frame + self.fps
+            print(f"Fetching frame {next_frame}")
             
             # Save the frame_num pointer
             self.last_annotated_frame = next_frame
