@@ -710,6 +710,7 @@ class Video(Project):
             print(f"Fetching frame {self.last_annotate_frame}")
             return self.get_frame(0)
         elif self.annotation_status == "completed":
+            print("No frame fetched. Annotation completed.")
             return None
         elif isinstance(self.last_annotated_frame, int):
             next_frame = self.last_annotated_frame + self.fps
@@ -725,6 +726,7 @@ class Video(Project):
                 # no more frames to annotate
                 self.annotation_status = "manual annotation completed"
                 self.save_annotation_status()
+                print("No frame fetched. AManual anotation completed.")
                 return None
         else:
             return None
