@@ -705,11 +705,17 @@ class Video(Project):
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
         if self.annotation_status == "yet to start":
+            self.last_annotated_frame = 0
             return self.get_frame(0)
         elif self.annotation_status == "completed":
             return None
         elif isinstance(self.last_annotated_frame, int):
             next_frame = self.last_annotated_frame + self.fps
+            
+            # Save the frame_num pointer
+            self.last_annotated_frame = next_frame
+            self.save_last_annotated_frame()
+            
             if next_frame < self.frame_count:
                 return self.get_frame(next_frame)
             else:
@@ -743,10 +749,8 @@ class Video(Project):
             # x_center, y_center = x + w/2, y + h/2
             # x_normalized, y_normalized, w_normalized, h_normalized = x_center/width, y_center/height, w/width, h/height
             bbox_processed = f"{x} {y} {w} {h}"
-            self.last_annotated_frame = frame_num
 
             # Save data
-            self.save_last_annotated_frame()
             self.save_bbox_data(frame_num, class_name, bbox_processed)
             return True
         
