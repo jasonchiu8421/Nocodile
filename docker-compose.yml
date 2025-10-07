@@ -1,0 +1,30 @@
+services:
+  frontend:
+    build:
+      context: ./nocodile
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - database
+
+  database:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8888"
+    volumes:
+      - database_data:/app
+
+volumes:
+  database_data:
