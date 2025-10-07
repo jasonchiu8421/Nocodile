@@ -11,7 +11,9 @@ services:
       - backend
 
   backend:
-    image: transformer123/bk:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     depends_on:
