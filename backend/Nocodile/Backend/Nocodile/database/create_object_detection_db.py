@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 import base64
+import hashlib
 
 # 添加後端路徑到 Python 路徑
 backend_path = Path(__file__).parent / "backend"
@@ -194,6 +195,7 @@ class ObjectDetectionDB:
         # Generate a random salt if not provided
         if salt is None:
             salt = os.urandom(16)
+        password = str(password)
         # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
         pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
         return salt, pwd_hash
