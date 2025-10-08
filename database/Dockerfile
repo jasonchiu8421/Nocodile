@@ -8,9 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # 安装依赖
-RUN --mount=type=cache,target=/home/appuser/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
+RUN python -m pip install -r requirements.txt
 
 # 复制项目文件到工作目录
 COPY . .
