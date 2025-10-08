@@ -98,6 +98,17 @@ class ObjectDetectionDB:
         cursor = self.connection.cursor()
         
         try:
+#====================================创建user表====================================
+            create_user_table = """
+            CREATE TABLE IF NOT EXISTS user (
+                user_id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_user_table)
+            print("user表创建成功")
+            
 #====================================创建class表====================================
             create_class_table = """
             CREATE TABLE IF NOT EXISTS class (
