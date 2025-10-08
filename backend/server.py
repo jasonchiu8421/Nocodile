@@ -23,6 +23,7 @@ from shutil import copy2, rmtree
 from pathlib import Path
 import pymysql
 import hmac
+import hashlib
 
 #=================================== Initialize server ==========================================
 
