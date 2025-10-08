@@ -84,6 +84,17 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Create a non-privileged user.
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/app" \
+    --shell "/bin/bash" \
+    --create-home \
+    --uid "${UID}" \
+    appuser
+
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/projects /app/safe_projects /app/temp && \
     chown -R appuser:appuser /app
@@ -99,6 +110,9 @@ COPY . .
 # Set proper ownership and permissions
 RUN chown -R appuser:appuser /app && \
     chmod -R 755 /app
+
+# Switch to non-privileged user.
+USER appuser
 
 # Expose port.
 EXPOSE 8888
