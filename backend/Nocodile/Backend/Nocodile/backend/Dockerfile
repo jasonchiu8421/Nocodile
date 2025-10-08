@@ -91,7 +91,6 @@ RUN adduser \
     --gecos "" \
     --home "/app" \
     --shell "/bin/bash" \
-    --create-home \
     --uid "${UID}" \
     appuser
 
