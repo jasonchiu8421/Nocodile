@@ -702,10 +702,12 @@ class Video(Project):
     # For testing purpose, annotate every second
     def get_next_frame_to_annotate(self):
         self.frame_count = self.get_frame_count()
+        self.last_annotated_frame, self.annotation_status = self.get_annotation_status()
         self.fps = self.get_fps()
         if self.annotation_status == "yet to start":
             self.last_annotated_frame = 0
             self.save_last_annotated_frame()
+            print(f"Last annotated frame is {self.last_annotated_frame}")
             print(f"Fetching frame {self.last_annotated_frame}")
             return self.get_frame(0)
         elif self.annotation_status == "completed":
@@ -713,6 +715,7 @@ class Video(Project):
             return None
         elif isinstance(self.last_annotated_frame, int):
             next_frame = self.last_annotated_frame + self.fps
+            print(f"Last annotated frame {self.last_annotated_frame}")
             print(f"Fetching frame {next_frame}")
             
             # Save the frame_num pointer
@@ -729,7 +732,7 @@ class Video(Project):
                 return None
         else:
             return None
-    
+            
     def get_frame(self, frame_num: int):
         if frame_num < 0 or frame_num >= self.frame_count:
             raise ValueError("Frame number out of range")
