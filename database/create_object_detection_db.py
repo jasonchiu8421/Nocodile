@@ -163,7 +163,6 @@ class ObjectDetectionDB:
         if salt is None:
             salt = os.urandom(16)
         # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
-        password = str(password)
         pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
         return salt, pwd_hash
 
@@ -200,7 +199,7 @@ def main():
     """主函数"""
 
     
-    db = ObjectDetectionDB(password="noconoconocodile")
+    db = ObjectDetectionDB()
     
     try:
         # 1. 创建数据库
