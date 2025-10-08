@@ -174,7 +174,11 @@ class ObjectDetectionDB:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_shared_users_table)
-            print("project_shared_users表创建成功")           
+            print("project_shared_users表创建成功")
+
+            # 重新启用外键检查
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            print("已重新启用外键检查")
         
             self.connection.commit()
             print("所有表创建成功")
