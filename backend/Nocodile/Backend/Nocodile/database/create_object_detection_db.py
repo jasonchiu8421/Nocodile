@@ -7,7 +7,7 @@ from pathlib import Path
 import base64
 
 # 添加後端路徑到 Python 路徑
-backend_path = Path(__file__).parent.parent / "backend"
+backend_path = Path(__file__).parent / "backend"
 sys.path.insert(0, str(backend_path))
 
 try:
