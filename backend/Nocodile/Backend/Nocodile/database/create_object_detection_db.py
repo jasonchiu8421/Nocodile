@@ -184,6 +184,37 @@ class ObjectDetectionDB:
             return False
         finally:
             cursor.close()
+
+    def _hash_password(password, salt=None):
+        # Generate a random salt if not provided
+        if salt is None:
+            salt = os.urandom(16)
+        # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
+        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
+        return salt, pwd_hash
+
+    def create_users(self):
+        cursor = self.connection.cursor()
+
+        # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
+        for i in range(1, 31):
+            username = f"user{i}"
+            plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
+            
+            # Generate salt and hash
+            salt, pwd_hash = self._hash_password(plaintext_password)
+            
+            # Combine and base64-encode for storage: salt:hash
+            stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
+            
+            # Insert the user
+            insert_user = """
+                INSERT INTO user (username, password) 
+                VALUES (%s, %s)
+            """
+            cursor.execute(insert_user, (username, stored_password))
+
+            cursor.close()
     
     def close(self):
         """关闭数据库连接"""
@@ -222,6 +253,11 @@ def main():
         if not db.create_tables():
             print("表格創建失敗")
             return False
+
+        # 4. 创建users
+        if not db.create_users():
+            print("users創建失敗")
+            return
         
         print("\n資料庫初始化完成！")
         print("現在可以啟動 Nocodile 應用程式")
