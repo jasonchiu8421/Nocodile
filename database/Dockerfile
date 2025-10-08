@@ -4,21 +4,6 @@ FROM python:3.10.11-slim AS base
 # 设置工作目录
 WORKDIR /app
 
-# 定义用户 ID，默认为 10001
-ARG UID=10001
-
-# 创建一个非特权用户
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/home/appuser" \
-    --shell "/sbin/nologin" \
-    --uid "${UID}" \
-    appuser
-
-# 切换到非特权用户
-USER appuser
-
 # 将 requirements.txt 文件复制到工作目录
 COPY requirements.txt .
 
