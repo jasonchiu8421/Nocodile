@@ -4,7 +4,6 @@ import json
 import os
 import sys
 from pathlib import Path
-import hashlib
 import base64
 
 # 添加後端路徑到 Python 路徑
