@@ -4,6 +4,7 @@ import json
 import hashlib
 import os
 import base64
+import hashlib
 
 class ObjectDetectionDB:
     # TODO：改为你的数据库配置和想要创建的数据库名字
