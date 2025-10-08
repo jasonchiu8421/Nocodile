@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 import base64
+import hashlib
 
 # 添加後端路徑到 Python 路徑
 backend_path = Path(__file__).parent.parent / "backend"
