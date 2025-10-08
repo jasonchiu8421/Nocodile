@@ -5,79 +5,13 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
 from mysql.connector import Error
 import shutil
 import uuid
-import re
-import os
-from pathlib import Path
-from config import config
-
-# 檔案名清理函數
-def sanitize_filename(filename: str) -> str:
-    """
-    清理檔案名，移除非法字符
-    """
-    # 移除或替換非法字符
-    illegal_chars = r'[<>:"|?*\x00-\x1f]'
-    sanitized = re.sub(illegal_chars, '_', filename)
-    
-    # 移除開頭和結尾的點和空格
-    sanitized = sanitized.strip('. ')
-    
-    # 限制長度
-    if len(sanitized) > 200:
-        sanitized = sanitized[:200]
-    
-    # 確保不為空
-    if not sanitized:
-        sanitized = "unnamed_file"
-    
-    return sanitized
-
-def sanitize_path(path: str) -> str:
-    """
-    清理路徑，確保安全
-    """
-    # 移除非法字符
-    illegal_chars = r'[<>:"|?*\x00-\x1f]'
-    sanitized = re.sub(illegal_chars, '_', path)
-    
-    # 移除多餘的斜杠
-    sanitized = re.sub(r'[/\\]+', '/', sanitized)
-    
-    # 確保路徑不包含危險的相對路徑
-    if '..' in sanitized:
-        sanitized = sanitized.replace('..', '_')
-    
-    return sanitized
-# Try to import OpenCV, fallback if not available
-try:
-    import cv2
-    OPENCV_AVAILABLE = True
-    print("✅ OpenCV imported successfully")
-except ImportError as e:
-    print(f"⚠️ OpenCV not available: {e}")
-    print("🔄 Running in headless mode without OpenCV")
-    OPENCV_AVAILABLE = False
-    cv2 = None
-
+import cv2
 import pandas as pd
 import os
-
-# Try to import cv_models, fallback if not available
-try:
-    from cv_models import KCF, SAM
-    CV_MODELS_AVAILABLE = True
-    print("✅ CV models imported successfully")
-except ImportError as e:
-    print(f"⚠️ CV models not available: {e}")
-    print("🔄 Running without CV models")
-    CV_MODELS_AVAILABLE = False
-    KCF = None
-    SAM = None
-
+from cv_models import KCF, SAM
 import numpy as np
 import base64
 import aiofiles
@@ -100,38 +34,27 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.server.cors_origins,
-    allow_credentials=config.server.cors_credentials,
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 #=================================== Connect to database ==========================================
 
-# 使用配置模組獲取資料庫連接配置
-db_configs = config.database.get_connection_configs()
+config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': '12345678',
+    'database': 'Nocodile',
+    'charset': 'utf8mb4'
+}
 
-# 嘗試連接MySQL，失敗則使用無數據庫模式
-connection = None
-use_mysql = False
-
-for i, db_config in enumerate(db_configs):
-    try:
-        print(f"嘗試連接配置 {i+1}: {db_config['host']}:{db_config['port']}")
-        connection = pymysql.connect(**db_config)
-        print(f"✅ MySQL 数据库连接成功！使用配置 {i+1}")
-        print(f"📊 資料庫: {db_config['database']}")
-        use_mysql = True
-        break
-    except pymysql.Error as e:
-        print(f"❌ 配置 {i+1} 连接失败: {e}")
-        continue
-
-if not connection:
-    print("🚫 所有數據庫連接配置都失敗，使用無數據庫模式（模擬數據）...")
-    print("💡 請檢查 Docker 容器是否運行，或檢查環境變數配置")
-    connection = None
-    use_mysql = False
+try:
+    connection = pymysql.connect(**config)
+    print("数据库连接成功！")
+except pymysql.Error as e:
+    print(f"数据库连接失败: {e}")
 
 class LoginRequest(BaseModel):
     username: str
@@ -151,7 +74,6 @@ class CreateProjectRequest(BaseModel):
 class VideoRequest(BaseModel):
     project_id: str
     video_id: str
-    current_frame: int = 0  # 添加當前幀數參數
 
 class AnnotationRequest(BaseModel):
     project_id: str
@@ -166,21 +88,26 @@ class UserLogin():
         self.status = status      # True if active
         self.login_attempts = 0
 
-    def get_password_hash(self):
+    def get_password(self):
         ### db ###
         # Find hashed password from database
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT password_hash FROM users WHERE username = %s"
+        query = "SELECT password FROM user WHERE username = %s"
         cursor.execute(query, (self.username,))
-        hashed_password = cursor.fetchone()['password_hash']
+        password = cursor.fetchone()['password']
         cursor.close()
-        return hashed_password
+
+        decoded_bytes = base64.b64decode(password)
+        decoded_str = decoded_bytes.decode('utf-8')
+        salt, pwd_hash = decoded_str.split(':', 1)
+        
+        return pwd_hash, salt
     
     def get_userID(self):
         ### db ###
         # Find userID given self.username
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="SELECT user_id FROM users WHERE username = %s"
+        query="SELECT user_id FROM user WHERE username = %s"
         cursor.execute(query,(self.username,))
         userID = cursor.fetchone()['user_id']
         cursor.close()
@@ -191,8 +118,8 @@ class UserLogin():
             return False, "Account locked."
         
         # Hash the password input
-        salt, pwd_hash = self._hash_password(self.password)
-        stored_hash = self.get_password_hash()
+        stored_hash, salt = self.get_password()
+        salt, pwd_hash = self._hash_password(self.password, salt)
         is_correct = self._verify_password(stored_hash, salt, pwd_hash)
 
         if is_correct:
@@ -216,10 +143,7 @@ class UserLogin():
         return salt, pwd_hash
 
     @staticmethod
-    def _verify_password(self, stored_hash, stored_salt, provided_password):
-        # Hash the provided password using the stored salt
-        _, pwd_hash = self._hash_password(provided_password, stored_salt)
-        # Use hmac.compare_digest to avoid timing attacks
+    def _verify_password(self, stored_hash, pwd_hash):
         return hmac.compare_digest(pwd_hash, stored_hash)
 
 class User():
@@ -228,107 +152,46 @@ class User():
         self.username = self.get_username()
     
     def get_username(self):
-        if connection is None or not connection:
-            return f"User_{self.userID}"
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query= "SELECT username FROM users WHERE user_id =%s"
-            cursor.execute(query,(self.userID,))
-            result = cursor.fetchone()
-            cursor.close()
-            return result['username'] if result else f"User_{self.userID}"
-        except Exception as e:
-            print(f"獲取用戶名失敗: {e}")
-            return f"User_{self.userID}"
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query= "SELECT username FROM user WHERE user_id =%s"
+        cursor.execute(query,(self.userID,))
+        username = cursor.fetchone()['username']
+        cursor.close()
+        return username
 
     def get_owned_projects(self):
-        if connection is None or not connection:
-            # 返回示例數據
-            return [
-                {"project_id": 1, "project_name": "示例項目1", "video_count": 0, "image_count": 0, "status": "未開始", "is_owned": True},
-                {"project_id": 2, "project_name": "示例項目2", "video_count": 0, "image_count": 0, "status": "未開始", "is_owned": True}
-            ]
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
-            cursor.execute(query,(self.userID))
-            data = cursor.fetchall()
-            cursor.close()
-            owned_projects = [d['project_id'] for d in data if 'project_id' in d]
-            
-            # 轉換為包含詳細信息的格式
-            detailed_projects = []
-            for project_id in owned_projects:
-                detailed_projects.append({
-                    "project_id": project_id,
-                    "project_name": f"項目 {project_id}",
-                    "video_count": 0,
-                    "image_count": 0,
-                    "status": "未開始",
-                    "is_owned": True
-                })
-            
-            self.owned_projects = detailed_projects
-            return detailed_projects
-        except Exception as e:
-            print(f"獲取擁有項目失敗: {e}")
-            return [
-                {"project_id": 1, "project_name": "示例項目1", "video_count": 0, "image_count": 0, "status": "未開始", "is_owned": True}
-            ]
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
+        cursor.execute(query,(self.userID))
+        data = cursor.fetchall()
+        cursor.close()
+        owned_projects = [d[0] for d in data if 'project_id' in d]
+        self.owned_projects = owned_projects
+        return owned_projects
     
     def get_shared_projects(self):
-        if connection is None or not connection:
-            return []
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
-            cursor.execute(query,(self.userID))
-            data = cursor.fetchall()
-            cursor.close()
-            shared_projects = [d['project_id'] for d in data if 'project_id' in d]
-            
-            # 轉換為包含詳細信息的格式
-            detailed_projects = []
-            for project_id in shared_projects:
-                detailed_projects.append({
-                    "project_id": project_id,
-                    "project_name": f"共享項目 {project_id}",
-                    "video_count": 0,
-                    "image_count": 0,
-                    "status": "未開始",
-                    "is_owned": False
-                })
-            
-            self.shared_projects = detailed_projects
-            return detailed_projects
-        except Exception as e:
-            print(f"獲取共享項目失敗: {e}")
-            return []
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
+        cursor.execute(query,(self.userID))
+        data = cursor.fetchall()
+        cursor.close()
+        shared_projects = [d[0] for d in data if 'project_id' in d]
+        self.shared_projects = shared_projects
+        return shared_projects
 
 class Project():
-    def __init__(self, project_id: str, initialize=False, project_name=None, project_type=None, owner=None):
+    def __init__(self, project_id: str, initialize=False):
         if initialize:
-            # 初始化時不調用 self.initialize()，而是等待外部調用
-            self.project_id = project_id
-            self.project_name = project_name
-            self.project_type = project_type
-            self.owner = owner
+            self.initialize()
         else:
             self.project_id = project_id
-            # 檢查數據庫連接
-            if connection is None or not connection:
-                raise Exception("Database not connected")
-            else:
-                self.project_name = self.get_project_name()
-                self.project_type = self.get_project_type()
-                self.videos = self.get_videos()
-                self.video_count = self.get_video_count()
-                self.owner = self.get_owner()
-                self.shared_users = self.get_shared_users()
-                self.project_status = self.get_project_status()
+            self.project_name = self.get_project_name()
+            self.project_type = self.get_project_type()
+            self.videos = self.get_videos()
+            self.video_count = self.get_video_count()
+            self.owner = self.get_owner()
+            self.shared_users = self.get_shared_users()
+            self.project_status = self.get_project_status()
 
     def initialize(self, project_name, project_type, owner):
         self.project_name = project_name
@@ -342,29 +205,12 @@ class Project():
         self.owner = owner
         self.project_status = "Not started" # can be "Awaiting Labeling", "Labeling in progress", "Data is ready", "Training in progress", "Trained"
 
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            raise Exception("Database not connected")
-
         # Add new row in project table
-        try:
-            if use_mysql:
-                cursor = connection.cursor(pymysql.cursors.DictCursor)
-                query="INSERT INTO project (project_name, project_type, project_owner_id, project_status) VALUES (%s, %s, %s, %s);"
-                cursor.execute(query,(self.project_name, self.project_type, self.owner, self.project_status))
-                project_id = cursor.lastrowid
-                cursor.close()
-            else:
-                cursor = connection.cursor()
-                query="INSERT INTO project (project_name, project_type, project_owner_id, project_status) VALUES (?, ?, ?, ?);"
-                cursor.execute(query,(self.project_name, self.project_type, self.owner, self.project_status))
-                project_id = cursor.lastrowid
-                cursor.close()
-        except Exception as e:
-            print(f"創建項目時數據庫錯誤: {e}")
-            import random
-            project_id = random.randint(1000, 9999)
-            print(f"返回模擬項目ID: {project_id}")
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query="INSERT INTO project (project_name, project_type, project_owner_id, project_status) VALUES (%s, %s, %d, %s);"
+        cursor.execute(query,(self.project_type, self.project_type, self.owner, self.project_status))
+        project_id = cursor.lastrowid
+        cursor.close()
         
         # Create project directory
         self.project_path = self.get_project_path()
@@ -379,11 +225,11 @@ class Project():
     
     def get_project_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_name FROM project WHERE project_id = %s"
+        query = "SELECT project_name FROM project WHERE project_id = %d"
         cursor.execute(query,(self.project_id))
-        result = cursor.fetchone()
+        project_name = cursor.fetchone()['project_name']
         cursor.close()
-        return result['project_name'] if result else f"Project {self.project_id}"
+        return project_name
     
     def get_project_type(self):
         # Set in next phrase
@@ -391,129 +237,55 @@ class Project():
         return project_type
     
     def get_videos(self):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, returning empty videos list")
-            return []
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT DISTINCT video_id FROM videos WHERE project_id = %s ORDER BY video_id ASC"
-            cursor.execute(query,(self.project_id))
-            data = cursor.fetchall()
-            video_ids = [d['video_id'] for d in data if 'video_id' in d]
-            cursor.close()
-            print(f"📋 [BACKEND] Found {len(video_ids)} videos for project {self.project_id}: {video_ids}")
-            return video_ids
-        except Exception as e:
-            print(f"💥 [BACKEND] Error getting videos from database: {e}")
-            return []
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "SELECT DISTINCT video_id FROM video WHERE project_id = %d ORDER BY video_id ASC"
+        cursor.execute(query,(self.project_id))
+        data = cursor.fetchall()
+        video_ids = [d[0] for d in data if 'video_id' in d]
+        cursor.close()
+        return video_ids
     
     def get_video_count(self):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, returning 0 for video count")
-            return 0
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT COUNT(*) as count FROM videos WHERE project_id = %s"
-            cursor.execute(query, (self.project_id))
-            result = cursor.fetchone()
-            cursor.close()
-            return result['count'] if result else 0
-        except Exception as e:
-            print(f"💥 [BACKEND] Error getting video count: {e}")
-            return 0
+        video_count = len(self.videos)
+        return video_count
     
     def get_owner(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+        query = "SELECT project_owner_id FROM project WHERE project_id = %d"
         cursor.execute(query,(self.project_id))
-        result = cursor.fetchone()
+        ownerID = cursor.fetchall()['project_owner_id']
         cursor.close()
-        return result['project_owner_id'] if result else None
+        return ownerID
     
     def get_shared_users(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT DISTINCT user_id FROM project_shared_users WHERE project_id = %s"
+        query = "SELECT DISTINCT user_id FROM project_shared_users WHERE project_id = %d"
         cursor.execute(query,(self.project_id))
         data = cursor.fetchall()
-        shared_users = [d['user_id'] for d in data if 'user_id' in d]
+        shared_users = [d[0] for d in data if 'user_id' in d]
         return shared_users
     
     def get_classes(self):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            return [
-                {"id": "give_way_sign", "name": "give_way_sign", "color": "#fbbf24"},
-                {"id": "pedestrian_child", "name": "pedestrian_child", "color": "#3b82f6"},
-                {"id": "zebra_crossing_sign", "name": "zebra_crossing_sign", "color": "#8b5cf6"},
-                {"id": "traffic_light_red", "name": "traffic_light_red", "color": "#10b981"},
-                {"id": "stop_sign", "name": "stop_sign", "color": "#ef4444"}
-            ]
-        
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT class_name, color FROM class WHERE project_id = %s"
+        query = "SELECT class_name, color FROM class WHERE project_id = %d"
         cursor.execute(query,(self.project_id))
         rows = cursor.fetchall()
-        classes = [{"id": item["class_name"], "name": item["class_name"], "color": item["color"]} for item in rows]
+        classes = {item["class_name"]: item["colour"] for item in rows}
         return classes
     
     def get_project_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_status FROM project WHERE project_id = %s"
+        query = "SELECT project_status FROM project WHERE project_id = %d"
         cursor.execute(query,(self.project_id))
         project_status = cursor.fetchone()['project_status']
         return project_status
         
     def get_project_path(self):
-        """
-        安全地構建項目路徑，避免非法字符和權限問題
-        """
-        try:
-            # 清理項目ID，移除非法字符
-            safe_project_id = sanitize_filename(str(self.project_id))
-            safe_project_id = safe_project_id.strip()
-            
-            # 確保項目ID不為空且有效
-            if not safe_project_id or safe_project_id in ['.', '..', '']:
-                safe_project_id = "default_project"
-            
-            # 構建安全的項目路徑
-            project_path = Path(f"./projects/{safe_project_id}")
-            
-            # 確保路徑安全
-            project_path = project_path.resolve()
-            
-            # 檢查路徑是否在允許的範圍內
-            current_dir = Path.cwd().resolve()
-            if not str(project_path).startswith(str(current_dir)):
-                raise ValueError("Project path outside allowed directory")
-            
-            # 創建目錄（如果不存在）
-            project_path.mkdir(parents=True, exist_ok=True)
-            
-            # 檢查目錄權限
-            if not os.access(project_path, os.W_OK):
-                raise PermissionError(f"Cannot write to project directory: {project_path}")
-            
-            print(f"📁 [BACKEND] Created project directory: {project_path}")
-            
-            # 返回字符串路徑，確保以斜杠結尾
-            return str(project_path) + "/"
-            
-        except Exception as e:
-            print(f"⚠️ [BACKEND] Error creating project path, using fallback: {e}")
-            # 使用安全的備用路徑
-            try:
-                fallback_path = Path("./safe_projects/default")
-                fallback_path.mkdir(parents=True, exist_ok=True)
-                return str(fallback_path) + "/"
-            except Exception as fallback_error:
-                print(f"💥 [BACKEND] Fallback path also failed: {fallback_error}")
-                # 最後的備用方案
-                return "./"
+        project_path = f"./{self.project_id}/"
+
+        if not os.path.exists(project_path):
+            os.makedirs(project_path)
+        return project_path
     
     def change_project_name(self, new_name: str):
         self.project_name = new_name
@@ -532,39 +304,32 @@ class Project():
         return classID
     
     def add_class(self, class_name: str, colour: str):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print(f"數據庫未連接，無法添加類別: {class_name}")
-            return False
+        self.classes = self.get_classes()
+        self.classes[class_name] = colour
         
         # Add new row in class table
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="INSERT INTO class (project_id, class_name, color) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE `color` = VALUES(`color`);"
+        query="INSERT INTO class (project_id, class_name, color) VALUES (%d, %s, %s) ON DUPLICATE KEY UPDATE `colour` = VALUES(`colour`);"
         cursor.execute(query,(self.project_id, class_name, colour))
         cursor.close()
 
         return True
     
     def modify_class(self, old_class_name: str, new_class_name: str):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print(f"數據庫未連接，無法修改類別: {old_class_name}")
-            return False
-        
+        self.classes = self.get_classes()
+        self.classes[new_class_name] = self.classes.pop(old_class_name)
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE class SET class_name = %s WHERE project_id = %s AND class_name = %s;"
+        query = "UPDATE class SET class_name = 'new_class_name' WHERE project_id = %d AND class_name = %s AND project_id = %s;"
         cursor.execute(query,(self.project_id, old_class_name, new_class_name))
         cursor.close()
         return True
     
     def delete_class(self, class_name: str):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print(f"數據庫未連接，無法刪除類別: {class_name}")
-            return False
-        
+        self.classes.pop(class_name)
+        self.classes = self.get_classes()
+        self.classes.pop(class_name, None)
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "DELETE FROM class WHERE project_id = %s AND class_name = %s"
+        query = "DELETE FROM class WHERE project_id = %d AND class_name = %s"
         cursor.execute(query,(self.project_id, class_name))
         cursor.close()
         return True
@@ -607,18 +372,15 @@ class Project():
                     file.write(f"{class_id_dict[class_name]} {coordinates}\n")
 
             # Write images
-            if OPENCV_AVAILABLE:
-                cap = cv2.VideoCapture(video.get_video_path())
-                frame_idx = 0
-                while cap.isOpened():
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    image_path = f"{image_dir}{video.video_id}_frame_"+str(frame_idx)+".png"
-                    cv2.imwrite(image_path, frame)
-                    frame_idx += 1
-            else:
-                print("OpenCV not available, skipping image extraction")
+            cap = cv2.VideoCapture(video.get_video_path())
+            frame_idx = 0
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                image_path = f"{image_dir}{video.video_id}_frame_"+str(frame_idx)+".png"
+                cv2.imwrite(image_path, frame)
+                frame_idx += 1
 
         self.project_status = "Dataset ready"
         self.save_project_status()
@@ -642,44 +404,26 @@ class Project():
         return overall_progress
     
     def get_uploaded_videos(self):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, returning empty list")
-            return []
-        
-        try:
-            videos_info = []
-            for video_id in self.videos:
-                video = Video(project_id=self.project_id, video_id=video_id)
-                video_info = video.get_video_info()
-                videos_info.append(video_info)
-            return videos_info
-        except Exception as e:
-            print(f"💥 [BACKEND] Error getting videos from database: {e}")
-            return []
+        videos_info = []
+        for video_id in self.videos:
+            video = Video(project_id=self.project_id, video_id=video_id)
+            video_info = video.get_video_info()
+            videos_info.append(video_info)
+        return videos_info
     
     # Save project status to database
     def save_project_status(self):
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, cannot save project status")
-            return False
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "UPDATE project SET project_status = %s WHERE project_id = %s"
-            cursor.execute(query,(self.project_status, self.project_id))
-            success = bool(cursor.rowcount)
-            cursor.close()        
-            return success
-        except Exception as e:
-            print(f"💥 [BACKEND] Error saving project status: {e}")
-            return False    
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "UPDATE project SET project_status = %s WHERE project_id = %d"
+        cursor.execute(query,(self.project_status, self.project_id))
+        success = bool(cursor.rowcount)
+        cursor.close()        
+        return success    
     
     # Save project name to database
     def save_project_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_name = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_name = %s WHERE project_id = %d"
         cursor.execute(query,(self.project_name, self.project_id))
         success = bool(cursor.rowcount)
         cursor.close()  
@@ -688,7 +432,7 @@ class Project():
     # Save project type to database
     def save_project_type(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_type = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_type = %s WHERE project_id = %d"
         cursor.execute(query,(self.project_type, self.project_id))
         success = bool(cursor.rowcount)
         cursor.close()  
@@ -697,7 +441,7 @@ class Project():
     # Save owner ID to database
     def save_owner(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_owner_id = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_owner_id = %d WHERE project_id = %d"
         cursor.execute(query,(self.owner, self.project_id))
         success = bool(cursor.rowcount)
         cursor.close()  
@@ -705,23 +449,15 @@ class Project():
     
     def save_training_progress(self, training_progress: int):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET training_progress = %s WHERE project_id = %s"
+        query = "UPDATE project SET training_progress = %d WHERE project_id = %d"
         cursor.execute(query,(training_progress, self.project_id))
         success = bool(cursor.rowcount)
         cursor.close()
         return success
     
-    def get_training_progress(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT training_progress FROM project WHERE project_id = %s"
-        cursor.execute(query,(self.project_id,))
-        result = cursor.fetchone()
-        cursor.close()
-        return result['training_progress'] if result else 0
-    
     def save_auto_annotation_progress(self, auto_annotation_progress: int):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET auto_annotation_progress = %s WHERE project_id = %s"
+        query = "UPDATE project SET auto_annotation_progress = %s WHERE project_id = %d"
         cursor.execute(query,(auto_annotation_progress, self.project_id))
         success = bool(cursor.rowcount)
         cursor.close()
@@ -856,110 +592,30 @@ class Video(Project):
         self.video_id = video_id
         if not initialize:
             self.video_path = self.get_video_path()
-            if self.video_path is None:
-                print(f"Warning: No video path found for video_id: {video_id}")
-                self.video_path = ""  # 設置默認值
-        else:
-            self.video_path = ""
-        
-        # 只有在video_path存在且OpenCV可用時才創建VideoCapture
-        if OPENCV_AVAILABLE and self.video_path and os.path.exists(self.video_path):
-            self.cap = cv2.VideoCapture(self.video_path)
-        else:
-            if not OPENCV_AVAILABLE:
-                print("OpenCV not available, VideoCapture disabled")
-            else:
-                print(f"Warning: Video file not found at {self.video_path}")
-            self.cap = None
+        self.cap = cv2.VideoCapture(self.video_path)
 
     def initialize(self, name, ext):
         self.annotation_status, self.last_annotated_frame = "yet to start", -1
-        
-        # 安全地構建視頻路徑
-        try:
-            # 獲取項目路徑
-            project_path = self.get_project_path()
-            print(f"📁 [BACKEND] Project path: {project_path}")
-            
-            # 確保videos子目錄存在
-            videos_dir = Path(project_path) / "videos"
-            videos_dir.mkdir(parents=True, exist_ok=True)
-            print(f"📁 [BACKEND] Videos directory: {videos_dir}")
-            
-            # 清理檔案名
-            safe_name = sanitize_filename(name)
-            safe_ext = sanitize_filename(ext)
-            
-            # 構建安全的視頻路徑
-            self.video_path = videos_dir / f"{safe_name}.{safe_ext}"
-            print(f"📁 [BACKEND] Video path: {self.video_path}")
-            
-            # 檢查檔案是否已存在，如果存在則添加序號
-            counter = 1
-            original_path = self.video_path
-            while self.video_path.exists():
-                self.video_path = videos_dir / f"{safe_name}_{counter}.{safe_ext}"
-                counter += 1
-                if counter > 1000:  # 防止無限循環
-                    raise ValueError("Too many files with similar names")
-            
-            if counter > 1:
-                print(f"📝 [BACKEND] File renamed to avoid conflict: {self.video_path}")
-            
-        except Exception as e:
-            print(f"💥 [BACKEND] Error creating video path: {e}")
-            # 使用安全的備用路徑
-            try:
-                fallback_path = Path("./safe_projects/default/videos")
-                fallback_path.mkdir(parents=True, exist_ok=True)
-                safe_name = sanitize_filename(name)
-                safe_ext = sanitize_filename(ext)
-                self.video_path = fallback_path / f"{safe_name}.{safe_ext}"
-                print(f"📝 [BACKEND] Using fallback path: {self.video_path}")
-            except Exception as fallback_error:
-                print(f"💥 [BACKEND] Fallback path also failed: {fallback_error}")
-                # 最後的備用方案
-                self.video_path = Path(f"./temp_{safe_name}.{safe_ext}")
-        
+        self.video_path = Path(self.get_project_path) / "videos" / f"{name}.{ext}"
         self.video_name = name
         
-        # Get current video count from database
-        current_count = self.get_video_count()
-        self.video_count = current_count + 1
+        self.get_video_count()
+        self.video_count += 1
 
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, using fallback video ID")
-            # 使用時間戳和隨機數生成視頻ID
-            import time
-            import random
-            self.video_id = f"video_{int(time.time())}_{random.randint(1000, 9999)}"
-            print(f"📋 [BACKEND] Generated fallback video ID: {self.video_id}")
-        else:
-            # Add row to video
-            try:
-                cursor = connection.cursor(pymysql.cursors.DictCursor)
-                query = "INSERT INTO videos (project_id, video_path, video_name) VALUES (%s, %s, %s)"
-                cursor.execute(query,(self.project_id, str(self.video_path), self.video_name))
-                self.video_id = cursor.lastrowid
-                cursor.close()
-                print(f"📋 [BACKEND] Video saved to database with ID: {self.video_id}")
-            except Exception as e:
-                print(f"💥 [BACKEND] Error saving video to database: {e}")
-                # 使用fallback ID
-                import time
-                import random
-                self.video_id = f"video_{int(time.time())}_{random.randint(1000, 9999)}"
-                print(f"📋 [BACKEND] Using fallback video ID: {self.video_id}")
+        # Add row to video
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %d, %s);"
+        cursor.execute(query,(self.project_id, self.video_path, self.video_name, self.annotation_status))
+        self.video_id = cursor.lastrowid
+        cursor.close()
 
-        return self.video_id, str(self.video_path)
+        return self.video_id, self.video_path
     
     def get_video_info(self):
         info = {
-            "name": self.get_video_name(),
-            "file": self.get_video_name(),  # Use video name as file name
-            "path": self.get_video_path(),
-            "title": self.get_video_name()  # Add title field
+            "name": self.get_video_name,
+            "file": self.get_video,
+            "path": self.get_video_path
         }
         return info
     
@@ -982,7 +638,7 @@ class Video(Project):
 
     def get_video_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT video_name FROM videos WHERE video_id = %s"
+        query = "SELECT video_name FROM video WHERE video_id = %d"
         cursor.execute(query,(self.video_id))
         video_name = cursor.fetchone()['video_name']
         return video_name
@@ -993,67 +649,36 @@ class Video(Project):
         return success
         
     def get_video_path(self):
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT video_path FROM videos WHERE video_id = %s"
-            cursor.execute(query, (self.video_id,))
-            data = cursor.fetchone()
-            cursor.close()
-            
-            if data and data.get('video_path'):
-                return data['video_path']
-            else:
-                print(f"No video path found for video_id: {self.video_id}")
-                return None
-        except Exception as e:
-            print(f"Error getting video path: {e}")
-            return None
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "SELECT video_path FROM video WHERE video_id = %d"
+        cursor.execute(query,(self.video_id))
+        video_path = cursor.fetchone()['video_path']
+        return video_path
     
     def get_frame_count(self):
-        if not OPENCV_AVAILABLE or self.cap is None:
-            print("OpenCV not available or VideoCapture is None, returning default frame count")
-            return 0
-        try:
-            frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            return frame_count
-        except Exception as e:
-            print(f"Error getting frame count: {e}")
-            return 0
+        frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        return frame_count
     
     def get_fps(self):
-        if not OPENCV_AVAILABLE or self.cap is None:
-            print("OpenCV not available or VideoCapture is None, returning default FPS")
-            return 30  # 默認FPS
-        try:
-            fps = self.cap.get(cv2.CAP_PROP_FPS)
-            return fps if fps > 0 else 30
-        except Exception as e:
-            print(f"Error getting FPS: {e}")
-            return 30
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        return fps
     
     def get_resolution(self):
-        if not OPENCV_AVAILABLE or self.cap is None:
-            print("OpenCV not available or VideoCapture is None, returning default resolution")
-            return (640, 480)  # 默認分辨率
-        try:
-            width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            return (width, height)
-        except Exception as e:
-            print(f"Error getting resolution: {e}")
-            return (640, 480)
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        return (width, height)
     
     def get_bbox_data(self, frame_num = None):
         # Output format: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
         if frame_num:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class, coordinates FROM videos WHERE video_id = %s AND frame_num = %s"
+            query = "SELECT frame_num, class, coordinates FROM video WHERE video_id = %d AND frame_num = %d"
             cursor.execute(query,(self.video_id, frame_num))
             bbox_data = cursor.fetchall()
         else:
             # fetch all if frame_num is not specified
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class, coordinates FROM videos WHERE video_id = %s"
+            query = "SELECT frame_num, class, coordinates FROM video WHERE video_id = %d"
             cursor.execute(query,(self.video_id))
             bbox_data = cursor.fetchall()
         return bbox_data
@@ -1065,32 +690,13 @@ class Video(Project):
         ### last_annotated_frame is the last frame number that has been annotated (0-indexed) ###
         ### default is None, not 0 ###
         annotation_status='yet to start'
-        last_annotated_frame=0
-        
-        # 檢查video_id是否存在
-        if not self.video_id:
-            print("No video_id provided, returning default status")
-            return annotation_status, last_annotated_frame
-        
-        try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT annotation_status,last_annotated_frame FROM videos WHERE video_id = %s"
-            cursor.execute(query, (self.video_id,))
-            data = cursor.fetchone()
-            cursor.close()
-            
-            if data:
-                annotation_status = data.get('annotation_status', 'yet to start')
-                last_annotated_frame = data.get('last_annotated_frame', 0) or 0
-            else:
-                print(f"No data found for video_id: {self.video_id}")
-                
-        except Exception as e:
-            print(f"Error getting annotation status: {e}")
-            # 返回默認值
-            annotation_status = 'yet to start'
-            last_annotated_frame = 0
-            
+        last_annotated_frame=None
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %d"
+        cursor.execute(query,(self.video_id))
+        data = cursor.fetchone()
+        annotation_status = data['annotation_status']
+        last_annotated_frame = data['last_annotated_frame']
         return annotation_status, last_annotated_frame
     
     ###### Selecting Frame for Manual Annotation ######
@@ -1099,27 +705,33 @@ class Video(Project):
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
         if self.annotation_status == "yet to start":
+            self.last_annotated_frame = 0
+            self.save_last_annotated_frame()
+            print(f"Fetching frame {self.last_annotate_frame}")
             return self.get_frame(0)
         elif self.annotation_status == "completed":
+            print("No frame fetched. Annotation completed.")
             return None
         elif isinstance(self.last_annotated_frame, int):
             next_frame = self.last_annotated_frame + self.fps
+            print(f"Fetching frame {next_frame}")
+            
+            # Save the frame_num pointer
+            self.last_annotated_frame = next_frame
+            self.save_last_annotated_frame()
+            
             if next_frame < self.frame_count:
                 return self.get_frame(next_frame)
             else:
                 # no more frames to annotate
                 self.annotation_status = "manual annotation completed"
                 self.save_annotation_status()
+                print("No frame fetched. AManual anotation completed.")
                 return None
         else:
             return None
     
     def get_frame(self, frame_num: int):
-        if not OPENCV_AVAILABLE:
-            print("OpenCV not available, returning placeholder frame")
-            # Return a small placeholder image
-            return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-        
         if frame_num < 0 or frame_num >= self.frame_count:
             raise ValueError("Frame number out of range")
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
@@ -1142,10 +754,8 @@ class Video(Project):
             # x_center, y_center = x + w/2, y + h/2
             # x_normalized, y_normalized, w_normalized, h_normalized = x_center/width, y_center/height, w/width, h/height
             bbox_processed = f"{x} {y} {w} {h}"
-            self.last_annotated_frame = frame_num
 
             # Save data
-            self.save_last_annotated_frame()
             self.save_bbox_data(frame_num, class_name, bbox_processed)
             return True
         
@@ -1183,12 +793,6 @@ class Video(Project):
         return iou
 
     def auto_annotate(self):
-        if not OPENCV_AVAILABLE or not CV_MODELS_AVAILABLE:
-            print("OpenCV or CV models not available, skipping auto annotation")
-            self.annotation_status = "completed"
-            self.save_annotation_status()
-            return True
-            
         self.annotation_status = "auto annotation in progress"
         
         bbox_data = self.get_bbox_data()
@@ -1255,7 +859,7 @@ class Video(Project):
     # Save video path to database
     def save_video_path(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE videos SET video_path = %s WHERE video_id = %s"
+        query = "UPDATE video SET video_path = %s WHERE video_id = %d"
         cursor.execute(query,(self.video_path, self.video_id))
         success = bool(cursor.rowcount)
         cursor.close()
@@ -1264,7 +868,7 @@ class Video(Project):
     # Save video name to database
     def save_video_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE videos SET video_name = %s WHERE video_id = %s"
+        query = "UPDATE video SET video_name = %s WHERE video_id = %d"
         cursor.execute(query,(self.video_name, self.video_id))
         success = bool(cursor.rowcount)
         cursor.close()
@@ -1273,7 +877,7 @@ class Video(Project):
     # Save annotation status to database
     def save_annotation_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE videos SET annotation_status = %s WHERE video_id = %s"
+        query = "UPDATE video SET annotation_status = %s WHERE video_id = %d"
         cursor.execute(query,(self.annotation_status, self.video_id))
         success = bool(cursor.rowcount)
         cursor.close()
@@ -1282,7 +886,7 @@ class Video(Project):
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE videos SET last_annotated_frame = %s WHERE video_id = %s"
+        query = "UPDATE video SET last_annotated_frame = %d WHERE video_id = %d"
         cursor.execute(query,(self.last_annotated_frame, self.video_id))
         success = bool(cursor.rowcount)
         cursor.close()
@@ -1290,7 +894,7 @@ class Video(Project):
     
     def save_bbox_data(self, frame_num, class_name, coordinates):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO bbox (frame_num, class_name, coordinate, video_id) VALUES (%s, %s, %s, %s)"
+        query = "INSERT INTO bbox (frame_num, class_name, coordinate, video_id) VALUES (%d, %s, %s, %d)"
         cursor.execute(query,(frame_num, class_name, coordinates, self.video_id))
         success = bool(cursor.rowcount)
         cursor.close()
@@ -1355,40 +959,6 @@ async def get_users_projects(request: UserRequest):
     try: 
         userID = request.userID
 
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("數據庫未連接，返回示例數據")
-            return {
-                "owned projects": [
-                    {
-                        "project_id": 1,
-                        "project_name": "我的第一個項目",
-                        "video_count": 5,
-                        "image_count": 12,
-                        "status": "進行中",
-                        "is_owned": True
-                    },
-                    {
-                        "project_id": 2,
-                        "project_name": "物件檢測項目",
-                        "video_count": 3,
-                        "image_count": 8,
-                        "status": "已完成",
-                        "is_owned": True
-                    }
-                ],
-                "shared projects": [
-                    {
-                        "project_id": 3,
-                        "project_name": "團隊協作項目",
-                        "video_count": 2,
-                        "image_count": 6,
-                        "status": "待審核",
-                        "is_owned": False
-                    }
-                ]
-            }
-
         ### db ###
         user = User(userID)
         owned_projects = user.get_owned_projects()
@@ -1400,29 +970,10 @@ async def get_users_projects(request: UserRequest):
         }
     
     except Exception as e:
-        print(f"獲取項目信息時出錯: {e}")
-        # 返回示例數據而不是錯誤
-        return {
-            "owned projects": [
-                {
-                    "project_id": 1,
-                    "project_name": "示例項目1",
-                    "video_count": 0,
-                    "image_count": 0,
-                    "status": "未開始",
-                    "is_owned": True
-                },
-                {
-                    "project_id": 2,
-                    "project_name": "示例項目2",
-                    "video_count": 0,
-                    "image_count": 0,
-                    "status": "未開始",
-                    "is_owned": True
-                }
-            ],
-            "shared projects": []
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 # Get project details when loading dashboard
 # Input: Project ID
@@ -1431,16 +982,6 @@ async def get_users_projects(request: UserRequest):
 @app.post("/get_project_details")
 async def get_project_details(request: ProjectRequest):
     try:
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, returning mock project details")
-            return {
-                "project name": f"Project {request.project_id}",
-                "project type": "Object Detection",
-                "video count": 1,
-                "status": "Active"
-            }
-        
         project = Project(project_id = request.project_id)
         project_details = {
             "project name": project.get_project_name(),
@@ -1452,14 +993,10 @@ async def get_project_details(request: ProjectRequest):
         return project_details
 
     except Exception as e:
-        print(f"💥 [BACKEND] Error getting project details: {str(e)}")
-        # 返回模擬數據而不是錯誤
-        return {
-            "project name": f"Project {request.project_id}",
-            "project type": "Object Detection",
-            "video count": 1,
-            "status": "Active"
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 # Create new project
 @app.post("/create_project")
@@ -1468,17 +1005,6 @@ async def create_project(request: CreateProjectRequest):
         userID = request.userID
         project_name = request.project_name
         project_type = request.project_type
-
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            import random
-            project_id = random.randint(1000, 9999)
-            print(f"數據庫未連接，返回模擬項目ID: {project_id}")
-            return {
-                "success": True,
-                "message": f"項目 '{project_name}' 創建成功（模擬模式）",
-                "project_id": project_id
-            }
 
         # initialize project
         temp_project_id = -1
@@ -1492,15 +1018,10 @@ async def create_project(request: CreateProjectRequest):
         }
     
     except Exception as e:
-        print(f"創建項目時出錯: {e}")
-        # 返回成功響應而不是錯誤
-        import random
-        project_id = random.randint(1000, 9999)
-        return {
-            "success": True,
-            "message": f"項目 '{request.project_name}' 創建成功（模擬模式）",
-            "project_id": project_id
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
         
 # Change project name
 @app.post("/change_project_name")
@@ -1540,167 +1061,28 @@ async def change_project_name(request: ProjectRequest, new_name: str):
 # Upload video
 @app.post("/upload")
 async def upload(project_id: str, file: UploadFile = File(...)):
-    print(f"🎬 [BACKEND] Upload endpoint called with project_id: {project_id}")
-    print(f"📁 [BACKEND] File details: {file.filename}, size: {file.size}, content_type: {file.content_type}")
-    
     try:
-        # Validate file type
-        if not file.filename or not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
-            print(f"❌ [BACKEND] Invalid file type: {file.filename}")
+        if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
             raise HTTPException(status_code=400, detail="Invalid file type.")
         
-        print(f"✅ [BACKEND] File type validation passed for: {file.filename}")
-        
-        # Sanitize filename to avoid filesystem issues
-        import re
-        import unicodedata
-        
-        def sanitize_filename(filename):
-            # 移除或替換有問題的字符
-            # 只保留字母數字、點、連字符、下劃線和空格
-            filename = re.sub(r'[^\w\s\-\.]', '_', filename)
-            # 將多個空格/下劃線替換為單個下劃線
-            filename = re.sub(r'[\s_]+', '_', filename)
-            # 移除前導/尾隨的點和下劃線
-            filename = filename.strip('._')
-            # 確保不為空
-            if not filename:
-                filename = "video"
-            
-            # 額外的安全檢查：移除任何可能導致路徑問題的字符
-            filename = re.sub(r'[<>:"|?*]', '_', filename)
-            filename = filename.strip()
-            
-            # 限制文件名長度
-            if len(filename) > 100:
-                filename = filename[:100]
-            
-            return filename
-        
-        # Initialize video object
-        print(f"🎥 [BACKEND] Creating Video object for project_id: {project_id}")
         video = Video(project_id=project_id, initialize=True)
-        
-        # Sanitize the filename
-        original_name, ext = os.path.splitext(file.filename)
-        sanitized_name = sanitize_filename(original_name)
-        
-        print(f"📝 [BACKEND] Original filename: {file.filename}")
-        print(f"📝 [BACKEND] Sanitized name: {sanitized_name}, ext: {ext}")
-        
-        video_id, file_location = video.initialize(sanitized_name, ext)
-        print(f"🆔 [BACKEND] Video initialized with ID: {video_id}, location: {file_location}")
+        name, ext = os.path.splitext(file.filename)
+        video_id, file_location = video.initialize(name, ext)
 
-        # Add video to project's video list
-        try:
-            project = Project(project_id=project_id)
-            project.videos.append(video_id)
-            project.save_project_status()
-            print(f"📊 [BACKEND] Video {video_id} added to project {project_id} videos list")
-        except Exception as e:
-            print(f"⚠️ [BACKEND] Warning: Could not update project videos list: {e}")
-        
         # Change project status to "Awaiting Labelling"
-        try:
-            video.project_status = "Awaiting Labelling"
-            video.save_project_status()
-            print(f"📊 [BACKEND] Project status updated to: Awaiting Labelling")
-        except Exception as e:
-            print(f"⚠️ [BACKEND] Warning: Could not update project status: {e}")
+        video.project_status = "Awaiting Labelling"
+        video.save_project_status()
         
-        # Save file to disk
-        print(f"💾 [BACKEND] Saving file to disk: {file_location}")
-        
-        try:
-            # 驗證文件路徑的安全性
-            file_path_obj = Path(file_location)
-            file_dir = file_path_obj.parent
-            
-            # 清理檔案名和路徑
-            safe_filename = sanitize_filename(file_path_obj.name)
-            safe_path = sanitize_path(str(file_dir))
-            
-            # 重新構建安全的路徑
-            file_path_obj = Path(safe_path) / safe_filename
-            file_location = str(file_path_obj)
-            
-            print(f"📝 [BACKEND] Sanitized file location: {file_location}")
-            
-            # 確保目錄存在
-            file_dir = file_path_obj.parent
-            file_dir.mkdir(parents=True, exist_ok=True)
-            print(f"📁 [BACKEND] Directory created/verified: {file_dir}")
-            
-            # 檢查目錄是否可寫
-            if not os.access(file_dir, os.W_OK):
-                raise PermissionError(f"Cannot write to directory: {file_dir}")
-            
-            # 檢查檔案是否已存在，如果存在則添加序號
-            original_location = file_location
-            counter = 1
-            while os.path.exists(file_location):
-                name_part = file_path_obj.stem
-                ext_part = file_path_obj.suffix
-                file_location = str(file_dir / f"{name_part}_{counter}{ext_part}")
-                counter += 1
-                if counter > 1000:  # 防止無限循環
-                    raise ValueError("Too many files with similar names")
-            
-            # 保存文件
-            with open(file_location, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            print(f"✅ [BACKEND] File saved successfully to: {file_location}")
-            
-        except Exception as e:
-            print(f"💥 [BACKEND] Error saving file: {e}")
-            print(f"💥 [BACKEND] File location: {file_location}")
-            print(f"💥 [BACKEND] Directory exists: {os.path.exists(os.path.dirname(file_location))}")
-            print(f"💥 [BACKEND] Directory writable: {os.access(os.path.dirname(file_location), os.W_OK) if os.path.exists(os.path.dirname(file_location)) else 'Directory does not exist'}")
-            
-            # 提供更詳細的錯誤信息
-            error_detail = f"Failed to save file: {str(e)}"
-            if "illegal path" in str(e).lower():
-                error_detail += " (Path contains illegal characters)"
-            elif "permission" in str(e).lower():
-                error_detail += " (Permission denied)"
-            elif "no space" in str(e).lower():
-                error_detail += " (No space left on device)"
-            
-            raise HTTPException(status_code=500, detail=error_detail)
-        
-        # Check if file was saved successfully
-        if os.path.exists(file_location):
-            file_size = os.path.getsize(file_location)
-            print(f"✅ [BACKEND] File saved successfully! Size: {file_size} bytes")
-            
-            # Verify file integrity
-            if file_size > 0:
-                print(f"✅ [BACKEND] File integrity verified - file is not empty")
-            else:
-                print(f"⚠️ [BACKEND] Warning - saved file is empty!")
-        else:
-            print(f"❌ [BACKEND] File save failed - file not found at: {file_location}")
-            raise HTTPException(status_code=500, detail="File save failed")
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-        response_data = {
+        return {
             "message": f"file '{file.filename}' saved at '{file_location}'",
             "video_id": video_id,
-            "video_path": file_location,
-            "file_size": file_size,
-            "project_id": project_id
+            "video_path": file_location
         }
-        
-        print(f"🎉 [BACKEND] Upload successful! Response: {response_data}")
-        return response_data
     
-    except HTTPException as e:
-        print(f"🚫 [BACKEND] HTTP Exception: {e.status_code} - {e.detail}")
-        raise e
     except Exception as e:
-        print(f"💥 [BACKEND] Unexpected error during upload: {str(e)}")
-        print(f"🔍 [BACKEND] Error type: {type(e).__name__}")
-        import traceback
-        print(f"📋 [BACKEND] Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -1708,109 +1090,26 @@ async def upload(project_id: str, file: UploadFile = File(...)):
 
 # Get all uploaded videos for a project
 # Output: videos_info = [{"name": video_name, "file": video, "path": video_path}, ... ]
-@app.post("/get_uploaded_videos")
+@app.post("get_uploaded_videos")
 def get_uploaded_videos(request: ProjectRequest):
-    print(f"📋 [BACKEND] Get uploaded videos called for project_id: {request.project_id}")
-    
     try:
-        # 首先嘗試從數據庫獲取視頻列表
-        videos_info = []
-        if connection is not None and connection:
-            try:
-                project = Project(project_id = request.project_id)
-                videos_info = project.get_uploaded_videos()
-                print(f"📋 [BACKEND] Found {len(videos_info)} videos from database for project {request.project_id}")
-            except Exception as db_error:
-                print(f"⚠️ [BACKEND] Database error, falling back to filesystem scan: {db_error}")
-                videos_info = []
-        
-        # 如果數據庫沒有返回視頻，或者數據庫未連接，則從文件系統掃描
-        if not videos_info:
-            print(f"📁 [BACKEND] Scanning filesystem for videos in project {request.project_id}")
-            from pathlib import Path
-            
-            # 嘗試多個可能的路徑
-            possible_paths = [
-                f"backend/Nocodile/Backend/Nocodile/backend/{request.project_id}/videos",
-                f"{request.project_id}/videos",
-                f"./{request.project_id}/videos"
-            ]
-            
-            found_videos = []
-            for path_str in possible_paths:
-                video_dir = Path(path_str)
-                if video_dir.exists():
-                    video_files = list(video_dir.glob("*.mp4")) + list(video_dir.glob("*.mov")) + list(video_dir.glob("*.avi"))
-                    if video_files:
-                        print(f"📁 [BACKEND] Found {len(video_files)} videos in: {video_dir}")
-                        for i, video_file in enumerate(video_files):
-                            video_info = {
-                                "name": video_file.name,
-                                "file": video_file.name,
-                                "path": str(video_file),
-                                "video_id": f"video_{request.project_id}_{i+1}",
-                                "size": video_file.stat().st_size,
-                                "directory": str(video_dir)
-                            }
-                            found_videos.append(video_info)
-                        break
-            
-            if found_videos:
-                videos_info = found_videos
-                print(f"📁 [BACKEND] Filesystem scan found {len(videos_info)} videos")
-            else:
-                print(f"❌ [BACKEND] No videos found in any of these paths: {possible_paths}")
-                # 返回模擬數據
-                videos_info = [
-                    {
-                        "name": "Sample Video 1",
-                        "file": "sample_video_1.mp4",
-                        "path": "/videos/sample_video_1.mp4",
-                        "video_id": "sample_1"
-                    }
-                ]
-        
-        print(f"📋 [BACKEND] Returning {len(videos_info)} videos for project {request.project_id}")
-        for i, video in enumerate(videos_info):
-            print(f"📋 [BACKEND] Video {i+1}: {video.get('name', 'Unknown')} (ID: {video.get('video_id', 'Unknown')})")
-        
+        project = Project(project_id = request.project_id)
+        videos_info = project.get_uploaded_videos()
         return videos_info
     
     except Exception as e:
-        print(f"💥 [BACKEND] Error getting uploaded videos: {str(e)}")
-        import traceback
-        print(f"📋 [BACKEND] Traceback: {traceback.format_exc()}")
-        # 返回模擬數據而不是錯誤
-        return [
-            {
-                "name": "Sample Video 1",
-                "file": "sample_video_1.mp4", 
-                "path": "/videos/sample_video_1.mp4",
-                "video_id": "sample_1"
-            }
-        ]
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 ##################### Page 4 - Annotation #####################
 
 @app.post("/get_classes")
 async def get_classes(request:ProjectRequest):
     try:
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("數據庫未連接，返回示例類別數據")
-            return {
-                "success": True,
-                "classes": [
-                    {"id": "give_way_sign", "name": "give_way_sign", "color": "#fbbf24"},
-                    {"id": "pedestrian_child", "name": "pedestrian_child", "color": "#3b82f6"},
-                    {"id": "zebra_crossing_sign", "name": "zebra_crossing_sign", "color": "#8b5cf6"},
-                    {"id": "traffic_light_red", "name": "traffic_light_red", "color": "#10b981"},
-                    {"id": "stop_sign", "name": "stop_sign", "color": "#ef4444"}
-                ]
-            }
-        
-        # 只有在數據庫連接可用時才創建Project實例
         project = Project(project_id = request.project_id)
+        
         classes = project.get_classes()
         
         return {
@@ -1819,54 +1118,14 @@ async def get_classes(request:ProjectRequest):
         }
     
     except Exception as e:
-        print(f"獲取類別時出錯: {e}")
-        # 返回示例數據而不是錯誤
-        return {
-            "success": True,
-            "classes": [
-                {"id": "give_way_sign", "name": "give_way_sign", "color": "#fbbf24"},
-                {"id": "pedestrian_child", "name": "pedestrian_child", "color": "#3b82f6"},
-                {"id": "zebra_crossing_sign", "name": "zebra_crossing_sign", "color": "#8b5cf6"},
-                {"id": "traffic_light_red", "name": "traffic_light_red", "color": "#10b981"},
-                {"id": "stop_sign", "name": "stop_sign", "color": "#ef4444"}
-            ]
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/add_class")
-async def add_class(request: ProjectRequest, class_name: str = None, color: str = None):
+async def add_class(request: ProjectRequest, class_name: str, colour: str):
     try:
-        # 從查詢參數獲取參數
-        if class_name is None:
-            class_name = request.query_params.get('class_name', '')
-        if color is None:
-            color = request.query_params.get('color', '#3b82f6')
-        
-        print(f"📝 [BACKEND] Adding class: {class_name} with color: {color}")
-        
-        # 驗證參數
-        if not class_name or not class_name.strip():
-            return {
-                "success": False,
-                "message": "Class name is required.",
-                "classes": []
-            }
-        
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print(f"數據庫未連接，模擬添加類別: {class_name}")
-            return {
-                "success": True,
-                "message": f"Class '{class_name}' added successfully (mock mode).",
-                "classes": [
-                    {"id": "give_way_sign", "name": "give_way_sign", "color": "#fbbf24"},
-                    {"id": "pedestrian_child", "name": "pedestrian_child", "color": "#3b82f6"},
-                    {"id": "zebra_crossing_sign", "name": "zebra_crossing_sign", "color": "#8b5cf6"},
-                    {"id": "traffic_light_red", "name": "traffic_light_red", "color": "#10b981"},
-                    {"id": "stop_sign", "name": "stop_sign", "color": "#ef4444"},
-                    {"id": class_name.lower().replace(" ", "_"), "name": class_name, "color": color}
-                ]
-            }
-        
         project = Project(project_id = request.project_id)
         
         # check if class_name already exists for this project
@@ -1875,30 +1134,22 @@ async def add_class(request: ProjectRequest, class_name: str = None, color: str 
             return {
                 "success": False,
                 "message": "Class name already exists.",
-                "classes": project.get_classes()
+                "classes": project.classes
             }
         
-        # 添加類別
-        project.add_class(class_name, color)
-        
-        # 獲取更新後的類別列表
-        updated_classes = project.get_classes()
+        project.add_class(class_name, colour)
         
         return {
             "success": True,
             "message": "Class added successfully.",
-            "classes": updated_classes
+            "classes": project.classes
         }
     
     except Exception as e:
-        print(f"添加類別時出錯: {e}")
-        import traceback
-        traceback.print_exc()
-        return {
-            "success": False,
-            "message": f"Error adding class: {str(e)}",
-            "classes": []
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/modify_class")
 async def modify_class(request: ProjectRequest, original_class_name: str, new_class_name: str):
@@ -1938,512 +1189,100 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
         )
 
 @app.post("/delete_class")
-async def delete_class(request: ProjectRequest):
+async def add_class(request: ProjectRequest, class_name: str):
     try:
-        # 從查詢參數獲取 class_name
-        class_name = request.query_params.get('class_name', '')
-        print(f"🗑️ [BACKEND] Deleting class: {class_name} for project: {request.project_id}")
-        
-        # 驗證參數
-        if not class_name or not class_name.strip():
-            print(f"❌ [BACKEND] Class name is required")
-            return {
-                "success": False,
-                "message": "Class name is required.",
-                "classes": []
-            }
-        
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print(f"📋 [BACKEND] Database not connected, simulating class deletion: {class_name}")
-            return {
-                "success": True,
-                "message": f"Class '{class_name}' deleted successfully (mock mode).",
-                "classes": [
-                    {"id": "give_way_sign", "name": "give_way_sign", "color": "#fbbf24"},
-                    {"id": "pedestrian_child", "name": "pedestrian_child", "color": "#3b82f6"},
-                    {"id": "zebra_crossing_sign", "name": "zebra_crossing_sign", "color": "#8b5cf6"},
-                    {"id": "traffic_light_red", "name": "traffic_light_red", "color": "#10b981"},
-                    {"id": "stop_sign", "name": "stop_sign", "color": "#ef4444"}
-                ]
-            }
-        
         project = Project(project_id = request.project_id)
         
-        # check if class_name exists for this project
+        # check if class_name already exists for this project
         class_name_exists = project.check_class_exists(class_name)
         if not class_name_exists:
-            print(f"❌ [BACKEND] Class '{class_name}' does not exist")
             return {
                 "success": False,
-                "message": f"Class '{class_name}' does not exist.",
-                "classes": project.get_classes()
+                "message": "Class does not exists.",
+                "classes": project.classes
             }
         
-        # 刪除類別
-        success = project.delete_class(class_name)
-        if not success:
-            print(f"❌ [BACKEND] Failed to delete class '{class_name}'")
-            return {
-                "success": False,
-                "message": f"Failed to delete class '{class_name}'.",
-                "classes": project.get_classes()
-            }
-        
-        # 獲取更新後的類別列表
-        updated_classes = project.get_classes()
-        print(f"✅ [BACKEND] Successfully deleted class '{class_name}'. Remaining classes: {len(updated_classes)}")
+        project.delete_class(class_name)
         
         return {
             "success": True,
-            "message": f"Class '{class_name}' deleted successfully.",
-            "classes": updated_classes
+            "message": "Class added successfully.",
+            "classes": project.classes
         }
     
     except Exception as e:
-        print(f"💥 [BACKEND] Error deleting class '{class_name}': {e}")
-        import traceback
-        traceback.print_exc()
-        return {
-            "success": False,
-            "message": f"Error deleting class: {str(e)}",
-            "classes": []
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/get_next_frame_to_annotate")
 async def get_next_frame_to_annotate(request: VideoRequest):
     try:
-        print(f"🎬 [BACKEND] Getting next frame for video {request.video_id}")
+        video = Video(project_id = request.project_id, video_id = request.video_id)
+        next_frame = video.get_next_frame_to_annotate()
         
-        # 檢查 OpenCV 是否可用
-        if not OPENCV_AVAILABLE:
-            print("⚠️ [BACKEND] OpenCV not available, returning placeholder")
-            return {
-                "success": True,
-                "message": "OpenCV not available, using placeholder",
-                "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-                "frame_id": request.current_frame,
-                "total_frames": 100,  # 假設的總幀數
-                "video_path": "opencv_unavailable.mp4"
-            }
-        
-        import cv2
-        import base64
-        from pathlib import Path
-        
-        # 構建視頻文件路徑 - 嘗試多個可能的路徑
-        possible_paths = [
-            f"./projects/{request.project_id}/videos",  # 新的安全路徑
-            f"./safe_projects/default/videos",         # 備用路徑
-            f"backend/Nocodile/Backend/Nocodile/backend/{request.project_id}/videos",
-            f"{request.project_id}/videos",
-            f"./{request.project_id}/videos",
-            f"./videos",  # 最後的備用路徑
-            f"./temp"     # 臨時路徑
-        ]
-        
-        video_files = []
-        video_dir = None
-        
-        for path_str in possible_paths:
-            video_dir = Path(path_str)
-            print(f"🔍 [BACKEND] Checking path: {video_dir}")
-            if video_dir.exists():
-                video_files = list(video_dir.glob("*.mp4"))
-                if video_files:
-                    print(f"🎬 [BACKEND] Found {len(video_files)} videos in: {video_dir}")
-                    break
-                else:
-                    print(f"📁 [BACKEND] Directory exists but no MP4 files found: {video_dir}")
-            else:
-                print(f"❌ [BACKEND] Directory does not exist: {video_dir}")
-        
-        if not video_files:
-            print(f"❌ [BACKEND] No video files found in any of these paths: {possible_paths}")
+        if next_frame is None:
             return {
                 "success": False,
-                "message": "No video files found",
-                "image": None,
-                "frame_id": request.current_frame,
-                "total_frames": 0,
-                "video_path": "no_video_found.mp4"
+                "message": "All frames have been annotated.",
+                "image": None
             }
         
-        # 使用第一個找到的視頻文件
-        video_path = video_files[0]
-        print(f"🎬 [BACKEND] Using video file: {video_path}")
-        
-        # 檢查檔案是否存在且可讀
-        if not video_path.exists():
-            print(f"❌ [BACKEND] Video file does not exist: {video_path}")
-            return {
-                "success": False,
-                "message": "Video file does not exist",
-                "image": None,
-                "frame_id": request.current_frame,
-                "total_frames": 0,
-                "video_path": str(video_path)
-            }
-        
-        # 打開視頻文件
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            print(f"❌ [BACKEND] Could not open video file: {video_path}")
-            return {
-                "success": False,
-                "message": "Could not open video file",
-                "image": None,
-                "frame_id": request.current_frame,
-                "total_frames": 0,
-                "video_path": str(video_path)
-            }
-        
-        # 獲取視頻總幀數
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        print(f"🎬 [BACKEND] Video has {total_frames} total frames")
-        
-        if total_frames <= 0:
-            print(f"❌ [BACKEND] Invalid video file: {total_frames} frames")
-            cap.release()
-            return {
-                "success": False,
-                "message": "Invalid video file",
-                "image": None,
-                "frame_id": request.current_frame,
-                "total_frames": 0,
-                "video_path": str(video_path)
-            }
-        
-        # 實現真正的"下一幀"邏輯
-        current_frame = request.current_frame
-        next_frame = current_frame + 1
-        
-        # 確保不超過總幀數
-        if next_frame >= total_frames:
-            next_frame = 0  # 循環回到第一幀
-            print(f"🔄 [BACKEND] Reached end of video, looping back to frame 0")
-        
-        frame_num = next_frame
-        print(f"🎬 [BACKEND] Getting next frame: {frame_num} (current was {current_frame})")
-        
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-        ret, frame = cap.read()
-        
-        if not ret or frame is None:
-            print(f"❌ [BACKEND] Could not read frame {frame_num}")
-            cap.release()
-            return {
-                "success": False,
-                "message": f"Could not read frame {frame_num}",
-                "image": None,
-                "frame_id": frame_num,
-                "total_frames": total_frames,
-                "video_path": str(video_path)
-            }
-        
-        # 將幀轉換為base64
-        try:
-            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            frame_base64 = base64.b64encode(buffer).decode('utf-8')
-            frame_data_url = f"data:image/jpeg;base64,{frame_base64}"
-        except Exception as encode_error:
-            print(f"❌ [BACKEND] Error encoding frame: {encode_error}")
-            cap.release()
-            return {
-                "success": False,
-                "message": f"Error encoding frame: {str(encode_error)}",
-                "image": None,
-                "frame_id": frame_num,
-                "total_frames": total_frames,
-                "video_path": str(video_path)
-            }
-        
-        cap.release()
-        
-        print(f"✅ [BACKEND] Successfully extracted next frame {frame_num}")
-        print(f"📊 [BACKEND] Frame details: frame_id={frame_num}, total_frames={total_frames}, video_path={video_path}")
         return {
-            "success": True,
-            "message": f"Next frame {frame_num} fetched successfully from video file.",
-            "image": frame_data_url,
-            "frame_id": frame_num,
-            "total_frames": total_frames,
-            "video_path": str(video_path)
+                "success": True,
+                "message": "Next frame fetched successfully.",
+                "image": next_frame
         }
 
     except Exception as e:
-        print(f"💥 [BACKEND] Error getting next frame: {e}")
-        import traceback
-        traceback.print_exc()
-        # 返回錯誤而不是模擬數據
-        return {
-            "success": False,
-            "message": f"Error extracting frame: {str(e)}",
-            "image": None,
-            "frame_id": request.current_frame,
-            "total_frames": 0,
-            "video_path": "error.mp4"
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
-@app.post("/get_frame")
-async def get_frame(request: VideoRequest, frame_num: int):
-    try:
-        print(f"🎬 [BACKEND] Getting frame {frame_num} for video {request.video_id}")
-        
-        # 檢查 OpenCV 是否可用
-        if not OPENCV_AVAILABLE:
-            print("⚠️ [BACKEND] OpenCV not available, returning placeholder")
-            return {
-                "success": True,
-                "message": "OpenCV not available, using placeholder",
-                "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-                "frame_id": frame_num,
-                "total_frames": 100,  # 假設的總幀數
-                "video_path": "opencv_unavailable.mp4"
-            }
-        
-        import cv2
-        import base64
-        from pathlib import Path
-        
-        # 構建視頻文件路徑 - 嘗試多個可能的路徑
-        possible_paths = [
-            f"./projects/{request.project_id}/videos",  # 新的安全路徑
-            f"./safe_projects/default/videos",         # 備用路徑
-            f"backend/Nocodile/Backend/Nocodile/backend/{request.project_id}/videos",
-            f"{request.project_id}/videos",
-            f"./{request.project_id}/videos",
-            f"./videos",  # 最後的備用路徑
-            f"./temp"     # 臨時路徑
-        ]
-        
-        video_files = []
-        video_dir = None
-        
-        for path_str in possible_paths:
-            video_dir = Path(path_str)
-            print(f"🔍 [BACKEND] Checking path: {video_dir}")
-            if video_dir.exists():
-                video_files = list(video_dir.glob("*.mp4"))
-                if video_files:
-                    print(f"🎬 [BACKEND] Found {len(video_files)} videos in: {video_dir}")
-                    break
-                else:
-                    print(f"📁 [BACKEND] Directory exists but no MP4 files found: {video_dir}")
-            else:
-                print(f"❌ [BACKEND] Directory does not exist: {video_dir}")
-        
-        if not video_files:
-            print(f"❌ [BACKEND] No video files found in any of these paths: {possible_paths}")
-            return {
-                "success": False,
-                "message": "No video files found",
-                "image": None,
-                "frame_id": request.current_frame,
-                "total_frames": 0,
-                "video_path": "no_video_found.mp4"
-            }
-        
-        # 使用第一個找到的視頻文件
-        video_path = video_files[0]
-        print(f"🎬 [BACKEND] Using video file: {video_path}")
-        
-        # 打開視頻文件
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            print(f"❌ [BACKEND] Could not open video file: {video_path}")
-            return {
-                "success": False,
-                "message": "Could not open video file",
-                "image": None,
-                "frame_id": request.current_frame,
-                "total_frames": 0,
-                "video_path": str(video_path)
-            }
-        
-        # 獲取視頻總幀數
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        print(f"🎬 [BACKEND] Video has {total_frames} total frames")
-        
-        # 確保frame_num在有效範圍內
-        if frame_num >= total_frames:
-            frame_num = total_frames - 1
-        if frame_num < 0:
-            frame_num = 0
-            
-        # 跳轉到指定幀
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-        ret, frame = cap.read()
-        
-        if not ret:
-            print(f"❌ [BACKEND] Could not read frame {frame_num}")
-            cap.release()
-            return {
-                "success": False,
-                "message": f"Could not read frame {frame_num}",
-                "image": None,
-                "frame_id": frame_num,
-                "total_frames": total_frames,
-                "video_path": str(video_path)
-            }
-        
-        # 將幀轉換為base64
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame_base64 = base64.b64encode(buffer).decode('utf-8')
-        frame_data_url = f"data:image/jpeg;base64,{frame_base64}"
-        
-        cap.release()
-        
-        print(f"✅ [BACKEND] Successfully extracted frame {frame_num}")
-        print(f"📊 [BACKEND] Frame details: frame_id={frame_num}, total_frames={total_frames}, video_path={video_path}")
-        return {
-            "success": True,
-            "message": f"Frame {frame_num} fetched successfully from video file.",
-            "image": frame_data_url,
-            "frame_id": frame_num,
-            "total_frames": total_frames,
-            "video_path": str(video_path)
-        }
-
-    except Exception as e:
-        print(f"💥 [BACKEND] Error getting frame {frame_num}: {e}")
-        import traceback
-        traceback.print_exc()
-        # 返回錯誤而不是模擬數據
-        return {
-            "success": False,
-            "message": f"Error extracting frame: {str(e)}",
-            "image": None,
-            "frame_id": request.current_frame,
-            "total_frames": 0,
-            "video_path": "error.mp4"
-        }
 @app.post("/check_annotation_status")
 async def check_annotation_status(request: VideoRequest):  
     try:
-        print(f"檢查註釋狀態 - project_id: {request.project_id}, video_id: {request.video_id}")
-        
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("數據庫未連接，返回模擬註釋狀態")
-            return {
-                "annotation status": "not yet started",
-                "last annotated frame": 0
-            }
-        
-        # 檢查必要參數
-        if not request.project_id or not request.video_id:
-            print("Missing project_id or video_id")
-            return {
-                "annotation status": "not yet started",
-                "last annotated frame": 0
-            }
-        
-        # 簡化處理，直接返回默認狀態，避免Video類的複雜性
-        print("返回默認註釋狀態")
+        video = Video(project_id = request.project_id, video_id = request.video_id)
         return {
-            "annotation status": "not yet started",
-            "last annotated frame": 0
+            "annotation status": video.annotation_status,
+            "last annotated frame": video.last_annotated_frame
         }
 
     except Exception as e:
-        print(f"檢查註釋狀態時出錯: {e}")
-        import traceback
-        traceback.print_exc()
-        # 返回模擬數據而不是錯誤
-        return {
-            "annotation status": "not yet started",
-            "last annotated frame": 0
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/annotate")
 async def annotate(request: AnnotationRequest):
     try:
-        print(f"🎯 [BACKEND] Saving annotation - Project: {request.project_id}, Video: {request.video_id}, Frame: {request.frame_num}, Bboxes: {len(request.bboxes)}")
+        video = Video(project_id = request.project_id, video_id = request.video_id)
+        for bbox in request.bboxes:
+            success = video.annotate(request.frame_num, bbox)
         
-        # 驗證輸入資料
-        if not request.project_id or not request.video_id:
-            return {
-                "success": False,
-                "message": "Missing project_id or video_id"
-            }
+        data_saved = False
+        while data_saved:
+            data_saved = video.save_data()
         
-        if request.frame_num < 0:
-            return {
-                "success": False,
-                "message": "Invalid frame number"
-            }
-        
-        # 驗證邊界框資料
-        for i, bbox in enumerate(request.bboxes):
-            if not all(key in bbox for key in ['class_name', 'x', 'y', 'width', 'height']):
-                return {
-                    "success": False,
-                    "message": f"Invalid bbox data at index {i}: missing required fields"
-                }
-            
-            # 驗證數值範圍
-            if bbox['x'] < 0 or bbox['y'] < 0 or bbox['width'] <= 0 or bbox['height'] <= 0:
-                return {
-                    "success": False,
-                    "message": f"Invalid bbox coordinates at index {i}: negative values or zero dimensions"
-                }
-        
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print(f"📋 [BACKEND] Database not connected, saving annotation in mock mode")
+        if success:
             return {
                 "success": True,
-                "message": f"Annotation saved successfully (mock mode). {len(request.bboxes)} bounding boxes processed.",
-                "savedAt": "2024-01-01T00:00:00Z",
-                "bboxCount": len(request.bboxes)
+                "message": "Annotation saved."
             }
-        
-        # 實際保存到資料庫
-        try:
-            video = Video(project_id=request.project_id, video_id=request.video_id)
-            success_count = 0
-            
-            for bbox in request.bboxes:
-                try:
-                    success = video.annotate(request.frame_num, bbox)
-                    if success:
-                        success_count += 1
-                except Exception as bbox_error:
-                    print(f"⚠️ [BACKEND] Error saving bbox: {bbox_error}")
-                    continue
-            
-            # 保存資料
-            data_saved = video.save_data()
-            
-            if success_count > 0:
-                return {
-                    "success": True,
-                    "message": f"Annotation saved successfully. {success_count}/{len(request.bboxes)} bounding boxes processed.",
-                    "savedAt": "2024-01-01T00:00:00Z",
-                    "bboxCount": success_count
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": "Failed to save any bounding boxes"
-                }
-                
-        except Exception as db_error:
-            print(f"💥 [BACKEND] Database error: {db_error}")
+        else:
             return {
-                "success": False,
-                "message": f"Database error: {str(db_error)}"
+                    "success": False,
+                    "message": success
             }
 
     except Exception as e:
-        print(f"💥 [BACKEND] Error in annotate endpoint: {e}")
-        import traceback
-        traceback.print_exc()
-        return {
-            "success": False,
-            "message": f"Server error: {str(e)}"
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
     
 @app.post("/next_video")
 async def next_video(request: ProjectRequest, current_video_id: str):
@@ -2562,48 +1401,27 @@ async def get_training_progress(request: ProjectRequest):
     try:
         project = Project(project_id = request.project_id)
 
-        # Get training progress - use fallback if database column doesn't exist
-        try:
-            project_status = project.get_project_status()
-            progress = project.get_training_progress() # progress is an int (0 - 100) representing the % of completion
-        except Exception as db_error:
-            print(f"Database error, using fallback: {db_error}")
-            project_status = "Not started"
-            progress = 0
+        # Get training profress
+        status = project.get_project_status
+        progress = project.get_training_progress() # progress is an int (0 - 100) representing the % of completion
 
         return {
             "success": True,
-            "status": project_status,
+            "status": status,
             "progress": progress
         }
 
     except Exception as e:
-        print(f"Error in get_training_progress: {e}")
-        return {
-            "success": True,
-            "status": "Not started",
-            "progress": 0
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
     
 ##################### Page 6 - Deployment #####################
 
 @app.post("/get_model_performance")
 async def get_model_performance(request: ProjectRequest):
     try:
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, returning mock model performance")
-            return {
-                "success": True,
-                "model performance": {
-                    "accuracy": 0.85,
-                    "precision": 0.82,
-                    "recall": 0.88,
-                    "f1_score": 0.85,
-                    "status": "No trained model available (mock mode)"
-                }
-            }
-        
         project = Project(project_id = request.project_id)
 
         # Get model performance
@@ -2615,31 +1433,14 @@ async def get_model_performance(request: ProjectRequest):
         }
 
     except Exception as e:
-        print(f"💥 [BACKEND] Error getting model performance: {str(e)}")
-        # 返回模擬數據而不是錯誤
-        return {
-            "success": True,
-            "model performance": {
-                "accuracy": 0.85,
-                "precision": 0.82,
-                "recall": 0.88,
-                "f1_score": 0.85,
-                "status": "No trained model available (mock mode)"
-            }
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 @app.post("/get_model_path")
 async def get_model_path(request: ProjectRequest):
     try:
-        # 檢查數據庫連接
-        if connection is None or not connection:
-            print("📋 [BACKEND] Database not connected, returning mock model path")
-            return {
-                "success": True,
-                "model path": "/mock/models/best.pt",
-                "status": "No trained model available (mock mode)"
-            }
-        
         project = Project(project_id = request.project_id)
 
         # Get model paths
@@ -2651,249 +1452,10 @@ async def get_model_path(request: ProjectRequest):
         }
 
     except Exception as e:
-        print(f"💥 [BACKEND] Error getting model path: {str(e)}")
-        # 返回模擬數據而不是錯誤
-        return {
-            "success": True,
-            "model path": "/mock/models/best.pt",
-            "status": "No trained model available (mock mode)"
-        }
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "message": "Backend is running"}
-
-# Test endpoint to verify server is working
-@app.get("/test")
-async def test_endpoint():
-    return {"message": "Backend is working!", "timestamp": "2024-01-01"}
-
-# Debug endpoint to list all available routes
-@app.get("/debug/routes")
-async def debug_routes():
-    routes = []
-    for route in app.routes:
-        if hasattr(route, 'methods') and hasattr(route, 'path'):
-            routes.append({
-                "path": route.path,
-                "methods": list(route.methods)
-            })
-    return {"available_routes": routes}
-
-# Debug endpoint to check current project status
-@app.get("/debug/project/{project_id}")
-async def debug_project(project_id: str):
-    try:
-        print(f"🔍 [DEBUG] Checking project status: {project_id}")
-        
-        from pathlib import Path
-        
-        # 檢查專案目錄
-        project_paths = [
-            f"./projects/{project_id}",
-            f"./safe_projects/default",
-            f"backend/Nocodile/Backend/Nocodile/backend/{project_id}",
-            f"{project_id}"
-        ]
-        
-        project_info = {
-            "project_id": project_id,
-            "opencv_available": OPENCV_AVAILABLE,
-            "current_working_dir": str(Path.cwd()),
-            "project_paths": [],
-            "video_files": [],
-            "total_videos": 0
-        }
-        
-        for path_str in project_paths:
-            project_dir = Path(path_str)
-            path_info = {
-                "path": str(project_dir),
-                "exists": project_dir.exists(),
-                "is_dir": project_dir.is_dir() if project_dir.exists() else False,
-                "videos_dir": None,
-                "video_files": []
-            }
-            
-            if project_dir.exists():
-                videos_dir = project_dir / "videos"
-                path_info["videos_dir"] = str(videos_dir)
-                path_info["videos_dir_exists"] = videos_dir.exists()
-                
-                if videos_dir.exists():
-                    video_files = list(videos_dir.glob("*.mp4"))
-                    path_info["video_files"] = [str(f) for f in video_files]
-                    project_info["video_files"].extend([str(f) for f in video_files])
-            
-            project_info["project_paths"].append(path_info)
-        
-        project_info["total_videos"] = len(project_info["video_files"])
-        
-        return project_info
-    except Exception as e:
-        return {
-            "error": str(e),
-            "project_id": project_id
-        }
-
-# Debug endpoint to check frame information for a project
-@app.get("/debug/frames/{project_id}")
-async def debug_frames(project_id: str):
-    try:
-        print(f"🔍 [DEBUG] Checking frames for project: {project_id}")
-        
-        if not OPENCV_AVAILABLE:
-            return {
-                "project_id": project_id,
-                "opencv_available": False,
-                "message": "OpenCV not available",
-                "frames": []
-            }
-        
-        import cv2
-        from pathlib import Path
-        
-        # 嘗試多個可能的路徑
-        possible_paths = [
-            f"./projects/{project_id}/videos",  # 新的安全路徑
-            f"./safe_projects/default/videos",   # 備用路徑
-            f"backend/Nocodile/Backend/Nocodile/backend/{project_id}/videos",
-            f"{project_id}/videos",
-            f"./{project_id}/videos",
-            f"./videos",  # 最後的備用路徑
-            f"./temp"     # 臨時路徑
-        ]
-        
-        found_videos = []
-        frame_info = []
-        
-        for path_str in possible_paths:
-            video_dir = Path(path_str)
-            if video_dir.exists():
-                video_files = list(video_dir.glob("*.mp4"))
-                if video_files:
-                    for video_file in video_files:
-                        try:
-                            cap = cv2.VideoCapture(str(video_file))
-                            if cap.isOpened():
-                                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                                fps = cap.get(cv2.CAP_PROP_FPS)
-                                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                                
-                                # 測試讀取第一幀
-                                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                                ret, frame = cap.read()
-                                first_frame_ok = ret and frame is not None
-                                
-                                video_info = {
-                                    "path": str(video_file),
-                                    "name": video_file.name,
-                                    "size": video_file.stat().st_size,
-                                    "total_frames": total_frames,
-                                    "fps": fps,
-                                    "width": width,
-                                    "height": height,
-                                    "first_frame_readable": first_frame_ok,
-                                    "readable": os.access(video_file, os.R_OK)
-                                }
-                                found_videos.append(video_info)
-                                frame_info.append({
-                                    "video": video_file.name,
-                                    "frame_id": 0,
-                                    "total_frames": total_frames,
-                                    "readable": first_frame_ok
-                                })
-                                
-                                cap.release()
-                        except Exception as video_error:
-                            print(f"❌ [DEBUG] Error processing video {video_file}: {video_error}")
-                            found_videos.append({
-                                "path": str(video_file),
-                                "name": video_file.name,
-                                "error": str(video_error)
-                            })
-                    break
-        
-        return {
-            "project_id": project_id,
-            "opencv_available": OPENCV_AVAILABLE,
-            "found_videos": found_videos,
-            "frame_info": frame_info,
-            "total_videos": len(found_videos),
-            "current_working_dir": str(Path.cwd())
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "project_id": project_id
-        }
-
-# Debug endpoint to check video files for a project
-@app.get("/debug/videos/{project_id}")
-async def debug_videos(project_id: str):
-    try:
-        from pathlib import Path
-        
-        # 嘗試多個可能的路徑
-        possible_paths = [
-            f"./projects/{project_id}/videos",  # 新的安全路徑
-            f"./safe_projects/default/videos",   # 備用路徑
-            f"backend/Nocodile/Backend/Nocodile/backend/{project_id}/videos",
-            f"{project_id}/videos",
-            f"./{project_id}/videos",
-            f"./videos",  # 最後的備用路徑
-            f"./temp"     # 臨時路徑
-        ]
-        
-        found_videos = []
-        path_status = []
-        
-        for path_str in possible_paths:
-            video_dir = Path(path_str)
-            status = {
-                "path": str(video_dir),
-                "exists": video_dir.exists(),
-                "is_dir": video_dir.is_dir() if video_dir.exists() else False,
-                "videos": []
-            }
-            
-            if video_dir.exists() and video_dir.is_dir():
-                video_files = list(video_dir.glob("*.mp4"))
-                if video_files:
-                    for video_file in video_files:
-                        try:
-                            video_info = {
-                                "path": str(video_file),
-                                "name": video_file.name,
-                                "size": video_file.stat().st_size,
-                                "readable": os.access(video_file, os.R_OK)
-                            }
-                            status["videos"].append(video_info)
-                            found_videos.append(video_info)
-                        except Exception as file_error:
-                            status["videos"].append({
-                                "path": str(video_file),
-                                "name": video_file.name,
-                                "error": str(file_error)
-                            })
-            
-            path_status.append(status)
-        
-        return {
-            "project_id": project_id,
-            "found_videos": found_videos,
-            "total_count": len(found_videos),
-            "path_status": path_status,
-            "opencv_available": OPENCV_AVAILABLE,
-            "current_working_dir": str(Path.cwd())
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "project_id": project_id
-        }
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 if __name__ == "__main__":
     import uvicorn
