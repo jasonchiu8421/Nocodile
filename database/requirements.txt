@@ -18,8 +18,8 @@ pandas==2.2.2
 numpy==1.26.4
 scikit-image==0.22.0
 Pillow==10.3.0
-torch==2.2.2
-torchvision==0.17.2
+torch
+torchvision
 transformers==4.41.2
 ultralytics==8.3.20
 pymysql==1.0.3
