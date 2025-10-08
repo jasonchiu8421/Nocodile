@@ -706,7 +706,7 @@ class Video(Project):
         if self.annotation_status == "yet to start":
             self.last_annotated_frame = 0
             self.save_last_annotated_frame()
-            print(f"Fetching frame {self.last_annotate_frame}")
+            print(f"Fetching frame {self.last_annotated_frame}")
             return self.get_frame(0)
         elif self.annotation_status == "completed":
             print("No frame fetched. Annotation completed.")
