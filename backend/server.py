@@ -22,7 +22,6 @@ import mysql.connector
 from shutil import copy2, rmtree
 from pathlib import Path
 import pymysql
-import hashlib
 import hmac
 
 #=================================== Initialize server ==========================================
