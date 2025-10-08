@@ -11,8 +11,7 @@ COPY . .
 # 安装依赖
 RUN npm install
 
-# 构建项目
-RUN npm run build
+RUN npm run dev
 
 # 第二阶段：创建运行环境
 FROM nginx:alpine
