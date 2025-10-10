@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Image, Video } from "lucide-react";
 import "../../css/dashboard.css";
 import Link from "next/link";
-import { getProjectsInfo, ProjectInfo } from "./get_project_info";
+import { getProjectsInfo, ProjectInfo } from "./getProjectsInfo";
 import NewProjectForm from "./NewProjectForm";
 import { CircleDot } from "lucide-react";
 
@@ -76,8 +76,9 @@ export default function Dashboard() {
         console.log("dashboard: userid is", res.value);
         setUserId(res.value);
       })
-      .then(() => {
-        const test = getProjectsInfo(userId);
+      .then(async () => {
+        const test = await getProjectsInfo(userId);
+        console.log("fetched projects:", test);
         setProjects(test);
       });
   }, []);

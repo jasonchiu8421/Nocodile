@@ -13,18 +13,19 @@ export type StatusType =
   | "Training"
   | "Finish training"
   | "Complete";
-export function getProjectsInfo(userId: number): ProjectInfo[] {
-  //IT WILL BE ASYNC.......
-  //: Promise<ProjectInfo> {
-  /*
-  const res = await fetch(
-    `http://localhost:5000/get_projects_info?user_id=${userId}`,
-    {
-      cache: "no-store",
-    }
-  );*/
+export async function getProjectsInfo(userId: number): Promise<ProjectInfo[]> {
+  const res = await fetch(`http://localhost:5000/get_projects_info`, {
+    method: "POST", //should be get
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      userID: userId,
+    }) /*is it userId or userId or user_id or user_Id??*/,
+  });
 
   // Get this from server
+  /*
   const projects = [
     {
       id: 1,
@@ -66,6 +67,6 @@ export function getProjectsInfo(userId: number): ProjectInfo[] {
       description: "No description available",
       status: "No uploads",
     },
-  ];
-  return projects;
+  ];*/
+  return res.json();
 }
