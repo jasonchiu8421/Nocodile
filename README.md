@@ -37,7 +37,7 @@ Instructions on how to install and set up the software:
    ```bash
    cd Nocodile
    ```
-3. Create the databse:
+3. Set up the database:
    ```bash
    cd database
    python create_object_detection_db.py
