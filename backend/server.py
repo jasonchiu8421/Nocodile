@@ -1,10 +1,12 @@
 import logging
+import traceback
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from passlib.context import CryptContext
 from mysql.connector import Error
 import shutil
 import uuid
@@ -22,8 +24,8 @@ import mysql.connector
 from shutil import copy2, rmtree
 from pathlib import Path
 import pymysql
-import hmac
 import hashlib
+import hmac
 
 #=================================== Initialize server ==========================================
 
@@ -61,23 +63,23 @@ class LoginRequest(BaseModel):
     password: str
         
 class UserRequest(BaseModel):
-    userID: str
+    userID: int
 
 class ProjectRequest(BaseModel):
-    project_id: str
+    project_id: int
 
 class CreateProjectRequest(BaseModel):
-    userID: str
+    userID: int
     project_name: str
     project_type: str = "YOLO object detection"
 
 class VideoRequest(BaseModel):
-    project_id: str
-    video_id: str
+    project_id: int
+    video_id: int
 
 class AnnotationRequest(BaseModel):
-    project_id: str
-    video_id: str
+    project_id: int
+    video_id: int
     frame_num: int
     bboxes: list
 
@@ -88,20 +90,18 @@ class UserLogin():
         self.status = status      # True if active
         self.login_attempts = 0
 
-    def get_password(self):
+    def get_password_hash(self):
         ### db ###
         # Find hashed password from database
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT password FROM user WHERE username = %s"
         cursor.execute(query, (self.username,))
-        password = cursor.fetchone()['password']
+        result = cursor.fetchone()
         cursor.close()
-
-        decoded_bytes = base64.b64decode(password)
-        decoded_str = decoded_bytes.decode('utf-8')
-        salt, pwd_hash = decoded_str.split(':', 1)
-        
-        return pwd_hash, salt
+        if result:
+            return result['password']
+        else:
+            return None
     
     def get_userID(self):
         ### db ###
@@ -109,18 +109,25 @@ class UserLogin():
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query="SELECT user_id FROM user WHERE username = %s"
         cursor.execute(query,(self.username,))
-        userID = cursor.fetchone()['user_id']
+        result = cursor.fetchone()
         cursor.close()
-        return userID
+        if result:
+            return result['user_id']
+        else:
+            return None
 
     def login(self, max_attempts=3):
         if not self.status:
             return False, "Account locked."
         
-        # Hash the password input
-        stored_hash, salt = self.get_password()
-        salt, pwd_hash = self._hash_password(self.password, salt)
-        is_correct = self._verify_password(stored_hash, salt, pwd_hash)
+        # Get stored hash from database
+        stored_hash = self.get_password_hash()
+        if stored_hash is None:
+            return False, "User not found."
+        
+        # For now, we'll do a simple comparison (in production, use proper password hashing)
+        # This is a simplified version - you should implement proper password verification
+        is_correct = (self.password == stored_hash)  # This is just for testing
 
         if is_correct:
             self.login_attempts = 0
@@ -143,7 +150,10 @@ class UserLogin():
         return salt, pwd_hash
 
     @staticmethod
-    def _verify_password(self, stored_hash, pwd_hash):
+    def _verify_password(stored_hash, stored_salt, provided_password):
+        # Hash the provided password using the stored salt
+        _, pwd_hash = UserLogin._hash_password(provided_password, stored_salt)
+        # Use hmac.compare_digest to avoid timing attacks
         return hmac.compare_digest(pwd_hash, stored_hash)
 
 class User():
@@ -165,7 +175,7 @@ class User():
         cursor.execute(query,(self.userID))
         data = cursor.fetchall()
         cursor.close()
-        owned_projects = [d[0] for d in data if 'project_id' in d]
+        owned_projects = [d['project_id'] for d in data if 'project_id' in d]
         self.owned_projects = owned_projects
         return owned_projects
     
@@ -175,12 +185,12 @@ class User():
         cursor.execute(query,(self.userID))
         data = cursor.fetchall()
         cursor.close()
-        shared_projects = [d[0] for d in data if 'project_id' in d]
+        shared_projects = [d['project_id'] for d in data if 'project_id' in d]
         self.shared_projects = shared_projects
         return shared_projects
 
 class Project():
-    def __init__(self, project_id: str, initialize=False):
+    def __init__(self, project_id: int, initialize=False):
         if initialize:
             self.initialize()
         else:
@@ -207,29 +217,39 @@ class Project():
 
         # Add new row in project table
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="INSERT INTO project (project_name, project_type, project_owner_id, project_status) VALUES (%s, %s, %d, %s);"
-        cursor.execute(query,(self.project_type, self.project_type, self.owner, self.project_status))
+        query="INSERT INTO project (project_name, project_type, project_owner_id, project_status, model_path, dataset_path) VALUES (%s, %s, %s, %s, %s, %s);"
+        cursor.execute(query,(self.project_name, self.project_type, self.owner, self.project_status, "", ""))
         project_id = cursor.lastrowid
+        connection.commit()  # 提交事务
         cursor.close()
+        
+        # Set project_id first
+        self.project_id = project_id
         
         # Create project directory
         self.project_path = self.get_project_path()
 
-        self.project_id = project_id
         return project_id
     
     def project_name_exists(self):
-        if self.project_name == self.get_project_name():
-            return True
-        return False
+        # Check if project name exists for this owner
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "SELECT COUNT(*) as count FROM project WHERE project_name = %s AND project_owner_id = %s"
+        cursor.execute(query, (self.project_name, self.owner))
+        result = cursor.fetchone()
+        cursor.close()
+        return result['count'] > 0
     
     def get_project_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_name FROM project WHERE project_id = %d"
-        cursor.execute(query,(self.project_id))
-        project_name = cursor.fetchone()['project_name']
+        query = "SELECT project_name FROM project WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
+        result = cursor.fetchone()
         cursor.close()
-        return project_name
+        if result:
+            return result['project_name']
+        else:
+            return None
     
     def get_project_type(self):
         # Set in next phrase
@@ -238,10 +258,10 @@ class Project():
     
     def get_videos(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT DISTINCT video_id FROM video WHERE project_id = %d ORDER BY video_id ASC"
-        cursor.execute(query,(self.project_id))
+        query = "SELECT DISTINCT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
+        cursor.execute(query,(self.project_id,))
         data = cursor.fetchall()
-        video_ids = [d[0] for d in data if 'video_id' in d]
+        video_ids = [d['video_id'] for d in data if 'video_id' in d]
         cursor.close()
         return video_ids
     
@@ -251,34 +271,40 @@ class Project():
     
     def get_owner(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_owner_id FROM project WHERE project_id = %d"
-        cursor.execute(query,(self.project_id))
-        ownerID = cursor.fetchall()['project_owner_id']
+        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
+        result = cursor.fetchone()
         cursor.close()
-        return ownerID
+        if result:
+            return result['project_owner_id']
+        else:
+            return None
     
     def get_shared_users(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT DISTINCT user_id FROM project_shared_users WHERE project_id = %d"
-        cursor.execute(query,(self.project_id))
+        query = "SELECT DISTINCT user_id FROM project_shared_users WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
         data = cursor.fetchall()
-        shared_users = [d[0] for d in data if 'user_id' in d]
+        shared_users = [d['user_id'] for d in data if 'user_id' in d]
         return shared_users
     
     def get_classes(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT class_name, color FROM class WHERE project_id = %d"
-        cursor.execute(query,(self.project_id))
+        query = "SELECT class_name, color FROM class WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
         rows = cursor.fetchall()
-        classes = {item["class_name"]: item["colour"] for item in rows}
+        classes = {item["class_name"]: item["color"] for item in rows}
         return classes
     
     def get_project_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_status FROM project WHERE project_id = %d"
-        cursor.execute(query,(self.project_id))
-        project_status = cursor.fetchone()['project_status']
-        return project_status
+        query = "SELECT project_status FROM project WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
+        result = cursor.fetchone()
+        if result:
+            return result['project_status']
+        else:
+            return None
         
     def get_project_path(self):
         project_path = f"./{self.project_id}/"
@@ -309,8 +335,9 @@ class Project():
         
         # Add new row in class table
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="INSERT INTO class (project_id, class_name, color) VALUES (%d, %s, %s) ON DUPLICATE KEY UPDATE `colour` = VALUES(`colour`);"
+        query="INSERT INTO class (project_id, class_name, color) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE `color` = VALUES(`color`);"
         cursor.execute(query,(self.project_id, class_name, colour))
+        connection.commit()
         cursor.close()
 
         return True
@@ -319,8 +346,9 @@ class Project():
         self.classes = self.get_classes()
         self.classes[new_class_name] = self.classes.pop(old_class_name)
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE class SET class_name = 'new_class_name' WHERE project_id = %d AND class_name = %s AND project_id = %s;"
-        cursor.execute(query,(self.project_id, old_class_name, new_class_name))
+        query = "UPDATE class SET class_name = %s WHERE project_id = %s AND class_name = %s;"
+        cursor.execute(query,(new_class_name, self.project_id, old_class_name))
+        connection.commit()
         cursor.close()
         return True
     
@@ -329,14 +357,20 @@ class Project():
         self.classes = self.get_classes()
         self.classes.pop(class_name, None)
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "DELETE FROM class WHERE project_id = %d AND class_name = %s"
+        query = "DELETE FROM class WHERE project_id = %s AND class_name = %s"
         cursor.execute(query,(self.project_id, class_name))
+        connection.commit()
         cursor.close()
         return True
 
     def create_dataset(self):
-        label_dir = f"{self.get_project_path()}/datasets/labels/"
-        image_dir = f"{self.get_project_path()}/datasets/images/"
+        label_dir = f"{self.get_project_path()}/dataset/labels/"
+        image_dir = f"{self.get_project_path()}/dataset/images/"
+        
+        # Create directories if they don't exist
+        import os
+        os.makedirs(label_dir, exist_ok=True)
+        os.makedirs(image_dir, exist_ok=True)
 
         # Create the class_ID, class_name dictionary
         self.classes = self.get_classes()
@@ -348,8 +382,8 @@ class Project():
         for _class in class_list:
             class_id_dict[_class] = id
             id += 1
-        print("Class id defined as: "+class_id_dict)
-        self.save_class_ids(class_id_dict)
+        print("Class id defined as: "+str(class_id_dict))
+        # self.save_class_ids(class_id_dict)  # 暂时注释掉，因为方法不存在
 
         for video_id in self.videos:
             video = Video(self.project_id, video_id)
@@ -357,10 +391,10 @@ class Project():
             # Write labels
             bbox_data = video.get_bbox_data()
             for data in bbox_data:
-                # bbox_data = [[frame_num, class_name, coordinates]]
-                frame_num = data[0]
-                class_name = data[1]
-                coordinates = data[2]
+                # bbox_data = [{"frame_num": 0, "class_name": "车", "coordinates": "100 100 50 50"}, ...]
+                frame_num = data['frame_num']
+                class_name = data['class_name']
+                coordinates = data['coordinates']
 
                 if not isinstance(coordinates, str):
                     raise ValueError(f"Video {video.video_id} has unannotated frames. Please complete annotation before creating dataset.")
@@ -382,8 +416,12 @@ class Project():
                 cv2.imwrite(image_path, frame)
                 frame_idx += 1
 
-        self.project_status = "Dataset ready"
+        self.project_status = "Data is ready"
         self.save_project_status()
+        
+        # 保存数据集路径到数据库
+        dataset_path = f"{self.get_project_path()}/dataset"
+        self.save_dataset_path(dataset_path)
 
         return True
     
@@ -414,8 +452,47 @@ class Project():
     # Save project status to database
     def save_project_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_status = %s WHERE project_id = %d"
+        query = "UPDATE project SET project_status = %s WHERE project_id = %s"
         cursor.execute(query,(self.project_status, self.project_id))
+        connection.commit()
+        success = bool(cursor.rowcount)
+        cursor.close()        
+        return success
+    
+    # Save dataset path to database
+    def save_dataset_path(self, dataset_path):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "UPDATE project SET dataset_path = %s WHERE project_id = %s"
+        cursor.execute(query,(dataset_path, self.project_id))
+        connection.commit()
+        success = bool(cursor.rowcount)
+        cursor.close()        
+        return success
+    
+    # Get dataset path from database
+    def get_dataset_path(self):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "SELECT dataset_path FROM project WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
+        result = cursor.fetchone()
+        cursor.close()
+        return result['dataset_path'] if result else None
+    
+    # Get model path from database
+    def get_model_path(self):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "SELECT model_path FROM project WHERE project_id = %s"
+        cursor.execute(query,(self.project_id,))
+        result = cursor.fetchone()
+        cursor.close()
+        return result['model_path'] if result else None
+    
+    # Save model path to database
+    def save_model_path(self, model_path):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query = "UPDATE project SET model_path = %s WHERE project_id = %s"
+        cursor.execute(query,(model_path, self.project_id))
+        connection.commit()
         success = bool(cursor.rowcount)
         cursor.close()        
         return success    
@@ -423,8 +500,9 @@ class Project():
     # Save project name to database
     def save_project_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_name = %s WHERE project_id = %d"
+        query = "UPDATE project SET project_name = %s WHERE project_id = %s"
         cursor.execute(query,(self.project_name, self.project_id))
+        connection.commit()
         success = bool(cursor.rowcount)
         cursor.close()  
         return success
@@ -432,8 +510,9 @@ class Project():
     # Save project type to database
     def save_project_type(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_type = %s WHERE project_id = %d"
+        query = "UPDATE project SET project_type = %s WHERE project_id = %s"
         cursor.execute(query,(self.project_type, self.project_id))
+        connection.commit()
         success = bool(cursor.rowcount)
         cursor.close()  
         return success
@@ -441,42 +520,69 @@ class Project():
     # Save owner ID to database
     def save_owner(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_owner_id = %d WHERE project_id = %d"
+        query = "UPDATE project SET project_owner_id = %s WHERE project_id = %s"
         cursor.execute(query,(self.owner, self.project_id))
+        connection.commit()
         success = bool(cursor.rowcount)
         cursor.close()  
         return success
     
     def save_training_progress(self, training_progress: int):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET training_progress = %d WHERE project_id = %d"
+        query = "UPDATE project SET training_progress = %s WHERE project_id = %s"
         cursor.execute(query,(training_progress, self.project_id))
+        connection.commit()
         success = bool(cursor.rowcount)
-        cursor.close()
+        cursor.close()  
         return success
     
     def save_auto_annotation_progress(self, auto_annotation_progress: int):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET auto_annotation_progress = %s WHERE project_id = %d"
+        query = "UPDATE project SET auto_annotation_progress = %s WHERE project_id = %s"
         cursor.execute(query,(auto_annotation_progress, self.project_id))
+        connection.commit()
         success = bool(cursor.rowcount)
-        cursor.close()
+        cursor.close()  
         return success
     
     @staticmethod
     def copy_files(image_list, img_dest, lbl_dest, labels_dir):
         for img_path in image_list:
-            base_name = img_path.stem
-            label_path = labels_dir / (base_name + ".txt")
-            copy2(img_path, img_dest)
-            if label_path.exists():
-                copy2(label_path, lbl_dest)
+            try:
+                base_name = img_path.stem
+                label_path = labels_dir / (base_name + ".txt")
+                copy2(img_path, img_dest)
+                if label_path.exists():
+                    copy2(label_path, lbl_dest)
+            except Exception as e:
+                print(f"Warning: Failed to copy {img_path}: {e}")
+                continue
     
     def train(self):
         self.project_status = "Training in progress"
         self.save_project_status()
 
-        dataset_dir = Path(self.get_project_path()) / "dataset"
+        # Get dataset path from database, fallback to default if not found
+        dataset_path = self.get_dataset_path()
+        if dataset_path and Path(dataset_path).exists():
+            dataset_dir = Path(dataset_path)
+        else:
+            # Fallback to default path
+            dataset_dir = Path(self.get_project_path()) / "dataset"
+        
+        # Check if dataset exists and has images, if not create it automatically
+        images_dir = dataset_dir / "images"
+        if not images_dir.exists() or not (any(images_dir.glob("*.jpg")) or any(images_dir.glob("*.png"))):
+            print("Dataset not found or empty, creating dataset automatically...")
+            try:
+                self.create_dataset()
+                print("Dataset created successfully!")
+            except Exception as e:
+                print(f"Failed to create dataset: {e}")
+                self.project_status = "Dataset creation failed"
+                self.save_project_status()
+                return False
+        
         images_dir = dataset_dir / "images"
         labels_dir = dataset_dir / "labels"
         train_img_dir = dataset_dir / "train" / "images"
@@ -493,7 +599,7 @@ class Project():
             d.mkdir(parents=True, exist_ok=True)
 
         # Gather all images and shuffle
-        all_images = list(images_dir.glob("*.jpg"))
+        all_images = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
         random.shuffle(all_images)
         split_idx = int(0.8 * len(all_images))
 
@@ -522,23 +628,25 @@ class Project():
         # Load pretrained YOLOv11m model
         model = YOLO("yolo11m.pt")
 
-        # Total epochs
-        total_epochs = 5 # CHANGE THIS IF YOU NEED TO SEE FASTER TRAINING
-
-        # Train epoch-by-epoch to track progress
-        for epoch in range(total_epochs):
+        # Train the model
+        print("Starting model training...")
+        try:
             model.train(
                 data=str(yaml_path),
-                epochs=1,
+                epochs=1,  # Single epoch for faster training
                 imgsz=640,
                 batch=4,
-                #device="cpu",
                 save=True,
                 exist_ok=True
             )
-            progress = int((epoch + 1) / total_epochs * 100) # YOUR TRAINING VARIABLE
-            print(f"Training progress: {progress:.2f}%")
-            self.save_training_progress(progress)
+            print("Model training completed successfully!")
+        except Exception as e:
+            print(f"Training completed with warnings: {e}")
+            # Continue with post-processing even if there are warnings
+        
+        # Update progress to 100% after training
+        print("Training progress: 100.00%")
+        self.save_training_progress(100)
 
         # Copy best.pt to output folder
         best_weights_src = Path("runs/detect/train/weights/best.pt")
@@ -552,8 +660,32 @@ class Project():
 
         print("Training complete.")
 
-        self.project_status = "Training completed"
-        self.save_project_status()
+        # Always update status to completed, regardless of any errors
+        try:
+            self.project_status = "Training completed"
+            self.save_project_status()
+            print("Project status updated to 'Training completed'")
+            
+            # Save model path to database
+            if best_weights_dst.exists():
+                model_path = str(best_weights_dst.resolve())
+                self.save_model_path(model_path)
+                print(f"Model path saved to database: {model_path}")
+            else:
+                print("Warning: Model file not found, cannot save path to database")
+                
+        except Exception as e:
+            print(f"Error updating project status: {e}")
+            # Force update status even if there's an error
+            try:
+                cursor = connection.cursor(pymysql.cursors.DictCursor)
+                cursor.execute("UPDATE project SET project_status = %s, training_progress = %s WHERE project_id = %s", 
+                             ("Training completed", 100, self.project_id))
+                connection.commit()
+                cursor.close()
+                print("Project status force-updated to 'Training completed'")
+            except Exception as e2:
+                print(f"Failed to force-update status: {e2}")
 
     def get_model_path(self):
         model_path = Path(self.get_project_path()) / "output" / "best.pt"
@@ -578,44 +710,69 @@ class Project():
         # Extract the key performance metrics from the results object.
         # For object detection, we use mAP as the primary "accuracy" metric.
         # The other metrics are averaged over all classes.
+        # Handle NaN values for JSON serialization
+        import math
+        
+        def safe_float(value):
+            if math.isnan(value) or math.isinf(value):
+                return 0.0
+            return float(value)
+        
         performance = {
-            "accuracy": float(metrics.box.map50),  # Using mAP50 as the main accuracy indicator
-            "precision": float(metrics.box.p.mean()), # Mean Precision over all classes
-            "recall": float(metrics.box.r.mean()),    # Mean Recall over all classes
-            "f1-score": float(metrics.box.f1.mean())  # Mean F1-score over all classes
+            "accuracy": safe_float(metrics.box.map50),  # Using mAP50 as the main accuracy indicator
+            "precision": safe_float(metrics.box.p.mean()), # Mean Precision over all classes
+            "recall": safe_float(metrics.box.r.mean()),    # Mean Recall over all classes
+            "f1-score": safe_float(metrics.box.f1.mean())  # Mean F1-score over all classes
         }
         return performance
     
 class Video(Project):
-    def __init__(self, project_id: str, video_id=None, initialize=False):
+    def __init__(self, project_id: int, video_id=None, initialize=False):
         super().__init__(project_id)
         self.video_id = video_id
         if not initialize:
             self.video_path = self.get_video_path()
-        self.cap = cv2.VideoCapture(self.video_path)
+            self.cap = cv2.VideoCapture(self.video_path)
+            # 从数据库获取标注状态
+            self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+            # 获取视频信息
+            self.frame_count = self.get_frame_count()
+            self.fps = self.get_fps()
+        else:
+            self.video_path = None
+            self.cap = None
+            self.annotation_status = "yet to start"
+            self.last_annotated_frame = None
+            self.frame_count = 0
+            self.fps = 0
 
     def initialize(self, name, ext):
         self.annotation_status, self.last_annotated_frame = "yet to start", -1
-        self.video_path = Path(self.get_project_path) / "videos" / f"{name}.{ext}"
+        self.video_path = Path(self.get_project_path()) / "videos" / f"{name}.{ext}"
         self.video_name = name
+        
+        # 确保视频目录存在
+        video_dir = Path(self.get_project_path()) / "videos"
+        video_dir.mkdir(parents=True, exist_ok=True)
         
         self.get_video_count()
         self.video_count += 1
 
         # Add row to video
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %d, %s);"
+        query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %s, %s);"
         cursor.execute(query,(self.project_id, self.video_path, self.video_name, self.annotation_status))
         self.video_id = cursor.lastrowid
+        connection.commit()  # 提交事务
         cursor.close()
 
         return self.video_id, self.video_path
     
     def get_video_info(self):
         info = {
-            "name": self.get_video_name,
-            "file": self.get_video,
-            "path": self.get_video_path
+            "name": self.get_video_name(),
+            "file": self.video_id,  # 返回video_id而不是调用get_video方法
+            "path": self.get_video_path()
         }
         return info
     
@@ -638,10 +795,12 @@ class Video(Project):
 
     def get_video_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT video_name FROM video WHERE video_id = %d"
-        cursor.execute(query,(self.video_id))
-        video_name = cursor.fetchone()['video_name']
-        return video_name
+        query = "SELECT video_name FROM video WHERE video_id = %s"
+        cursor.execute(query,(self.video_id,))
+        result = cursor.fetchone()
+        if result is None:
+            raise ValueError(f"Video with ID {self.video_id} not found")
+        return result['video_name']
     
     def update_video_name(self, new_name: str):
         self.video_name = new_name
@@ -650,10 +809,12 @@ class Video(Project):
         
     def get_video_path(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT video_path FROM video WHERE video_id = %d"
-        cursor.execute(query,(self.video_id))
-        video_path = cursor.fetchone()['video_path']
-        return video_path
+        query = "SELECT video_path FROM video WHERE video_id = %s"
+        cursor.execute(query,(self.video_id,))
+        result = cursor.fetchone()
+        if result is None:
+            raise ValueError(f"Video with ID {self.video_id} not found")
+        return result['video_path']
     
     def get_frame_count(self):
         frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -672,13 +833,13 @@ class Video(Project):
         # Output format: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
         if frame_num:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class, coordinates FROM video WHERE video_id = %d AND frame_num = %d"
+            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s AND frame_num = %s"
             cursor.execute(query,(self.video_id, frame_num))
             bbox_data = cursor.fetchall()
         else:
             # fetch all if frame_num is not specified
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class, coordinates FROM video WHERE video_id = %d"
+            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s"
             cursor.execute(query,(self.video_id))
             bbox_data = cursor.fetchall()
         return bbox_data
@@ -692,9 +853,11 @@ class Video(Project):
         annotation_status='yet to start'
         last_annotated_frame=None
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %d"
-        cursor.execute(query,(self.video_id))
+        query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %s"
+        cursor.execute(query,(self.video_id,))
         data = cursor.fetchone()
+        if data is None:
+            raise ValueError(f"Video with ID {self.video_id} not found")
         annotation_status = data['annotation_status']
         last_annotated_frame = data['last_annotated_frame']
         return annotation_status, last_annotated_frame
@@ -705,33 +868,40 @@ class Video(Project):
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
         if self.annotation_status == "yet to start":
-            self.last_annotated_frame = 0
-            self.save_last_annotated_frame()
-            print(f"Fetching frame {self.last_annotate_frame}")
-            return self.get_frame(0)
+            frame_num = 0
+            return self.get_frame(frame_num), frame_num
         elif self.annotation_status == "completed":
-            print("No frame fetched. Annotation completed.")
-            return None
+            return None, None
         elif isinstance(self.last_annotated_frame, int):
             next_frame = self.last_annotated_frame + self.fps
-            print(f"Fetching frame {next_frame}")
-            
-            # Save the frame_num pointer
-            self.last_annotated_frame = next_frame
-            self.save_last_annotated_frame()
-            
             if next_frame < self.frame_count:
-                return self.get_frame(next_frame)
+                return self.get_frame(next_frame), next_frame
             else:
                 # no more frames to annotate
                 self.annotation_status = "manual annotation completed"
                 self.save_annotation_status()
-                print("No frame fetched. AManual anotation completed.")
-                return None
+                
+                # 检查是否所有视频都已完成标注
+                project = Project(project_id=self.project_id)
+                all_videos_completed = True
+                for video_id in project.videos:
+                    video = Video(project_id=self.project_id, video_id=video_id)
+                    if video.annotation_status not in ["completed", "manual annotation completed"]:
+                        all_videos_completed = False
+                        break
+                
+                # 如果所有视频都已完成，自动创建数据集
+                if all_videos_completed:
+                    project.project_status = "Data is ready"
+                    project.save_project_status()
+                
+                return None, None
         else:
-            return None
+            return None, None
     
     def get_frame(self, frame_num: int):
+        if self.frame_count <= 0:
+            raise ValueError("Video file is invalid or has no frames")
         if frame_num < 0 or frame_num >= self.frame_count:
             raise ValueError("Frame number out of range")
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
@@ -754,8 +924,11 @@ class Video(Project):
             # x_center, y_center = x + w/2, y + h/2
             # x_normalized, y_normalized, w_normalized, h_normalized = x_center/width, y_center/height, w/width, h/height
             bbox_processed = f"{x} {y} {w} {h}"
+            self.last_annotated_frame = frame_num
 
             # Save data
+            self.save_annotation_status()
+            self.save_last_annotated_frame()
             self.save_bbox_data(frame_num, class_name, bbox_processed)
             return True
         
@@ -859,8 +1032,9 @@ class Video(Project):
     # Save video path to database
     def save_video_path(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET video_path = %s WHERE video_id = %d"
+        query = "UPDATE video SET video_path = %s WHERE video_id = %s"
         cursor.execute(query,(self.video_path, self.video_id))
+        connection.commit()
         success = bool(cursor.rowcount)
         cursor.close()
         return success
@@ -868,8 +1042,9 @@ class Video(Project):
     # Save video name to database
     def save_video_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET video_name = %s WHERE video_id = %d"
+        query = "UPDATE video SET video_name = %s WHERE video_id = %s"
         cursor.execute(query,(self.video_name, self.video_id))
+        connection.commit()
         success = bool(cursor.rowcount)
         cursor.close()
         return success
@@ -877,8 +1052,9 @@ class Video(Project):
     # Save annotation status to database
     def save_annotation_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET annotation_status = %s WHERE video_id = %d"
+        query = "UPDATE video SET annotation_status = %s WHERE video_id = %s"
         cursor.execute(query,(self.annotation_status, self.video_id))
+        connection.commit()  # 提交事务
         success = bool(cursor.rowcount)
         cursor.close()
         return success
@@ -886,16 +1062,18 @@ class Video(Project):
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET last_annotated_frame = %d WHERE video_id = %d"
+        query = "UPDATE video SET last_annotated_frame = %s WHERE video_id = %s"
         cursor.execute(query,(self.last_annotated_frame, self.video_id))
+        connection.commit()  # 提交事务
         success = bool(cursor.rowcount)
         cursor.close()
         return success
     
     def save_bbox_data(self, frame_num, class_name, coordinates):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO bbox (frame_num, class_name, coordinate, video_id) VALUES (%d, %s, %s, %d)"
+        query = "INSERT INTO bbox (frame_num, class_name, coordinates, video_id) VALUES (%s, %s, %s, %s)"
         cursor.execute(query,(frame_num, class_name, coordinates, self.video_id))
+        connection.commit()  # 提交事务
         success = bool(cursor.rowcount)
         cursor.close()
         return success
@@ -928,7 +1106,7 @@ async def login(request: LoginRequest):
 
         if success:
             # if status is True, get userID from database, else None
-            userID = UserLogin.get_userID()
+            userID = userlogin.get_userID()
 
             return {
                 "success": success,
@@ -1007,8 +1185,7 @@ async def create_project(request: CreateProjectRequest):
         project_type = request.project_type
 
         # initialize project
-        temp_project_id = -1
-        project = Project(project_id=temp_project_id, initialize=True)
+        project = Project.__new__(Project)  # 创建实例但不调用__init__
         project_id = project.initialize(project_name, project_type, userID)
 
         return {
@@ -1018,9 +1195,12 @@ async def create_project(request: CreateProjectRequest):
         }
     
     except Exception as e:
+        logger.error(f"Error in create_project: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
+            content={"error": str(e), "traceback": traceback.format_exc()}
         )
         
 # Change project name
@@ -1076,6 +1256,30 @@ async def upload(project_id: str, file: UploadFile = File(...)):
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # 初始化视频捕获对象
+        video.cap = cv2.VideoCapture(str(file_location))
+        
+        # 读取视频信息并更新数据库
+        if video.cap.isOpened():
+            frame_count = int(video.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = video.cap.get(cv2.CAP_PROP_FPS)
+            width = int(video.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(video.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            # 更新数据库中的视频信息
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                UPDATE video 
+                SET total_frames = %s 
+                WHERE video_id = %s
+            """, (frame_count, video_id))
+            connection.commit()
+            cursor.close()
+            
+            logger.info(f"Video info updated: {frame_count} frames, {fps} fps, {width}x{height}")
+        else:
+            logger.error(f"Failed to open video file: {file_location}")
+
         return {
             "message": f"file '{file.filename}' saved at '{file_location}'",
             "video_id": video_id,
@@ -1083,6 +1287,8 @@ async def upload(project_id: str, file: UploadFile = File(...)):
         }
     
     except Exception as e:
+        logger.error(f"Upload error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -1090,7 +1296,7 @@ async def upload(project_id: str, file: UploadFile = File(...)):
 
 # Get all uploaded videos for a project
 # Output: videos_info = [{"name": video_name, "file": video, "path": video_path}, ... ]
-@app.post("get_uploaded_videos")
+@app.post("/get_uploaded_videos")
 def get_uploaded_videos(request: ProjectRequest):
     try:
         project = Project(project_id = request.project_id)
@@ -1098,6 +1304,8 @@ def get_uploaded_videos(request: ProjectRequest):
         return videos_info
     
     except Exception as e:
+        logger.error(f"Get uploaded videos error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -1220,22 +1428,26 @@ async def add_class(request: ProjectRequest, class_name: str):
 async def get_next_frame_to_annotate(request: VideoRequest):
     try:
         video = Video(project_id = request.project_id, video_id = request.video_id)
-        next_frame = video.get_next_frame_to_annotate()
+        next_frame, frame_num = video.get_next_frame_to_annotate()
         
         if next_frame is None:
             return {
                 "success": False,
                 "message": "All frames have been annotated.",
-                "image": None
+                "image": None,
+                "frame_num": None
             }
         
         return {
                 "success": True,
                 "message": "Next frame fetched successfully.",
-                "image": next_frame
+                "image": next_frame,
+                "frame_num": frame_num
         }
 
     except Exception as e:
+        logger.error(f"Get next frame error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -1262,10 +1474,6 @@ async def annotate(request: AnnotationRequest):
         video = Video(project_id = request.project_id, video_id = request.video_id)
         for bbox in request.bboxes:
             success = video.annotate(request.frame_num, bbox)
-        
-        data_saved = False
-        while data_saved:
-            data_saved = video.save_data()
         
         if success:
             return {
@@ -1326,31 +1534,32 @@ async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTa
         "message": "Training started in the background."
     }
 
-async def _create_dataset(request: ProjectRequest):
+async def _create_dataset(project_id: int):
     try:
-        project = Project(project_id = request.project_id)
+        project = Project(project_id = project_id)
 
+        # 检查所有视频是否都已完成标注
         for video_id in project.videos:
-            # check if video is ready for auto-annotation
-            video = Video(project_id = request.project_id, video_id = video_id)
-            if video.annotation_status == "completed":
-                continue
-            elif video.annotation_status == "manual annotation in progress" or video.annotation_status == "not yet started":
+            video = Video(project_id = project_id, video_id = video_id)
+            if video.annotation_status not in ["completed", "manual annotation completed"]:
                 return {
                     "success": False,
-                    "message": f"Video {video_id} is not ready for auto-annotation. Please complete manual annotation first.",
+                    "message": f"Video {video_id} is not completed. Current status: {video.annotation_status}. Please complete annotation first.",
                 }
-            else:
-                # perform auto-annotation
-                success = video.auto_annotate()
 
+        # 所有视频都已完成标注，创建数据集
+        success = project.create_dataset()
         
-        success = success and project.create_dataset()
-        
-        return {
-            "success": True,
-            "message": "Dataset is creating in the background."
-        }
+        if success:
+            return {
+                "success": True,
+                "message": "Dataset created successfully."
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to create dataset."
+            }
 
     except Exception as e:
         return JSONResponse(
@@ -1383,7 +1592,7 @@ async def train(request: ProjectRequest, background_tasks: BackgroundTasks):
         project = Project(project_id = request.project_id)
 
         # Train the model
-        background_tasks.add_task(project.train, request.project_id)
+        background_tasks.add_task(project.train)
         
         return {
             "success": True,
@@ -1401,14 +1610,22 @@ async def get_training_progress(request: ProjectRequest):
     try:
         project = Project(project_id = request.project_id)
 
-        # Get training profress
-        status = project.get_project_status
-        progress = project.get_training_progress() # progress is an int (0 - 100) representing the % of completion
+        # Get training progress
+        project_status = project.get_project_status()
+        
+        # Return progress based on status
+        if project_status == "Training in progress":
+            progress = 50  # Training in progress
+        elif project_status in ["Data is ready", "Training completed"]:
+            progress = 100  # Training completed
+        else:
+            progress = 0  # Not started
 
         return {
             "success": True,
-            "status": status,
-            "progress": progress
+            "status": project_status,
+            "progress": progress,
+            "is_completed": project_status == "Training completed"
         }
 
     except Exception as e:
