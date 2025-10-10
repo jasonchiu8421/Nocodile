@@ -55,6 +55,7 @@ Instructions on how to install and set up the software:
    npm install
    npm run dev
    ```
+6. Access the app locally:
    Go to [localhost:3000](http://localhost:3000/)
 
 
