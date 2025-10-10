@@ -37,11 +37,27 @@ Instructions on how to install and set up the software:
    ```bash
    cd Nocodile
    ```
-3. Install the required dependencies:
+3. Create the databse:
+   ```bash
+   cd database
+   python create_object_detection_db.py
+   cd ..
+   ```
+4. Run the backend:
+   ```bash
+   cd backend
+   python server.py
+   cd ..
+   ```
+5. Run the frontend:
    ```bash
    cd nocodile
    npm install
+   npm run dev
    ```
+   Go to [localhost:3000](http://localhost:3000/)
+
+
 
 ## Usage
 
