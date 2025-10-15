@@ -1,0 +1,40 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY nocodile/package*.json ./
+COPY nocodile/pnpm-lock.yaml ./
+
+# Install dependencies
+RUN npm install -g pnpm
+RUN pnpm install
+
+# Copy source code (excluding node_modules)
+COPY nocodile/app/ ./app/
+COPY nocodile/components/ ./components/
+COPY nocodile/lib/ ./lib/
+COPY nocodile/public/ ./public/
+COPY nocodile/css/ ./css/
+COPY nocodile/contexts/ ./contexts/
+COPY nocodile/*.json ./
+COPY nocodile/*.js ./
+COPY nocodile/*.ts ./
+COPY nocodile/*.mjs ./
+COPY nocodile/*.md ./
+COPY nocodile/next.config.* ./
+COPY nocodile/postcss.config.* ./
+COPY nocodile/tailwind.config.* ./
+COPY nocodile/tsconfig.json ./
+COPY nocodile/tsconfig.tsbuildinfo ./
+COPY nocodile/next-env.d.ts ./
+COPY nocodile/webpack.config.* ./
+
+# Create .next directory for build cache
+RUN mkdir -p .next
+
+# Expose port
+EXPOSE 3000
+
+# Start command (development mode)
+CMD ["pnpm", "run", "dev"]

@@ -1,0 +1,15 @@
+# 忽略不需要的檔案
+README.md
+db-manager.sh
+*.log
+*.tmp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
