@@ -1,60 +1,36 @@
-# Nocodile
-Nocodile is an innovative no-code platform designed to democratize access to artificial intelligence. While AI offers immense potential, the complexity of training models has traditionally limited its use to a select few with technical expertise. Our mission is to empower businesses and students alike to harness the power of AI without needing to learn coding.
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-At the core of Nocodile is a user-friendly interface where each component of the AI pipeline is represented as a node. Users can effortlessly piece these nodes together like playing puzzle, allowing them to create customized AI solutions tailored to their specific needs. This intuitive design not only simplifies the process but also retains the flexibility required for professional tasks.
+## Getting Started
 
-Built using React and Bootstrap, Nocodile combines a playful user experience with robust functionality, catering to everyone from beginners to seasoned professionals. Whether you're streamlining simple tasks or tackling more complex AI challenges, Nocodile provides a seamless and enjoyable way to engage with artificial intelligence.
+First, run the development server:
 
-![Example of UI](./ui_example.jpg?raw=true)
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-## Table of Contents
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-- [Features](#features)
-- [Demo](#demo)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contact](#contact)
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## Features
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-- Easy to use: No coding required.
-- Drag-and-drop interface for building AI models.
-- Supports multiple AI functionalities: NLP, image recognition, etc.
-- Integration with popular data sources and APIs.
-- Customizable templates for different use cases.
+## Learn More
 
-## Demo
+To learn more about Next.js, take a look at the following resources:
 
-## Installation
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-Instructions on how to install and set up the software:
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/jasonchiu8421/Nocodile.git
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd Nocodile
-   ```
-3. Install the required dependencies:
-   ```bash
-   cd nocodile
-   npm install
-   ```
+## Deploy on Vercel
 
-## Usage
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-Basic usage instructions with examples:
-
-1. Start the app:
-   ```bash
-   npm run dev
-   ```
-2. Follow the on-screen instructions to create your first AI model.
-
-## Contact
-
-If you have any enquiries, kindly contact us at:
-- Email: [nocodile.ai@gmail.com](mailto:nocodile.ai@gmail.com)
-- GitHub: [Nocodile-AI](https://github.com/Nocodile-AI)
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
