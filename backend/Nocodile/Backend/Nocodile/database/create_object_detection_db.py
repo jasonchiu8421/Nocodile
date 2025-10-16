@@ -4,9 +4,11 @@ import json
 import os
 import sys
 from pathlib import Path
+import base64
+import hashlib
 
 # 添加後端路徑到 Python 路徑
-backend_path = Path(__file__).parent.parent / "backend"
+backend_path = Path(__file__).parent / "backend"
 sys.path.insert(0, str(backend_path))
 
 try:
@@ -97,23 +99,15 @@ class ObjectDetectionDB:
         cursor = self.connection.cursor()
         
         try:
-#====================================创建user表====================================
-            create_user_table = """
-            CREATE TABLE IF NOT EXISTS user (
-                user_id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(50) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_user_table)
-            print("user表创建成功")
-            
 #====================================创建class表====================================
             create_class_table = """
             CREATE TABLE IF NOT EXISTS class (
+                project_id INT NOT NULL,
                 class_id INT AUTO_INCREMENT PRIMARY KEY,
                 class_name VARCHAR(100) NOT NULL,
-                color VARCHAR(7) NOT NULL
+                color VARCHAR(10) NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_class_table)
@@ -128,6 +122,7 @@ class ObjectDetectionDB:
                 project_owner_id INT NOT NULL,
                 project_status VARCHAR(200) NOT NULL,
                 auto_annotation_progress DECIMAL DEFAULT 0.00,
+                last_annotated_frame INT DEFAULT 0,
                 training_progress DECIMAL DEFAULT 0.00,
                 model_path VARCHAR(500) NOT NULL,
                 dataset_path VARCHAR(500) NOT NULL,
@@ -145,13 +140,27 @@ class ObjectDetectionDB:
                 video_path VARCHAR(500) NOT NULL,
                 video_name VARCHAR(200) NOT NULL,
                 annotation_status VARCHAR(200) NOT NULL,
-                last_annotated_frame INT DEFAULT 0,
+                last_annotated_frame INT DEFAULT -1,
                 total_frames INT DEFAULT 0,
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_video_table)
             print("video表创建成功")
+
+#====================================创建bbox表====================================
+            create_bbox_table = """
+            CREATE TABLE IF NOT EXISTS bbox (
+                video_id INT NOT NULL,
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                class_name VARCHAR(50) NOT NULL,
+                coordinates VARCHAR(50) NOT NULL,
+                frame_num INT NOT NULL,
+                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_bbox_table)
+            print("bbox表创建成功")
             
 #====================================创建project_shared_users表（多对多关系）====================================
             create_shared_users_table = """
@@ -166,22 +175,10 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_shared_users_table)
             print("project_shared_users表创建成功")
-            
-#====================================创建project_classes表（多对多关系）====================================
-            create_project_classes_table = """
-            CREATE TABLE IF NOT EXISTS project_classes (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                project_id INT NOT NULL,
-                class_id INT NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                FOREIGN KEY (class_id) REFERENCES class(class_id) ON DELETE CASCADE,
-                UNIQUE KEY unique_project_class (project_id, class_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_project_classes_table)
-            print("project_classes表创建成功")
-            
-            
+
+            # 重新启用外键检查
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            print("已重新启用外键检查")
         
             self.connection.commit()
             print("所有表创建成功")
@@ -192,6 +189,38 @@ class ObjectDetectionDB:
             self.connection.rollback()
             return False
         finally:
+            cursor.close()
+
+    def _hash_password(password, salt=None):
+        # Generate a random salt if not provided
+        if salt is None:
+            salt = os.urandom(16)
+        password = str(password)
+        # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
+        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
+        return salt, pwd_hash
+
+    def create_users(self):
+        cursor = self.connection.cursor()
+
+        # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
+        for i in range(1, 31):
+            username = f"user{i}"
+            plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
+            
+            # Generate salt and hash
+            salt, pwd_hash = self._hash_password(plaintext_password)
+            
+            # Combine and base64-encode for storage: salt:hash
+            stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
+            
+            # Insert the user
+            insert_user = """
+                INSERT INTO user (username, password) 
+                VALUES (%s, %s)
+            """
+            cursor.execute(insert_user, (username, stored_password))
+
             cursor.close()
     
     def close(self):
@@ -231,6 +260,11 @@ def main():
         if not db.create_tables():
             print("表格創建失敗")
             return False
+
+        # 4. 创建users
+        if not db.create_users():
+            print("users創建失敗")
+            return
         
         print("\n資料庫初始化完成！")
         print("現在可以啟動 Nocodile 應用程式")

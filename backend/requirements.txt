@@ -24,6 +24,8 @@ transformers==4.41.2
 ultralytics==8.3.20
 aiofiles
 pyyaml==6.0.3
+aiofiles
+pyyaml==6.0.3
 git+https://github.com/facebookresearch/segment-anything.git
 mysql-connector-python
 pymysql
