@@ -1,1 +1,0 @@
-bash -c "git pull && cd nocodile && pnpmm i && pnpm run dev"
