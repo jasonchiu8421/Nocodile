@@ -1,35 +1,74 @@
 import pymysql
 from datetime import datetime
 import json
-import hashlib
 import os
+import sys
+from pathlib import Path
 import base64
 import hashlib
 
+# 添加後端路徑到 Python 路徑
+backend_path = Path(__file__).parent.parent / "backend"
+sys.path.insert(0, str(backend_path))
+
+try:
+    from config import config
+    USE_CONFIG_MODULE = True
+except ImportError:
+    USE_CONFIG_MODULE = False
+
 class ObjectDetectionDB:
-    # TODO：改为你的数据库配置和想要创建的数据库名字
-    def __init__(self, host='localhost', user='root', password='12345678', database='Nocodile'):
+    def __init__(self, host=None, user=None, password=None, database=None):
         """
         初始化数据库连接
+        優先使用環境變數或配置模組
         """
-        self.config = {
-            'host': host,
-            'user': user,
-            'password': password,
-            'database': database,
-            'charset': 'utf8mb4'
-        }
+        if USE_CONFIG_MODULE:
+            # 使用配置模組
+            self.config = {
+                'host': host or config.database.host,
+                'user': user or config.database.user,
+                'password': password or config.database.password,
+                'database': database or config.database.database,
+                'charset': 'utf8mb4'
+            }
+        else:
+            # 使用環境變數或預設值
+            self.config = {
+                'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+                'user': user or os.getenv('MYSQL_USER', 'root'),
+                'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+                'database': database or os.getenv('MYSQL_DATABASE', 'object_detection'),
+                'charset': 'utf8mb4'
+            }
+        
         self.connection = None
+        print(f"資料庫配置: {self.config['host']}:{self.config.get('port', 3306)}")
+        print(f"目標資料庫: {self.config['database']}")
     
     def connect(self):
         """连接数据库"""
-        try:
-            self.connection = pymysql.connect(**self.config)
-            print("数据库连接成功")
-            return True
-        except Exception as e:
-            print(f"数据库连接失败: {e}")
-            return False
+        # 嘗試多個連接配置
+        configs_to_try = [
+            self.config,
+            # Docker 本地映射端口
+            {**self.config, 'host': 'localhost', 'port': 3307},
+            # 標準本地端口
+            {**self.config, 'host': 'localhost', 'port': 3306}
+        ]
+        
+        for i, config in enumerate(configs_to_try, 1):
+            try:
+                print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3306)}")
+                self.connection = pymysql.connect(**config)
+                print(f"資料庫連接成功！使用配置 {i}")
+                return True
+            except Exception as e:
+                print(f"配置 {i} 連接失敗: {e}")
+                continue
+        
+        print("所有資料庫連接配置都失敗")
+        return False
     
     def create_database(self):
         """创建数据库"""
@@ -60,6 +99,16 @@ class ObjectDetectionDB:
         cursor = self.connection.cursor()
         
         try:
+            # 檢查是否已經有表存在
+            cursor.execute("SHOW TABLES LIKE 'video'")
+            if cursor.fetchone():
+                print("✅ 數據庫表已存在，跳過創建表步驟")
+                return True
+            
+            # 暫時禁用外鍵檢查以避免創建順序問題
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+            print("已暫時禁用外鍵檢查")
+            
 #====================================创建user表====================================
             create_user_table = """
             CREATE TABLE IF NOT EXISTS user (
@@ -90,6 +139,20 @@ class ObjectDetectionDB:
             cursor.execute(create_project_table)
             print("project表创建成功")
             
+#====================================创建class表====================================
+            create_class_table = """
+            CREATE TABLE IF NOT EXISTS class (
+                project_id INT NOT NULL,
+                class_id INT AUTO_INCREMENT PRIMARY KEY,
+                class_name VARCHAR(100) NOT NULL,
+                color VARCHAR(10) NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_class_table)
+            print("class表创建成功")
+            
 #====================================创建video表====================================
             create_video_table = """
             CREATE TABLE IF NOT EXISTS video (
@@ -105,20 +168,6 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_video_table)
             print("video表创建成功")
-
-#====================================创建class表====================================
-            create_class_table = """
-            CREATE TABLE IF NOT EXISTS class (
-                project_id INT NOT NULL,
-                class_id INT AUTO_INCREMENT PRIMARY KEY,
-                class_name VARCHAR(100) NOT NULL,
-                color VARCHAR(10) NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_class_table)
-            print("class表创建成功")
 
 #====================================创建bbox表====================================
             create_bbox_table = """
@@ -146,7 +195,39 @@ class ObjectDetectionDB:
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_shared_users_table)
-            print("project_shared_users表创建成功")           
+            print("project_shared_users表创建成功")
+
+#====================================创建project_shares表（项目分享功能）====================================
+            create_project_shares_table = """
+            CREATE TABLE IF NOT EXISTS project_shares (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                project_id INT NOT NULL,
+                shared_with_user_id INT NOT NULL,
+                permissions ENUM('read', 'write') NOT NULL DEFAULT 'read',
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                
+                -- Foreign key constraints
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                FOREIGN KEY (shared_with_user_id) REFERENCES user(user_id) ON DELETE CASCADE,
+                
+                -- Unique constraint to prevent duplicate shares
+                UNIQUE KEY unique_project_user (project_id, shared_with_user_id),
+                
+                -- Indexes for better performance
+                INDEX idx_project_id (project_id),
+                INDEX idx_shared_with_user_id (shared_with_user_id),
+                INDEX idx_permissions (permissions),
+                INDEX idx_shared_at (shared_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_project_shares_table)
+            print("project_shares表创建成功")
+
+            # 重新启用外键检查
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            print("已重新启用外键检查")
         
             self.connection.commit()
             print("所有表创建成功")
@@ -158,7 +239,8 @@ class ObjectDetectionDB:
             return False
         finally:
             cursor.close()
-    
+
+    @staticmethod
     def _hash_password(password, salt=None):
         # Generate a random salt if not provided
         if salt is None:
@@ -170,24 +252,42 @@ class ObjectDetectionDB:
     def create_users(self):
         cursor = self.connection.cursor()
 
-        # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
-        for i in range(1, 31):
-            username = f"user{i}"
-            plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
+        try:
+            # Check if users already exist
+            cursor.execute("SELECT COUNT(*) FROM user")
+            user_count = cursor.fetchone()[0]
             
-            # Generate salt and hash
-            salt, pwd_hash = self._hash_password(plaintext_password)
+            if user_count > 0:
+                print(f"✅ 用戶已存在 ({user_count} 個用戶)，跳過創建用戶步驟")
+                return True
             
-            # Combine and base64-encode for storage: salt:hash
-            stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
+            # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
+            for i in range(1, 31):
+                username = f"user{i}"
+                plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
+                
+                # Generate salt and hash
+                salt, pwd_hash = self._hash_password(plaintext_password)
+                
+                # Combine and base64-encode for storage: salt:hash
+                stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
+                
+                # Insert the user (use INSERT IGNORE to avoid duplicate key errors)
+                insert_user = """
+                    INSERT IGNORE INTO user (username, password) 
+                    VALUES (%s, %s)
+                """
+                cursor.execute(insert_user, (username, stored_password))
             
-            # Insert the user
-            insert_user = """
-                INSERT INTO user (username, password) 
-                VALUES (%s, %s)
-            """
-            cursor.execute(insert_user, (username, stored_password))
-
+            self.connection.commit()
+            print("30 users created successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error creating users: {e}")
+            self.connection.rollback()
+            return False
+        finally:
             cursor.close()
     
     def close(self):
@@ -198,31 +298,51 @@ class ObjectDetectionDB:
 
 def main():
     """主函数"""
-
+    print("Nocodile 資料庫初始化工具")
+    print("=" * 50)
+    
+    # 檢查是否在 Docker 環境中
+    if os.getenv('MYSQL_HOST') == 'database':
+        print("檢測到 Docker 環境")
+    else:
+        print("檢測到本地環境")
     
     db = ObjectDetectionDB()
     
     try:
-        # 1. 创建数据库
+        # 1. 創建資料庫
+        print("\n步驟 1: 創建資料庫...")
         if not db.create_database():
-            return
+            print("資料庫創建失敗")
+            return False
         
-        # 2. 连接数据库
+        # 2. 連接資料庫
+        print("\n步驟 2: 連接資料庫...")
         if not db.connect():
-            return
+            print("資料庫連接失敗")
+            return False
         
-        # 3. 创建表
+        # 3. 創建表格
+        print("\n步驟 3: 創建表格...")
         if not db.create_tables():
-            return
-        
+            print("表格創建失敗")
+            return False
+
         # 4. 创建users
         if not db.create_users():
+            print("users創建失敗")
             return
+        
+        print("\n資料庫初始化完成！")
+        print("現在可以啟動 Nocodile 應用程式")
+        return True
 
     except Exception as e:
-        print(f"创建数据库时出错: {e}")
+        print(f"創建資料庫時出錯: {e}")
+        return False
     finally:
         db.close()
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)
