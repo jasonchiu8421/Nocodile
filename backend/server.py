@@ -576,6 +576,7 @@ class Project():
     # Output: True
     def delete_class(self, class_name: str):
         # Ask Jimmy
+        # Not yet validated
         # self.classes.pop(class_name)
         # self.classes = self.get_classes()
         # self.classes.pop(class_name, None)
