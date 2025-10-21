@@ -15,6 +15,7 @@ The application now includes comprehensive API connection validation that ensure
 A comprehensive component that validates all API endpoints used across the application.
 
 **Features**:
+
 - Tests all critical backend endpoints
 - Provides real-time connection status
 - Shows detailed test results
@@ -23,6 +24,7 @@ A comprehensive component that validates all API endpoints used across the appli
 - Manual validation trigger
 
 **Props**:
+
 - `projectId`: Project ID for project-specific endpoints
 - `userId`: User ID for user-specific endpoints
 - `onValidationComplete`: Callback for validation results
@@ -36,6 +38,7 @@ A comprehensive component that validates all API endpoints used across the appli
 A specialized component for comprehensive backend testing with detailed results.
 
 **Features**:
+
 - Tests all backend endpoints systematically
 - Shows individual test results with timing
 - Provides summary statistics
@@ -47,11 +50,13 @@ A specialized component for comprehensive backend testing with detailed results.
 ### 1. Login Page (`/login`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/login` - User authentication
 
 **Features**:
+
 - Real-time API connection status
 - Proper error handling for login failures
 - Backend connection validation before login attempts
@@ -60,11 +65,13 @@ A specialized component for comprehensive backend testing with detailed results.
 ### 2. Dashboard Page (`/dashboard`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/get_projects_info` - User projects list
 
 **Features**:
+
 - Multiple backend URL fallback system
 - Comprehensive error handling
 - Real-time project loading
@@ -73,6 +80,7 @@ A specialized component for comprehensive backend testing with detailed results.
 ### 3. Project Page (`/project/[id]`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/get_project_details` - Project information
@@ -80,6 +88,7 @@ A specialized component for comprehensive backend testing with detailed results.
 - `/get_classes` - Annotation classes
 
 **Features**:
+
 - Real-time project details loading
 - API connection validation
 - Error handling with fallback data
@@ -88,12 +97,14 @@ A specialized component for comprehensive backend testing with detailed results.
 ### 4. Upload Page (`/project/[id]/upload`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/get_uploaded_videos` - Project videos
 - `/upload` - Video upload functionality
 
 **Features**:
+
 - Comprehensive connection validation
 - Upload functionality disabled when not connected
 - Real-time video list updates
@@ -102,6 +113,7 @@ A specialized component for comprehensive backend testing with detailed results.
 ### 5. Annotate Page (`/project/[id]/annotate`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/get_classes` - Annotation classes
@@ -110,14 +122,16 @@ A specialized component for comprehensive backend testing with detailed results.
 - `/annotate` - Save annotations
 
 **Features**:
+
 - Real-time class loading
 - Annotation status checking
 - Frame data retrieval
 - Comprehensive error handling
 
-### 6. Training Page (`/project/[id]/training`)
+### 6. Training Page (`/project/[id]/train`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/create_dataset` - Dataset creation
@@ -125,6 +139,7 @@ A specialized component for comprehensive backend testing with detailed results.
 - `/get_auto_annotation_progress` - Auto-annotation progress
 
 **Features**:
+
 - Real-time training progress monitoring
 - Dataset creation validation
 - Auto-annotation progress tracking
@@ -133,12 +148,14 @@ A specialized component for comprehensive backend testing with detailed results.
 ### 7. Deploy Page (`/project/[id]/deploy`)
 
 **API Endpoints Tested**:
+
 - `/health` - Basic server health
 - `/test` - Server functionality
 - `/get_model_performance` - Model metrics
 - `/get_model_path` - Model file paths
 
 **Features**:
+
 - Real-time model performance loading
 - Model file path validation
 - Download functionality validation
@@ -147,23 +164,28 @@ A specialized component for comprehensive backend testing with detailed results.
 ## API Endpoint Mapping
 
 ### Core Endpoints (All Pages)
+
 - `GET /health` - Server health check
 - `GET /test` - Server functionality test
 
 ### Authentication
+
 - `POST /login` - User login
 
 ### Project Management
+
 - `POST /get_projects_info` - Get user projects
 - `POST /get_project_details` - Get project details
 - `POST /create_project` - Create new project
 - `POST /change_project_name` - Update project name
 
 ### Video Management
+
 - `POST /upload` - Upload videos
 - `POST /get_uploaded_videos` - Get project videos
 
 ### Annotation
+
 - `POST /get_classes` - Get annotation classes
 - `POST /add_class` - Add new class
 - `POST /modify_class` - Modify class
@@ -174,29 +196,34 @@ A specialized component for comprehensive backend testing with detailed results.
 - `POST /next_video` - Get next video
 
 ### Training
+
 - `POST /create_dataset` - Create dataset
 - `POST /get_auto_annotation_progress` - Get auto-annotation progress
 - `POST /train` - Start training
 - `POST /get_training_progress` - Get training progress
 
 ### Deployment
+
 - `POST /get_model_performance` - Get model metrics
 - `POST /get_model_path` - Get model file paths
 
 ## Error Handling Strategy
 
 ### 1. Connection Validation
+
 - All pages validate backend connection before making API calls
 - Multiple fallback URLs are tested
 - Clear error messages are displayed to users
 
 ### 2. API Call Failures
+
 - Comprehensive error logging
 - User-friendly error messages
 - Graceful degradation when possible
 - No fallback data usage (as requested)
 
 ### 3. Timeout Handling
+
 - All API calls have appropriate timeouts
 - AbortSignal.timeout() is used for fetch requests
 - Retry logic where appropriate
@@ -206,7 +233,7 @@ A specialized component for comprehensive backend testing with detailed results.
 All API interactions are logged using the centralized logger:
 
 ```typescript
-import { log } from '@/lib/logger';
+import { log } from "@/lib/logger";
 
 // API call logging
 log.apiCall(endpoint, method, body);
@@ -225,8 +252,9 @@ log.error(component, message, data);
 ## Usage Examples
 
 ### Basic API Validator
+
 ```tsx
-<ApiConnectionValidator 
+<ApiConnectionValidator
   projectId="123"
   showDetails={true}
   autoValidate={true}
@@ -234,19 +262,21 @@ log.error(component, message, data);
 ```
 
 ### Custom Validation Callback
+
 ```tsx
-<ApiConnectionValidator 
+<ApiConnectionValidator
   projectId="123"
   onValidationComplete={(results) => {
-    console.log('Validation results:', results);
+    console.log("Validation results:", results);
     // Handle validation results
   }}
 />
 ```
 
 ### Minimal Validator (No Details)
+
 ```tsx
-<ApiConnectionValidator 
+<ApiConnectionValidator
   projectId="123"
   showDetails={false}
   autoValidate={true}
@@ -289,4 +319,3 @@ log.error(component, message, data);
 5. **Caching**: Add intelligent caching for frequently accessed data
 
 This comprehensive API connection validation system ensures that all pages in the Nocodile application have proper backend connectivity and provide a reliable user experience without fallback data.
-
