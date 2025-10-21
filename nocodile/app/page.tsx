@@ -1,23 +1,21 @@
 "use client";
 
+import Cookie from "js-cookie";
 import Link from "next/link";
-import { redirect, useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function Home() {
-  const router = useRouter();
-
   useEffect(() => {
-    cookieStore.get("userId").then((val) => {
-      console.warn("cookie userId", val);
-      if (val !== undefined && val !== null) {
-        console.log("/: user is logged in, redirect to dashboard");
-        redirect("/dashboard");
-      } else {
-        console.log("/: user not logged in, redirect to login");
-        redirect("/login");
-      }
-    });
+    const userId = Cookie.get("userId");
+    console.warn("cookie userId", userId);
+    if (userId !== undefined && userId !== null) {
+      console.log("/: user is logged in, redirect to dashboard");
+      redirect("/dashboard");
+    } else {
+      console.log("/: user not logged in, redirect to login");
+      redirect("/login");
+    }
   }, []);
   return (
     <div>

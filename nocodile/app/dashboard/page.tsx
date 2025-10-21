@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getProjectsInfo, ProjectInfo } from "./getProjectsInfo";
 import NewProjectForm from "./NewProjectForm";
 import { CircleDot } from "lucide-react";
+import Cookies from "js-cookie";
 
 const ProjectCard = ({
   id,
@@ -70,18 +71,19 @@ export default function Dashboard() {
   const [isNewProjectFormOpen, setIsNewProjectFormOpen] = useState(false);
   const [userId, setUserId] = useState<number>(-1);
   useEffect(() => {
-    cookieStore
-      .get("userId")
-      .then((res) => {
-        console.log("dashboard: userid is", res.value);
-        setUserId(res.value);
-      })
-      .then(async () => {
+    const userId = Cookies.get("userId");
+    console.log("dashboard: userid is", userId);
+    setUserId(userId);
+  }, []);
+  useEffect(() => {
+    if (userId !== -1) {
+      (async () => {
         const test = await getProjectsInfo(userId);
         console.log("fetched projects:", test);
         setProjects(test);
-      });
-  }, []);
+      })();
+    }
+  }, [userId]);
   // Turn into fetch in the future
 
   return (
