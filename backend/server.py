@@ -1687,37 +1687,23 @@ async def get_users_projects(request: UserRequest):
 
         # Get detailed project information for owned projects
         owned_projects = []
-        if owned_project_ids:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            owned_query = """
-                SELECT p.project_id, p.project_name, p.project_type, p.project_status,
-                       (SELECT COUNT(*) FROM video WHERE project_id = p.project_id) as video_count,
-                       (SELECT COUNT(*) FROM images WHERE project_id = p.project_id) as image_count,
-                       'owned' as ownership
-                FROM project p 
-                WHERE p.project_id IN ({})
-                ORDER BY p.project_id DESC
-            """.format(','.join(['%s'] * len(owned_project_ids)))
-            cursor.execute(owned_query, owned_project_ids)
-            owned_projects = cursor.fetchall()
-            cursor.close()
-
+        for project_id in owner_project_ids:
+            project = Project(project_id)
+            name = project.get_name()
+            videoCount = project.get_video_count()
+            status = project.get_project_status()
+            isOwned = (user == project.get_owner())
+            owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
+        
         # Get detailed project information for shared projects
         shared_projects = []
-        if shared_project_ids:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            shared_query = """
-                SELECT p.project_id, p.project_name, p.project_type, p.project_status,
-                       (SELECT COUNT(*) FROM video WHERE project_id = p.project_id) as video_count,
-                       (SELECT COUNT(*) FROM images WHERE project_id = p.project_id) as image_count,
-                       'shared' as ownership
-                FROM project p 
-                WHERE p.project_id IN ({})
-                ORDER BY p.project_id DESC
-            """.format(','.join(['%s'] * len(shared_project_ids)))
-            cursor.execute(shared_query, shared_project_ids)
-            shared_projects = cursor.fetchall()
-            cursor.close()
+        for project_id in shared_project_ids:
+            project = Project(project_id)
+            name = project.get_name()
+            videoCount = project.get_video_count()
+            status = project.get_project_status()
+            isOwned = (user == project.get_owner())
+            shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
         
         logger.info(f"Retrieved projects for user {userID}: {len(owned_projects)} owned, {len(shared_projects)} shared")
         
