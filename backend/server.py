@@ -1125,22 +1125,22 @@ class Video(Project):
         except (ValueError, TypeError):
             pass
 
-                # 如果整數查詢失敗，嘗試根據文件名查找
-        query = "SELECT video_path FROM video WHERE video_name = %s AND project_id = %s"
-        cursor.execute(query, (self.video_id, self.project_id))
-        result = cursor.fetchone()
-        if result:
-            return result['video_path']
+        # # 如果整數查詢失敗，嘗試根據文件名查找
+        # query = "SELECT video_path FROM video WHERE video_name = %s AND project_id = %s"
+        # cursor.execute(query, (self.video_name, self.project_id))
+        # result = cursor.fetchone()
+        # if result:
+        #     return result['video_path']
         
-        # 如果還是找不到，嘗試模糊匹配文件名
-        query = "SELECT video_path FROM video WHERE video_name LIKE %s AND project_id = %s"
-        cursor.execute(query, (f"%{self.video_id}%", self.project_id))
-        result = cursor.fetchone()
-        if result:
-            return result['video_path']
+        # # 如果還是找不到，嘗試模糊匹配文件名
+        # query = "SELECT video_path FROM video WHERE video_name LIKE %s AND project_id = %s"
+        # cursor.execute(query, (f"%{self.video_name}%", self.project_id))
+        # result = cursor.fetchone()
+        # if result:
+        #     return result['video_path']
         
-        # 如果都找不到，拋出錯誤
-        raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
+        # # 如果都找不到，拋出錯誤
+        # raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
     
     # Fetch video name (str) from database
     def get_frame_count(self):
@@ -1206,26 +1206,26 @@ class Video(Project):
         except (ValueError, TypeError):
             pass
 
-        # 如果整數查詢失敗，嘗試根據文件名查找
-        query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name = %s AND project_id = %s"
-        cursor.execute(query, (self.video_id, self.project_id))
-        data = cursor.fetchone()
-        if data:
-            annotation_status = data['annotation_status']
-            last_annotated_frame = data['last_annotated_frame']
-            return annotation_status, last_annotated_frame
+        # # 如果整數查詢失敗，嘗試根據文件名查找
+        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name = %s AND project_id = %s"
+        # cursor.execute(query, (self.video_id, self.project_id))
+        # data = cursor.fetchone()
+        # if data:
+        #     annotation_status = data['annotation_status']
+        #     last_annotated_frame = data['last_annotated_frame']
+        #     return annotation_status, last_annotated_frame
         
-        # 如果還是找不到，嘗試模糊匹配文件名
-        query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name LIKE %s AND project_id = %s"
-        cursor.execute(query, (f"%{self.video_id}%", self.project_id))
-        data = cursor.fetchone()
-        if data:
-            annotation_status = data['annotation_status']
-            last_annotated_frame = data['last_annotated_frame']
-            return annotation_status, last_annotated_frame
+        # # 如果還是找不到，嘗試模糊匹配文件名
+        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name LIKE %s AND project_id = %s"
+        # cursor.execute(query, (f"%{self.video_id}%", self.project_id))
+        # data = cursor.fetchone()
+        # if data:
+        #     annotation_status = data['annotation_status']
+        #     last_annotated_frame = data['last_annotated_frame']
+        #     return annotation_status, last_annotated_frame
         
-        # 如果都找不到，拋出錯誤
-        raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
+        # # 如果都找不到，拋出錯誤
+        # raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
     
     ###### Selecting Frame for Manual Annotation ######
     # For testing purpose, annotate every second
@@ -2033,37 +2033,6 @@ async def upload(request: UploadRequest):
         
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-
-        # Ask Jimmy (Why do we need cap here?)
-        # 初始化视频捕获对象
-        cap = cv2.VideoCapture(str(file_location))
-        
-        # 读取视频信息并更新数据库
-        if cap.isOpened():
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
-            # 更新数据库中的视频信息
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("""
-                UPDATE video 
-                SET total_frames = %s 
-                WHERE video_id = %s
-            """, (frame_count, video_id))
-            connection.commit()
-            cursor.close()
-            
-            logger.info(f"Video info updated: {frame_count} frames, {fps} fps, {width}x{height}")
-        else:
-            logger.error(f"Failed to open video file: {file_location}")
-
-        return {
-            "message": f"file '{file.filename}' saved at '{file_location}'",
-            "video_id": video_id,
-            "video_path": file_location
-        }
     
     except Exception as e:
         logger.error(f"Upload error: {str(e)}")
