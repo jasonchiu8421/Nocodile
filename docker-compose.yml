@@ -88,8 +88,6 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
-      - MYSQL_USER=${MYSQL_USER:-root}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-rootpassword}
     ports:
       - "3307:${MYSQL_PORT:-3306}"
     volumes:

@@ -3,32 +3,32 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package files
-COPY nocodile/package*.json ./
-COPY nocodile/pnpm-lock.yaml ./
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
 
 # Install dependencies
 RUN npm install -g pnpm
 RUN pnpm install
 
 # Copy source code (excluding node_modules)
-COPY nocodile/app/ ./app/
-COPY nocodile/components/ ./components/
-COPY nocodile/lib/ ./lib/
-COPY nocodile/public/ ./public/
-COPY nocodile/css/ ./css/
-COPY nocodile/contexts/ ./contexts/
-COPY nocodile/*.json ./
-COPY nocodile/*.js ./
-COPY nocodile/*.ts ./
-COPY nocodile/*.mjs ./
-COPY nocodile/*.md ./
-COPY nocodile/next.config.* ./
-COPY nocodile/postcss.config.* ./
-COPY nocodile/tailwind.config.* ./
-COPY nocodile/tsconfig.json ./
-COPY nocodile/tsconfig.tsbuildinfo ./
-COPY nocodile/next-env.d.ts ./
-COPY nocodile/webpack.config.* ./
+COPY app/ ./app/
+COPY components/ ./components/
+COPY lib/ ./lib/
+COPY public/ ./public/
+COPY css/ ./css/
+COPY contexts/ ./contexts/
+COPY *.json ./
+COPY *.js ./
+COPY *.ts ./
+COPY *.mjs ./
+COPY *.md ./
+COPY next.config.* ./
+COPY postcss.config.* ./
+COPY tailwind.config.* ./
+COPY tsconfig.json ./
+COPY tsconfig.tsbuildinfo ./
+COPY next-env.d.ts ./
+COPY webpack.config.* ./
 
 # Create .next directory for build cache
 RUN mkdir -p .next

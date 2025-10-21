@@ -59,3 +59,55 @@ build/
 .vscode/*
 
 .npmignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+
+# Environment files
+*.env
+.env.*
+!.env.example
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.flv
+*.wmv
+*.webm
+
+# Docker data
+docker-data/
+mysql-data/
+
+# Project uploads and generated files
+backend/projects/*/
+backend/safe_projects/*/
+backend/1/
+backend/2/
+backend/5/
+backend/11/
+backend/12/
+backend/asd
+backend/query
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Next.js
+.next/
+out/
+Nocodile/.next/
+Nocodile/out/
+
+# Docker config backup
+.docker/config.json.backup
