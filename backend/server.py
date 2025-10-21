@@ -2105,6 +2105,7 @@ def get_uploaded_videos(request: ProjectRequest):
     
 # Ask Jimmy (Why need this?)
 # Get project videos by project ID (RESTful endpoint)
+# Output: ?
 @app.get("/get_project_videos/{project_id}")
 def get_project_videos(project_id: int):
     try:
@@ -2126,6 +2127,8 @@ def get_project_videos(project_id: int):
     
 #=================================== Page 4 - Annotation ==========================================
 
+# Get all classes of a project
+# Output: {"class_name": colour, ...}
 @app.post("/get_classes")
 async def get_classes(request:ProjectRequest):
     try:
@@ -2144,6 +2147,8 @@ async def get_classes(request:ProjectRequest):
             content={"error": str(e)}
         )
 
+# Add new class to a project and return new classes list
+# Output: {"class_name": colour, ...} 
 @app.post("/add_class")
 async def add_class(request: ProjectRequest, class_name: str, colour: str):
     try:
@@ -2172,6 +2177,8 @@ async def add_class(request: ProjectRequest, class_name: str, colour: str):
             content={"error": str(e)}
         )
 
+# Modify class name of a project and return new classes list
+# Output: {"class_name": colour, ...}
 @app.post("/modify_class")
 async def modify_class(request: ProjectRequest, original_class_name: str, new_class_name: str):
     try:
@@ -2208,7 +2215,9 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
+    
+# Delete class of a project and return new classes list
+# Output: {"class_name": colour, ...}
 @app.post("/delete_class")
 async def add_class(request: ProjectRequest, class_name: str):
     try:
@@ -2241,6 +2250,7 @@ class VideoRequest(BaseModel):
     project_id: int
     video_id: int
 
+# Get next frame to annotate
 @app.post("/get_next_frame_to_annotate")
 async def get_next_frame_to_annotate(request: VideoRequest):
     try:
@@ -2270,6 +2280,7 @@ async def get_next_frame_to_annotate(request: VideoRequest):
             content={"error": str(e)}
         )
 
+# Check annotation status of a video
 @app.post("/check_annotation_status")
 async def check_annotation_status(request: VideoRequest):  
     try:
@@ -2291,6 +2302,7 @@ class AnnotationRequest(BaseModel):
     frame_num: int
     bboxes: list  # List of bounding boxes, each box is [class_name, x, y, w, h]
 
+# Save annotation for a frame
 @app.post("/annotate")
 async def annotate(request: AnnotationRequest):
     try:
@@ -2314,7 +2326,9 @@ async def annotate(request: AnnotationRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
+# ? No need now?
+# Get next video to annotate
 @app.post("/next_video")
 async def next_video(request: ProjectRequest, current_video_id: str):
     try:
@@ -2350,6 +2364,7 @@ async def next_video(request: ProjectRequest, current_video_id: str):
     
 #=================================== Page 5 - Model Training ==========================================
 
+# Create dataset for training
 @app.post("/create_dataset")
 async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(_create_dataset, request.project_id)
@@ -2390,7 +2405,8 @@ async def _create_dataset(project_id: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
+# Get auto annotation progress of a project
 @app.post("/get_auto_annotation_progress")
 async def get_auto_annotation_progress(request: ProjectRequest):
     try:
@@ -2409,7 +2425,8 @@ async def get_auto_annotation_progress(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
+# Train model for a project
 @app.post("/train")
 async def train(request: ProjectRequest, background_tasks: BackgroundTasks):
     try:
@@ -2428,7 +2445,8 @@ async def train(request: ProjectRequest, background_tasks: BackgroundTasks):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
+# Get training progress of a project  
 @app.post("/get_training_progress")
 async def get_training_progress(request: ProjectRequest):
     try:
@@ -2460,6 +2478,7 @@ async def get_training_progress(request: ProjectRequest):
     
 #=================================== Page 6 - Model Management ==========================================
 
+# Get model performance
 @app.post("/get_model_performance")
 async def get_model_performance(request: ProjectRequest):
     try:
@@ -2479,6 +2498,7 @@ async def get_model_performance(request: ProjectRequest):
             content={"error": str(e)}
         )
 
+# Get model path
 @app.post("/get_model_path")
 async def get_model_path(request: ProjectRequest):
     try:
