@@ -240,55 +240,55 @@ class ObjectDetectionDB:
         finally:
             cursor.close()
 
-    @staticmethod
-    def _hash_password(password, salt=None):
-        # Generate a random salt if not provided
-        if salt is None:
-            salt = os.urandom(16)
-        # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
-        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
-        return salt, pwd_hash
+    # @staticmethod
+    # def _hash_password(password, salt=None):
+    #     # Generate a random salt if not provided
+    #     if salt is None:
+    #         salt = os.urandom(16)
+    #     # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
+    #     pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
+    #     return salt, pwd_hash
 
-    def create_users(self):
-        cursor = self.connection.cursor()
+    # def create_users(self):
+    #     cursor = self.connection.cursor()
 
-        try:
-            # Check if users already exist
-            cursor.execute("SELECT COUNT(*) FROM user")
-            user_count = cursor.fetchone()[0]
+    #     try:
+    #         # Check if users already exist
+    #         cursor.execute("SELECT COUNT(*) FROM user")
+    #         user_count = cursor.fetchone()[0]
             
-            if user_count > 0:
-                print(f"✅ 用戶已存在 ({user_count} 個用戶)，跳過創建用戶步驟")
-                return True
+    #         if user_count > 0:
+    #             print(f"✅ 用戶已存在 ({user_count} 個用戶)，跳過創建用戶步驟")
+    #             return True
             
-            # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
-            for i in range(1, 31):
-                username = f"user{i}"
-                plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
+    #         # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
+    #         for i in range(1, 31):
+    #             username = f"user{i}"
+    #             plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
                 
-                # Generate salt and hash
-                salt, pwd_hash = self._hash_password(plaintext_password)
+    #             # Generate salt and hash
+    #             salt, pwd_hash = self._hash_password(plaintext_password)
                 
-                # Combine and base64-encode for storage: salt:hash
-                stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
+    #             # Combine and base64-encode for storage: salt:hash
+    #             stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
                 
-                # Insert the user (use INSERT IGNORE to avoid duplicate key errors)
-                insert_user = """
-                    INSERT IGNORE INTO user (username, password) 
-                    VALUES (%s, %s)
-                """
-                cursor.execute(insert_user, (username, stored_password))
+    #             # Insert the user (use INSERT IGNORE to avoid duplicate key errors)
+    #             insert_user = """
+    #                 INSERT IGNORE INTO user (username, password) 
+    #                 VALUES (%s, %s)
+    #             """
+    #             cursor.execute(insert_user, (username, stored_password))
             
-            self.connection.commit()
-            print("30 users created successfully")
-            return True
+    #         self.connection.commit()
+    #         print("30 users created successfully")
+    #         return True
             
-        except Exception as e:
-            print(f"Error creating users: {e}")
-            self.connection.rollback()
-            return False
-        finally:
-            cursor.close()
+    #     except Exception as e:
+    #         print(f"Error creating users: {e}")
+    #         self.connection.rollback()
+    #         return False
+    #     finally:
+    #         cursor.close()
     
     def close(self):
         """关闭数据库连接"""
