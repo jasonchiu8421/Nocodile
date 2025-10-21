@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { useState } from "react";
 import { redirect } from "next/navigation";
+import Cookies from "js-cookie";
 
 const style = { backgroundColor: "white", borderTop: "1px solid #eaeaea" };
 const Home = () => {
@@ -10,19 +11,17 @@ const Home = () => {
   let [password, setPassword] = useState("");
   let [errorMsg, setErrorMsg] = useState("");
 
+  // i dont know if i should use js-cookie or cookiestore anymore...
   //COOKIES ARE ASYNC
-  useEffect(() => {
-    cookieStore.get("userId").then((val) => {
-      if (val !== undefined && val !== null) {
-        redirect("/dashboard");
-      }
-    });
-  }, []);
+  const userId = Cookies.get("userId");
+  if (userId !== undefined && userId !== null) {
+    redirect("/dashboard");
+  }
 
   const handleLogin = async () => {
     console.warn("submit POST req", { username, password });
     const userId = 98989898; //get from server
-    cookieStore.set("userId", String(userId));
+    Cookies.set("userId", String(userId));
     redirect(`/dashboard`);
     /*await fetch("localhost:5000/login/", {
                     method: "POST",
