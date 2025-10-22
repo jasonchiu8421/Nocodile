@@ -1,24 +1,61 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Gradle files
+.gradle/
+build/
 
-# dependencies
-node_modules/
-.next/
-.pnp
-.pnp.js
+# Local configuration file (sdk path, etc)
+local.properties
 
-# testing
-/coverage
+# Log/OS Files
+*.log
 
-# production
-/build
+# Android Studio generated files and folders
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+output.json
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# IntelliJ
+*.iml
+.idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
 
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+
+# Android Profiling
+*.hprof
+
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Dependency directories
+node_modules/
+.next/
+.swc/
+.*.env
+
+# Generated files
+dist/
+build/
+.DS_Store
+
+# Optional npm cache directory
+.npm
+
+# IDEs and editors
+.idea
+*.sublime-workspace
+.vscode/*
+
+.npmignore

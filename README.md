@@ -1,70 +1,77 @@
-# Getting Started with Create React App
+# Nocodile
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Nocodile is an innovative no-code platform designed to democratize access to artificial intelligence. While AI offers immense potential, the complexity of training models has traditionally limited its use to a select few with technical expertise. Our mission is to empower businesses and students alike to harness the power of AI without needing to learn coding.
 
-## Available Scripts
+At the core of Nocodile is a user-friendly interface where each component of the AI pipeline is represented as a node. Users can effortlessly piece these nodes together like playing puzzle, allowing them to create customized AI solutions tailored to their specific needs. This intuitive design not only simplifies the process but also retains the flexibility required for professional tasks.
 
-In the project directory, you can run:
+Built using React and Bootstrap, Nocodile combines a playful user experience with robust functionality, catering to everyone from beginners to seasoned professionals. Whether you're streamlining simple tasks or tackling more complex AI challenges, Nocodile provides a seamless and enjoyable way to engage with artificial intelligence.
 
-### `npm start`
+![Example of UI](./ui_example.jpg?raw=true)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Table of Contents
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- [Features](#features)
+- [Demo](#demo)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Contact](#contact)
 
-### `npm test`
+## Features
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- Easy to use: No coding required.
+- Drag-and-drop interface for building AI models.
+- Supports multiple AI functionalities: NLP, image recognition, etc.
+- Integration with popular data sources and APIs.
+- Customizable templates for different use cases.
 
-### `npm run build`
+## Demo
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Installation
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Instructions on how to install and set up the software:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/jasonchiu8421/Nocodile.git
+   ```
+2. Navigate to the project directory:
+   ```bash
+   cd Nocodile
+   ```
+3. Set up the database:
+   ```bash
+   cd database
+   python create_object_detection_db.py
+   cd ..
+   ```
+4. Run the backend:
+   ```bash
+   cd backend
+   python server.py
+   cd ..
+   ```
+5. Run the frontend:
+   ```bash
+   cd nocodile
+   npm install
+   npm run dev
+   ```
+6. Access the app locally:
+   Go to [localhost:3000](http://localhost:3000/)
 
-### `npm run eject`
+## Usage
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Basic usage instructions with examples:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+1. Start the app:
+   ```bash
+   npm run dev
+   ```
+2. Follow the on-screen instructions to create your first AI model.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Contact
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+If you have any enquiries, kindly contact us at:
 
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Email: [nocodile.ai@gmail.com](mailto:nocodile.ai@gmail.com)
+- GitHub: [Nocodile-AI](https://github.com/Nocodile-AI)
