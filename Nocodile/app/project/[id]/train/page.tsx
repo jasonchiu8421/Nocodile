@@ -9,14 +9,29 @@ export default function TrainingPage() {
   const params = useParams();
   const project_id = params.id as string;
   const [trainProgress, setTrainProgress] = useState(0); // 0, 0001-100
+  const [createDsProgress, setCreateDsProgress] = useState(0); // 0, 0001-100
 
   //todo untested
   const handleCreateDs = async () => {
-    fetch("/create_dataset", {
-      method: "POST",
-      body: JSON.stringify({ project_id }),
-    });
+    if (createDsProgress == 0) {
+      fetch("/create_dataset", {
+        method: "POST",
+        body: JSON.stringify({ project_id }),
+      });
+    }
+
+    setInterval(() => {
+      fetch("/get_auto_annotation_progress", {
+        method: "POST",
+        body: JSON.stringify({ project_id }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setCreateDsProgress(data.progress);
+        });
+    }, 1000);
   };
+
   const handleTraining = async () => {
     if (trainProgress == 0) {
       await fetch("/train", {
@@ -44,6 +59,7 @@ export default function TrainingPage() {
       <button onClick={handleCreateDs} className="btn-primary">
         Create a dataset
       </button>
+      <progress value={createDsProgress} max="100" className="w-full mt-4" />
       <button
         onClick={handleTraining}
         className="btn-primary"
