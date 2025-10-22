@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ProjectProvider } from "@/contexts/ProjectContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 const Logo = () => {
   return (
     <img
-      className="fixed"
+      //className="fixed"
       src="/templogo.png"
       alt="logo"
       style={{ opacity: 0.2 }}
@@ -37,8 +38,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased dotted-grid`}
       >
-        <Logo />
-        {children}
+        <ProjectProvider>
+          <Logo />
+          <main>{children}</main>
+        </ProjectProvider>
       </body>
     </html>
   );
