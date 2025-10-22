@@ -328,15 +328,6 @@ def main():
             print("表格創建失敗")
             return False
 
-        # 4. 创建users
-        if not db.create_users():
-            print("users創建失敗")
-            return
-        
-        print("\n資料庫初始化完成！")
-        print("現在可以啟動 Nocodile 應用程式")
-        return True
-
     except Exception as e:
         print(f"創建資料庫時出錯: {e}")
         return False
