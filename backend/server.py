@@ -508,6 +508,26 @@ class Project():
         except Exception as e:
             logger.error(f"Error in get_project_status: {str(e)}")
             return "Error"
+
+    def get_project_progress(self):
+        try:
+            # 檢查資料庫連接
+            if not connection or not connection.open:
+                logger.error("Database connection not available in get_project_status")
+                return "Unknown"
+                
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            query = "SELECT training_progress FROM project WHERE project_id = %s"
+            cursor.execute(query,(self.project_id,))
+            result = cursor.fetchone()
+            if result:
+                return result['training_progress']
+            else:
+                logger.warning(f"Project progress not found for project ID {self.project_id}")
+                return 0
+        except Exception as e:
+            logger.error(f"Error in get_project_status: {str(e)}")
+            return "Error"
     
     # Get the working directory of the project (create if not exists)
     # Output: Project path (str)
@@ -2413,7 +2433,7 @@ async def get_training_progress(request: ProjectRequest):
         
         # Return progress based on status
         if project_status == "Training in progress":
-            progress = 50  # Training in progress
+            progress = project.get_project_progress()
         elif project_status in ["Data is ready", "Training completed"]:
             progress = 100  # Training completed
         else:
