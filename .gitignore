@@ -1,3 +1,7 @@
+# Folders generated during system run
+[0-9]*/
+.*/
+
 # Gradle files
 .gradle/
 build/
