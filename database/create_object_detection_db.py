@@ -38,7 +38,7 @@ class ObjectDetectionDB:
                 'host': host or os.getenv('MYSQL_HOST', 'localhost'),
                 'user': user or os.getenv('MYSQL_USER', 'root'),
                 'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
-                'database': database or os.getenv('MYSQL_DATABASE', 'object_detection'),
+                'database': database or os.getenv('MYSQL_DATABASE', 'nocodile_db'),
                 'charset': 'utf8mb4'
             }
         
@@ -99,26 +99,41 @@ class ObjectDetectionDB:
         cursor = self.connection.cursor()
         
         try:
-            # 檢查是否已經有表存在
-            cursor.execute("SHOW TABLES LIKE 'video'")
-            if cursor.fetchone():
-                print("✅ 數據庫表已存在，跳過創建表步驟")
-                return True
-            
-            # 暫時禁用外鍵檢查以避免創建順序問題
-            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
-            print("已暫時禁用外鍵檢查")
-            
 #====================================创建user表====================================
             create_user_table = """
             CREATE TABLE IF NOT EXISTS user (
                 user_id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(50) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL
+                password VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                
+                -- Index for quicker search
+                INDEX idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_user_table)
             print("user表创建成功")
+            
+#====================================创建class表====================================
+            create_class_table = """
+            CREATE TABLE IF NOT EXISTS class (
+                project_id INT NOT NULL,
+                class_id INT AUTO_INCREMENT PRIMARY KEY,
+                class_name VARCHAR(100) NOT NULL,
+                color VARCHAR(10) NOT NULL,
+
+                -- Foreign key
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`),
+
+                -- Index for quicker search
+                INDEX project_id (project_id),
+                INDEX class_name (class_name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_class_table)
+            print("class表创建成功")
             
 #====================================创建project表====================================
             create_project_table = """
@@ -128,30 +143,23 @@ class ObjectDetectionDB:
                 project_type VARCHAR(200) NOT NULL,
                 project_owner_id INT NOT NULL,
                 project_status VARCHAR(200) NOT NULL,
-                auto_annotation_progress DECIMAL DEFAULT 0.00,
+                auto_annotation_progress INT DEFAULT 0,
                 last_annotated_frame INT DEFAULT 0,
-                training_progress DECIMAL DEFAULT 0.00,
+                training_progress INT DEFAULT 0,
                 model_path VARCHAR(500) NOT NULL,
                 dataset_path VARCHAR(500) NOT NULL,
-                FOREIGN KEY (project_owner_id) REFERENCES user(user_id) ON DELETE CASCADE
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                -- Foreign key
+                FOREIGN KEY (project_owner_id) REFERENCES user(user_id) ON DELETE CASCADE,
+
+                -- Index for quicker search
+                INDEX project_id (project_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_project_table)
             print("project表创建成功")
-            
-#====================================创建class表====================================
-            create_class_table = """
-            CREATE TABLE IF NOT EXISTS class (
-                project_id INT NOT NULL,
-                class_id INT AUTO_INCREMENT PRIMARY KEY,
-                class_name VARCHAR(100) NOT NULL,
-                color VARCHAR(10) NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_class_table)
-            print("class表创建成功")
             
 #====================================创建video表====================================
             create_video_table = """
@@ -163,7 +171,15 @@ class ObjectDetectionDB:
                 annotation_status VARCHAR(200) NOT NULL,
                 last_annotated_frame INT DEFAULT -1,
                 total_frames INT DEFAULT 0,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                -- Foreign key
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+
+                -- Index for quicker search
+                INDEX project_id (project_id),
+                INDEX video_id (video_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_video_table)
@@ -177,7 +193,12 @@ class ObjectDetectionDB:
                 class_name VARCHAR(50) NOT NULL,
                 coordinates VARCHAR(50) NOT NULL,
                 frame_num INT NOT NULL,
-                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE
+
+                -- Foreign key
+                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE,
+
+                -- Index for quicker search
+                INDEX video_id (video_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_bbox_table)
@@ -189,41 +210,24 @@ class ObjectDetectionDB:
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 project_id INT NOT NULL,
                 user_id INT NOT NULL,
+                permissions ENUM('read', 'write') NOT NULL DEFAULT 'read',
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                -- Foreign key
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE,
-                UNIQUE KEY unique_project_user (project_id, user_id)
+
+                -- Unique key
+                UNIQUE KEY unique_project_user (project_id, user_id),
+
+                -- Index for quicker search
+                INDEX idx_project_id (project_id),
+                INDEX idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_shared_users_table)
             print("project_shared_users表创建成功")
-
-#====================================创建project_shares表（项目分享功能）====================================
-            create_project_shares_table = """
-            CREATE TABLE IF NOT EXISTS project_shares (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                project_id INT NOT NULL,
-                shared_with_user_id INT NOT NULL,
-                permissions ENUM('read', 'write') NOT NULL DEFAULT 'read',
-                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                
-                -- Foreign key constraints
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                FOREIGN KEY (shared_with_user_id) REFERENCES user(user_id) ON DELETE CASCADE,
-                
-                -- Unique constraint to prevent duplicate shares
-                UNIQUE KEY unique_project_user (project_id, shared_with_user_id),
-                
-                -- Indexes for better performance
-                INDEX idx_project_id (project_id),
-                INDEX idx_shared_with_user_id (shared_with_user_id),
-                INDEX idx_permissions (permissions),
-                INDEX idx_shared_at (shared_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_project_shares_table)
-            print("project_shares表创建成功")
 
             # 重新启用外键检查
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
@@ -240,7 +244,6 @@ class ObjectDetectionDB:
         finally:
             cursor.close()
 
-    # @staticmethod
     # def _hash_password(password, salt=None):
     #     # Generate a random salt if not provided
     #     if salt is None:
@@ -252,42 +255,24 @@ class ObjectDetectionDB:
     # def create_users(self):
     #     cursor = self.connection.cursor()
 
-    #     try:
-    #         # Check if users already exist
-    #         cursor.execute("SELECT COUNT(*) FROM user")
-    #         user_count = cursor.fetchone()[0]
+    #     # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
+    #     for i in range(1, 31):
+    #         username = f"user{i}"
+    #         plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
             
-    #         if user_count > 0:
-    #             print(f"✅ 用戶已存在 ({user_count} 個用戶)，跳過創建用戶步驟")
-    #             return True
+    #         # Generate salt and hash
+    #         salt, pwd_hash = self._hash_password(plaintext_password)
             
-    #         # Create 30 users: usernames as 'user1' to 'user30', passwords as 'password123' (fixed for demo; hash each uniquely)
-    #         for i in range(1, 31):
-    #             username = f"user{i}"
-    #             plaintext_password = "password123"  # Or generate dynamically, e.g., f"pass{i}"
-                
-    #             # Generate salt and hash
-    #             salt, pwd_hash = self._hash_password(plaintext_password)
-                
-    #             # Combine and base64-encode for storage: salt:hash
-    #             stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
-                
-    #             # Insert the user (use INSERT IGNORE to avoid duplicate key errors)
-    #             insert_user = """
-    #                 INSERT IGNORE INTO user (username, password) 
-    #                 VALUES (%s, %s)
-    #             """
-    #             cursor.execute(insert_user, (username, stored_password))
+    #         # Combine and base64-encode for storage: salt:hash
+    #         stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
             
-    #         self.connection.commit()
-    #         print("30 users created successfully")
-    #         return True
-            
-    #     except Exception as e:
-    #         print(f"Error creating users: {e}")
-    #         self.connection.rollback()
-    #         return False
-    #     finally:
+    #         # Insert the user
+    #         insert_user = """
+    #             INSERT INTO user (username, password) 
+    #             VALUES (%s, %s)
+    #         """
+    #         cursor.execute(insert_user, (username, stored_password))
+
     #         cursor.close()
     
     def close(self):
@@ -302,7 +287,7 @@ def main():
     print("=" * 50)
     
     # 檢查是否在 Docker 環境中
-    if os.getenv('MYSQL_HOST') == 'database':
+    if os.getenv('MYSQL_HOST') == 'mysql':
         print("檢測到 Docker 環境")
     else:
         print("檢測到本地環境")
@@ -328,6 +313,11 @@ def main():
             print("表格創建失敗")
             return False
 
+        # # 4. 创建users
+        # if not db.create_users():
+        #     print("users創建失敗")
+        #     return
+        
         print("\n資料庫初始化完成！")
         print("現在可以啟動 Nocodile 應用程式")
         return True
