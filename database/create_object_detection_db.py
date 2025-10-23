@@ -104,7 +104,12 @@ class ObjectDetectionDB:
             CREATE TABLE IF NOT EXISTS user (
                 user_id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(50) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL
+                password VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                
+                -- Index for quicker search
+                INDEX idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_user_table)
@@ -117,8 +122,14 @@ class ObjectDetectionDB:
                 class_id INT AUTO_INCREMENT PRIMARY KEY,
                 class_name VARCHAR(100) NOT NULL,
                 color VARCHAR(10) NOT NULL,
+
+                -- Foreign key
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`)
+                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`),
+
+                -- Index for quicker search
+                INDEX project_id (project_id),
+                INDEX class_name (class_name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_class_table)
@@ -132,12 +143,19 @@ class ObjectDetectionDB:
                 project_type VARCHAR(200) NOT NULL,
                 project_owner_id INT NOT NULL,
                 project_status VARCHAR(200) NOT NULL,
-                auto_annotation_progress DECIMAL DEFAULT 0.00,
+                auto_annotation_progress INT DEFAULT 0,
                 last_annotated_frame INT DEFAULT 0,
-                training_progress DECIMAL DEFAULT 0.00,
+                training_progress INT DEFAULT 0,
                 model_path VARCHAR(500) NOT NULL,
                 dataset_path VARCHAR(500) NOT NULL,
-                FOREIGN KEY (project_owner_id) REFERENCES user(user_id) ON DELETE CASCADE
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                -- Foreign key
+                FOREIGN KEY (project_owner_id) REFERENCES user(user_id) ON DELETE CASCADE,
+
+                -- Index for quicker search
+                INDEX project_id (project_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_project_table)
@@ -153,7 +171,15 @@ class ObjectDetectionDB:
                 annotation_status VARCHAR(200) NOT NULL,
                 last_annotated_frame INT DEFAULT -1,
                 total_frames INT DEFAULT 0,
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                -- Foreign key
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+
+                -- Index for quicker search
+                INDEX project_id (project_id),
+                INDEX video_id (video_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_video_table)
@@ -167,7 +193,12 @@ class ObjectDetectionDB:
                 class_name VARCHAR(50) NOT NULL,
                 coordinates VARCHAR(50) NOT NULL,
                 frame_num INT NOT NULL,
-                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE
+
+                -- Foreign key
+                FOREIGN KEY (video_id) REFERENCES video(video_id) ON DELETE CASCADE,
+
+                -- Index for quicker search
+                INDEX video_id (video_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_bbox_table)
@@ -179,9 +210,20 @@ class ObjectDetectionDB:
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 project_id INT NOT NULL,
                 user_id INT NOT NULL,
+                permissions ENUM('read', 'write') NOT NULL DEFAULT 'read',
+                shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+                -- Foreign key
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE,
-                UNIQUE KEY unique_project_user (project_id, user_id)
+
+                -- Unique key
+                UNIQUE KEY unique_project_user (project_id, user_id),
+
+                -- Index for quicker search
+                INDEX idx_project_id (project_id),
+                INDEX idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
             cursor.execute(create_shared_users_table)
