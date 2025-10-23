@@ -218,6 +218,30 @@ class UserLogin():
         self.status = status      # True if account is active, Flase if account is freezed
         self.login_attempts = 0
 
+    def register(self):
+        # 檢查用戶名是否已存在
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        check_query = "SELECT user_id FROM user WHERE username = %s"
+        cursor.execute(check_query, (self.username,))
+        existing_user = cursor.fetchone()
+        
+        if existing_user:
+            cursor.close()
+            return False, "用戶名已存在", None
+        
+        # 生成密碼哈希
+        salt, pwd_hash = self._hash_password(self.password)
+        stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
+        
+        # 插入新用戶
+        insert_query = "INSERT INTO user (username, password) VALUES (%s, %s)"
+        cursor.execute(insert_query, (self.username, stored_password))
+        connection.commit()
+        user_id = cursor.lastrowid
+        cursor.close()
+        
+        return True, "註冊成功", user_id
+
     # Fetch hashed password and salt from database
     def get_password_hash(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
@@ -293,6 +317,15 @@ class User():
     def __init__(self, userID: str):
         self.userID = userID
         self.username = self.get_username()
+
+    # Fetch userID from database given the username
+    def get_user_id(self, username: str):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query= "SELECT username FROM user WHERE username = %s"
+        cursor.execute(query,(username,))
+        self.user_id = cursor.fetchone()['user_id']
+        cursor.close() 
+        return self.user_id
     
     # Fetch username from database given the userID
     def get_username(self):
@@ -307,7 +340,7 @@ class User():
     # Output: [projectID, projectID, ...]
     def get_owned_projects(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
+        query="SELECT DISTINCT project_id FROM project WHERE project_owner_id = %d"
         cursor.execute(query,(self.userID))
         result = cursor.fetchall()
         cursor.close()
@@ -319,7 +352,7 @@ class User():
     # Output: [projectID, projectID, ...]
     def get_shared_projects(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
+        query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id = %d"
         cursor.execute(query,(self.userID))
         result = cursor.fetchall()
         cursor.close()
@@ -377,7 +410,7 @@ class Project():
         self.project_name = self.get_project_name()
         self.owner = self.get_owner()
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT COUNT(*) as count FROM project WHERE project_name = %s AND project_owner_id = %s"
+        query = "SELECT COUNT(*) as count FROM project WHERE project_name = %s AND project_owner_id = %d"
         cursor.execute(query, (self.project_name, self.owner))
         result = cursor.fetchone()
         cursor.close()
@@ -393,7 +426,7 @@ class Project():
                 return None
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT project_name FROM project WHERE project_id = %s"
+            query = "SELECT project_name FROM project WHERE project_id = %d"
             cursor.execute(query,(self.project_id,))
             result = cursor.fetchone()
             cursor.close()
@@ -423,7 +456,7 @@ class Project():
                 return []
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT DISTINCT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
+            query = "SELECT DISTINCT video_id FROM video WHERE project_id = %d ORDER BY video_id ASC"
             cursor.execute(query,(self.project_id,))
             data = cursor.fetchall()
             video_ids = [d['video_id'] for d in data if 'video_id' in d]
@@ -443,7 +476,7 @@ class Project():
                 return []
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT COUNT(video_id) as total FROM video WHERE project_id = %s"
+            query = "SELECT COUNT(video_id) as total FROM video WHERE project_id = %d"
             cursor.execute(query,(self.project_id,))
             result = cursor.fetchone()
             video_count = result['total']
@@ -457,7 +490,7 @@ class Project():
     # Output: Owner's ID (int)
     def get_owner(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+        query = "SELECT project_owner_id FROM project WHERE project_id = %d"
         cursor.execute(query,(self.project_id,))
         result = cursor.fetchone()
         cursor.close()
@@ -470,17 +503,39 @@ class Project():
     # Output: [shared user ID (int), ...]
     def get_shared_users(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT DISTINCT user_id FROM project_shared_users WHERE project_id = %s"
+        query = "SELECT DISTINCT user_id FROM project_shared_users WHERE project_id = %d"
         cursor.execute(query,(self.project_id,))
         result = cursor.fetchall()
         shared_users = [d['user_id'] for d in result if 'user_id' in d]
         return shared_users
     
+    # Add a shared user to a project
+    # Output: True/False
+    def add_shared_user(self, user_id):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query="INSERT INTO project_shared_users (project_id, user_id) VALUES (%d, %d);"
+        cursor.execute(query,(self.project_id, user_id))
+        connection.commit()
+        success = bool(cursor.rowcount)
+        cursor.close()
+        return success
+    
+    # Add a shared user to a project
+    # Output: True/False
+    def remove_shared_user(self, user_id):
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
+        query="DELETE FROM project_shared_users WHERE project_id = %d AND user_id = %d);"
+        cursor.execute(query,(self.project_id, user_id))
+        connection.commit()
+        success = bool(cursor.rowcount)
+        cursor.close()
+        return success
+    
     # Fetch all the classes that the model would contain in a project
     # Output: {class_name (str): color (str), ...}
     def get_classes(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT class_name, color FROM class WHERE project_id = %s"
+        query = "SELECT class_name, color FROM class WHERE project_id = %d"
         cursor.execute(query,(self.project_id,))
         rows = cursor.fetchall()
         classes = {item["class_name"]: item["color"] for item in rows}
@@ -496,7 +551,7 @@ class Project():
                 return "Unknown"
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT project_status FROM project WHERE project_id = %s"
+            query = "SELECT project_status FROM project WHERE project_id = %d"
             cursor.execute(query,(self.project_id,))
             result = cursor.fetchone()
             cursor.close()
@@ -517,7 +572,7 @@ class Project():
                 return "Unknown"
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT training_progress FROM project WHERE project_id = %s"
+            query = "SELECT training_progress FROM project WHERE project_id = %d"
             cursor.execute(query,(self.project_id,))
             result = cursor.fetchone()
             if result:
@@ -585,7 +640,7 @@ class Project():
 
         # Save change to database
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE class SET class_name = %s WHERE project_id = %s AND class_name = %s;"
+        query = "UPDATE class SET class_name = %s WHERE project_id = %d AND class_name = %s;"
         cursor.execute(query,(new_class_name, self.project_id, old_class_name))
         connection.commit()
         cursor.close()
@@ -595,18 +650,12 @@ class Project():
     # Delete class from both the class and database
     # Output: True
     def delete_class(self, class_name: str):
-        # Ask Jimmy
-        # Not yet validated
-        # self.classes.pop(class_name)
-        # self.classes = self.get_classes()
-        # self.classes.pop(class_name, None)
-
         self.classes = self.get_classes()
         self.classes.pop(class_name)
 
         # Save changes to database
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "DELETE FROM class WHERE project_id = %s AND class_name = %s"
+        query = "DELETE FROM class WHERE project_id = %d AND class_name = %s"
         cursor.execute(query,(self.project_id, class_name))
         connection.commit()
         cursor.close()
@@ -712,7 +761,7 @@ class Project():
     # Save project status to database
     def save_project_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_status = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_status = %s WHERE project_id = %d"
         cursor.execute(query,(self.project_status, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -722,7 +771,7 @@ class Project():
     # Save dataset path to database
     def save_dataset_path(self, dataset_path):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET dataset_path = %s WHERE project_id = %s"
+        query = "UPDATE project SET dataset_path = %s WHERE project_id = %d"
         cursor.execute(query,(dataset_path, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -732,7 +781,7 @@ class Project():
     # Get dataset path from database
     def get_dataset_path(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT dataset_path FROM project WHERE project_id = %s"
+        query = "SELECT dataset_path FROM project WHERE project_id = %d"
         cursor.execute(query,(self.project_id,))
         result = cursor.fetchone()
         cursor.close()
@@ -741,7 +790,7 @@ class Project():
     # Get model path from database
     def get_model_path(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT model_path FROM project WHERE project_id = %s"
+        query = "SELECT model_path FROM project WHERE project_id = %d"
         cursor.execute(query,(self.project_id,))
         result = cursor.fetchone()
         cursor.close()
@@ -750,7 +799,7 @@ class Project():
     # Save model path to database
     def save_model_path(self, model_path):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET model_path = %s WHERE project_id = %s"
+        query = "UPDATE project SET model_path = %s WHERE project_id = %d"
         cursor.execute(query,(model_path, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -760,7 +809,7 @@ class Project():
     # Save project name to database
     def save_project_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_name = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_name = %s WHERE project_id = %d"
         cursor.execute(query,(self.project_name, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -770,7 +819,7 @@ class Project():
     # Save project type to database
     def save_project_type(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_type = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_type = %s WHERE project_id = %d"
         cursor.execute(query,(self.project_type, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -780,7 +829,7 @@ class Project():
     # Save owner ID to database
     def save_owner(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET project_owner_id = %s WHERE project_id = %s"
+        query = "UPDATE project SET project_owner_id = %d WHERE project_id = %d"
         cursor.execute(query,(self.owner, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -790,7 +839,7 @@ class Project():
     # Save training progress (int) to database
     def save_training_progress(self, training_progress: int):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET training_progress = %s WHERE project_id = %s"
+        query = "UPDATE project SET training_progress = %s WHERE project_id = %d"
         cursor.execute(query,(training_progress, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -800,7 +849,7 @@ class Project():
     # Save auto annotation progress (int) to database
     def save_auto_annotation_progress(self, auto_annotation_progress: int):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE project SET auto_annotation_progress = %s WHERE project_id = %s"
+        query = "UPDATE project SET auto_annotation_progress = %s WHERE project_id = %d"
         cursor.execute(query,(auto_annotation_progress, self.project_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -813,7 +862,7 @@ class Project():
         success = True
         for class_name in class_list:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "UPDATE class SET class_num = %s WHERE project_id = %s AND class_name = %s"
+            query = "UPDATE class SET class_num = %s WHERE project_id = %d AND class_name = %s"
             cursor.execute(query, (class_list[class_name], self.project_id, class_name))
             connection.commit()
             success = bool(cursor.rowcount) and success
@@ -964,7 +1013,7 @@ class Project():
             # Force update status even if there's an error
             try:
                 cursor = connection.cursor(pymysql.cursors.DictCursor)
-                cursor.execute("UPDATE project SET project_status = %s, training_progress = %s WHERE project_id = %s", 
+                cursor.execute("UPDATE project SET project_status = %s, training_progress = %s WHERE project_id = %d", 
                              ("Training completed", 100, self.project_id))
                 connection.commit()
                 cursor.close()
@@ -1098,7 +1147,7 @@ class Video(Project):
         try:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             video_id_int = int(self.video_id)
-            query = "SELECT video_name FROM video WHERE video_id = %s"
+            query = "SELECT video_name FROM video WHERE video_id = %d"
             cursor.execute(query, (video_id_int,))
             result = cursor.fetchone()
             if result:
@@ -1108,14 +1157,14 @@ class Video(Project):
         
         # Ask Jimmy
         # # 如果整數查詢失敗，嘗試根據文件名查找
-        # query = "SELECT video_name FROM video WHERE video_name = %s AND project_id = %s"
+        # query = "SELECT video_name FROM video WHERE video_name = %s AND project_id = %d"
         # cursor.execute(query, (self.video_id, self.project_id))
         # result = cursor.fetchone()
         # if result:
         #     return result['video_name']
         
         # # 如果還是找不到，嘗試模糊匹配文件名
-        # query = "SELECT video_name FROM video WHERE video_name LIKE %s AND project_id = %s"
+        # query = "SELECT video_name FROM video WHERE video_name LIKE %s AND project_id = %d"
         # cursor.execute(query, (f"%{self.video_id}%", self.project_id))
         # result = cursor.fetchone()
         # if result:
@@ -1137,7 +1186,7 @@ class Video(Project):
         try:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             video_id_int = int(self.video_id)
-            query = "SELECT video_path FROM video WHERE video_id = %s"
+            query = "SELECT video_path FROM video WHERE video_id = %d"
             cursor.execute(query, (video_id_int,))
             result = cursor.fetchone()
             if result:
@@ -1146,14 +1195,14 @@ class Video(Project):
             pass
 
         # # 如果整數查詢失敗，嘗試根據文件名查找
-        # query = "SELECT video_path FROM video WHERE video_name = %s AND project_id = %s"
+        # query = "SELECT video_path FROM video WHERE video_name = %s AND project_id = %d"
         # cursor.execute(query, (self.video_name, self.project_id))
         # result = cursor.fetchone()
         # if result:
         #     return result['video_path']
         
         # # 如果還是找不到，嘗試模糊匹配文件名
-        # query = "SELECT video_path FROM video WHERE video_name LIKE %s AND project_id = %s"
+        # query = "SELECT video_path FROM video WHERE video_name LIKE %s AND project_id = %d"
         # cursor.execute(query, (f"%{self.video_name}%", self.project_id))
         # result = cursor.fetchone()
         # if result:
@@ -1190,13 +1239,13 @@ class Video(Project):
         # Output format: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
         if frame_num:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s AND frame_num = %s"
+            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %d AND frame_num = %s"
             cursor.execute(query,(self.video_id, frame_num))
             bbox_data = cursor.fetchall()
         else:
             # fetch all if frame_num is not specified
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s"
+            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %d"
             cursor.execute(query,(self.video_id))
             bbox_data = cursor.fetchall()
         return bbox_data
@@ -1214,7 +1263,7 @@ class Video(Project):
         try:
             video_id_int = int(self.video_id)
             cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %s"
+            query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %d"
             cursor.execute(query,(self.video_id,))
             result = cursor.fetchone()
             if result:
@@ -1227,7 +1276,7 @@ class Video(Project):
             pass
 
         # # 如果整數查詢失敗，嘗試根據文件名查找
-        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name = %s AND project_id = %s"
+        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name = %s AND project_id = %d"
         # cursor.execute(query, (self.video_id, self.project_id))
         # data = cursor.fetchone()
         # if data:
@@ -1236,7 +1285,7 @@ class Video(Project):
         #     return annotation_status, last_annotated_frame
         
         # # 如果還是找不到，嘗試模糊匹配文件名
-        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name LIKE %s AND project_id = %s"
+        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name LIKE %s AND project_id = %d"
         # cursor.execute(query, (f"%{self.video_id}%", self.project_id))
         # data = cursor.fetchone()
         # if data:
@@ -1423,7 +1472,7 @@ class Video(Project):
     # Save video path to database
     def save_video_path(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET video_path = %s WHERE video_id = %s"
+        query = "UPDATE video SET video_path = %s WHERE video_id = %d"
         cursor.execute(query,(self.video_path, self.video_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -1433,7 +1482,7 @@ class Video(Project):
     # Save video name to database
     def save_video_name(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET video_name = %s WHERE video_id = %s"
+        query = "UPDATE video SET video_name = %s WHERE video_id = %d"
         cursor.execute(query,(self.video_name, self.video_id))
         connection.commit()
         success = bool(cursor.rowcount)
@@ -1443,7 +1492,7 @@ class Video(Project):
     # Save annotation status to database
     def save_annotation_status(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET annotation_status = %s WHERE video_id = %s"
+        query = "UPDATE video SET annotation_status = %s WHERE video_id = %d"
         cursor.execute(query,(self.annotation_status, self.video_id))
         connection.commit()  # 提交事务
         success = bool(cursor.rowcount)
@@ -1453,7 +1502,7 @@ class Video(Project):
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET last_annotated_frame = %s WHERE video_id = %s"
+        query = "UPDATE video SET last_annotated_frame = %s WHERE video_id = %d"
         cursor.execute(query,(self.last_annotated_frame, self.video_id))
         connection.commit()  # 提交事务
         success = bool(cursor.rowcount)
@@ -1502,64 +1551,6 @@ async def login(request: LoginRequest):
             # if status is True, get userID from database, else None
             userID = userlogin.get_userID()
 
-            # Ask Jimmy
-            # # Get all project IDs for this user
-            # project_ids = []
-            # if userID:
-            #     try:
-            #         cursor = connection.cursor(pymysql.cursors.DictCursor)
-                    
-            #         # Get owned projects
-            #         owned_query = """
-            #             SELECT project_id, project_name, project_type, 
-            #                    (SELECT COUNT(*) FROM video WHERE project_id = p.project_id) as video_count,
-            #                    (SELECT COUNT(*) FROM image WHERE project_id = p.project_id) as image_count,
-            #                    project_status as status, 'owned' as ownership
-            #             FROM project p 
-            #             WHERE project_owner_id = %s
-            #         """
-            #         cursor.execute(owned_query, (userID,))
-            #         owned_projects = cursor.fetchall()
-                    
-            #         # Get shared projects
-            #         shared_query = """
-            #             SELECT p.project_id, p.project_name, p.project_type,
-            #                    (SELECT COUNT(*) FROM video WHERE project_id = p.project_id) as video_count,
-            #                    (SELECT COUNT(*) FROM image WHERE project_id = p.project_id) as image_count,
-            #                    p.project_status as status, 'shared' as ownership,
-            #                    ps.permissions, u.username as owner_username
-            #             FROM project p
-            #             JOIN project_shares ps ON p.project_id = ps.project_id
-            #             JOIN user u ON p.project_owner_id = u.user_id
-            #             WHERE ps.shared_with_user_id = %s
-            #         """
-            #         cursor.execute(shared_query, (userID,))
-            #         shared_projects = cursor.fetchall()
-                    
-            #         # Combine all projects
-            #         all_projects = owned_projects + shared_projects
-                    
-            #         # Format project data
-            #         project_ids = []
-            #         for project in all_projects:
-            #             project_data = {
-            #                 "project_id": project['project_id'],
-            #                 "project_name": project['project_name'],
-            #                 "project_type": project['project_type'],
-            #                 "video_count": project['video_count'] or 0,
-            #                 "image_count": project['image_count'] or 0,
-            #                 "status": project['status'] or 'Active',
-            #                 "ownership": project['ownership']
-            #             }
-            #             project_ids.append(project_data)
-                    
-            #         cursor.close()
-                    
-            #     except Exception as e:
-            #         print(f"Error fetching user projects: {e}")
-            #         # Continue with empty project list if there's an error
-            #         project_ids = []
-
             return {
                 "success": success,
                 "userID": userID,
@@ -1600,10 +1591,11 @@ class RegisterRequest(BaseModel):
     password: str
     confirm_password: str
 
-#register function by Jimmy for frontend login page to use
+# Register account
+# Input: username, password, confirm_password
+# Output: success, message, userID
 @app.post("/register")
 async def register(request: RegisterRequest):
-    """用戶註冊端點"""
     try:
         username = request.username.strip()
         password = request.password
@@ -1613,66 +1605,45 @@ async def register(request: RegisterRequest):
         if not username:
             return {
                 "success": False,
-                "message": "用戶名不能為空"
+                "message": "用戶名不能為空",
+                "userID": None
             }
         
         if len(username) < 3:
             return {
                 "success": False,
-                "message": "用戶名至少需要3個字符"
+                "message": "用戶名至少需要3個字符",
+                "userID": None
             }
         
         if not password:
             return {
                 "success": False,
-                "message": "密碼不能為空"
+                "message": "密碼不能為空",
+                "userID": None
             }
         
         if len(password) < 6:
             return {
                 "success": False,
-                "message": "密碼至少需要6個字符"
+                "message": "密碼至少需要6個字符",
+                "userID": None
             }
         
         if password != confirm_password:
             return {
                 "success": False,
-                "message": "密碼確認不匹配"
+                "message": "密碼確認不匹配",
+                "userID": None
             }
         
-        # 檢查用戶名是否已存在
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        check_query = "SELECT user_id FROM user WHERE username = %s"
-        cursor.execute(check_query, (username,))
-        existing_user = cursor.fetchone()
-        
-        if existing_user:
-            cursor.close()
-            return {
-                "success": False,
-                "message": "用戶名已存在"
-            }
-        
-        # 生成密碼哈希
-        salt, pwd_hash = UserLogin._hash_password(password)
-        stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
-        
-        # 插入新用戶
-        insert_query = """
-            INSERT INTO user (username, password) 
-            VALUES (%s, %s)
-        """
-        cursor.execute(insert_query, (username, stored_password))
-        user_id = cursor.lastrowid
-        
-        connection.commit()
-        cursor.close()
-        
+        # Perform registration and write to database
+        userLogin = UserLogin(username, password)
+        success, message, user_id = userLogin.register()
         return {
-            "success": True,
-            "message": "註冊成功",
-            "userID": user_id,
-            "projects": []  # 新用戶沒有項目
+            "success": success,
+            "message": message,
+            "userID": user_id
         }
         
     except Exception as e:
@@ -1707,9 +1678,9 @@ async def get_users_projects(request: UserRequest):
 
         # Get detailed project information for owned projects
         owned_projects = []
-        for project_id in owner_project_ids:
+        for project_id in owned_project_ids:
             project = Project(project_id)
-            name = project.get_name()
+            name = project.get_project_name()
             videoCount = project.get_video_count()
             status = project.get_project_status()
             isOwned = (user == project.get_owner())
@@ -1719,7 +1690,7 @@ async def get_users_projects(request: UserRequest):
         shared_projects = []
         for project_id in shared_project_ids:
             project = Project(project_id)
-            name = project.get_name()
+            name = project.get_project_name()
             videoCount = project.get_video_count()
             status = project.get_project_status()
             isOwned = (user == project.get_owner())
@@ -1744,37 +1715,6 @@ async def get_users_projects(request: UserRequest):
 
 class ProjectRequest(BaseModel):
     project_id: int
-
-# Get project details when loading dashboard
-# Input: Project ID
-# Output: {"project name": project_name, "project type": project_type, "video count": video_count, "status": project_status}
-@app.post("/get_project_details")
-async def get_project_details(request: ProjectRequest):
-    try:
-        # 檢查資料庫連接
-        if not connection or not connection.open:
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"error": "Database connection not available"}
-            )
-        
-        project = Project(project_id = request.project_id)
-        project_details = {
-            "project name": project.get_project_name(),
-            "project type": project.get_project_type(),
-            "video count": project.get_video_count(),
-            "status": project.get_project_status()
-        }
-
-        return project_details
-
-    except Exception as e:
-        logger.error(f"Error in get_project_details: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e), "traceback": traceback.format_exc()}
-        )
     
 class CreateProjectRequest(BaseModel):
     userID: int
@@ -1865,7 +1805,7 @@ async def change_project_name(request: ProjectRequest, new_name: str):
     
 class ShareProjectRequest(BaseModel):
     project_id: int
-    shared_with_username: str
+    shared_username: str
     permissions: str = "read"  # "read" or "write"
 
 # Share project with another user
@@ -1873,7 +1813,7 @@ class ShareProjectRequest(BaseModel):
 async def share_project(request: ShareProjectRequest):
     try:
         project_id = request.project_id
-        shared_with_username = request.shared_with_username.strip()
+        shared_username = request.shared_username.strip()
         permissions = request.permissions.strip().lower()
 
         # Validate permissions
@@ -1885,53 +1825,39 @@ async def share_project(request: ShareProjectRequest):
 
         # Check if project exists
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        project_query = "SELECT project_id, project_name, project_owner_id FROM project WHERE project_id = %s"
+        project_query = "SELECT project_id FROM project WHERE project_id = %d"
         cursor.execute(project_query, (project_id,))
         project = cursor.fetchone()
-        
-        if not project:
-            cursor.close()
+        cursor.close()
+
+        # Create Project instance if exists
+        if project:
+            project = Project(project_id)
+        else:
             return {
                 "success": False,
                 "message": "Project not found"
             }
 
         # Check if target user exists
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
         user_query = "SELECT user_id FROM user WHERE username = %s"
-        cursor.execute(user_query, (shared_with_username,))
-        target_user = cursor.fetchone()
-        
-        if not target_user:
-            cursor.close()
-            return {
-                "success": False,
-                "message": f"User '{shared_with_username}' not found"
-            }
-
-        # Check if already shared
-        share_query = "SELECT id FROM project_shares WHERE project_id = %s AND shared_with_user_id = %s"
-        cursor.execute(share_query, (project_id, target_user['user_id']))
-        existing_share = cursor.fetchone()
-        
-        if existing_share:
-            cursor.close()
-            return {
-                "success": False,
-                "message": f"Project is already shared with '{shared_with_username}'"
-            }
-
-        # Create share record
-        insert_query = """
-            INSERT INTO project_shares (project_id, shared_with_user_id, permissions, shared_at) 
-            VALUES (%s, %s, %s, NOW())
-        """
-        cursor.execute(insert_query, (project_id, target_user['user_id'], permissions))
-        connection.commit()
+        cursor.execute(user_query, (shared_username,))
+        target_user = cursor.fetchone()['user_id']
         cursor.close()
 
+        if not target_user:
+            return {
+                "success": False,
+                "message": f"User '{shared_username}' not found"
+            }
+        
+        # Add target user to project shared users
+        success = project.add_shared_user(target_user, permissions)
+
         return {
-            "success": True,
-            "message": f"Project '{project['project_name']}' shared with '{shared_with_username}' successfully"
+            "success": success,
+            "message": f"Project '{project['project_name']}' shared with '{shared_username}' successfully"
         }
 
     except Exception as e:
@@ -1945,30 +1871,30 @@ async def share_project(request: ShareProjectRequest):
     
 class UnshareProjectRequest(BaseModel):
     project_id: int
-    shared_with_username: str
+    shared_username: str
 
 # Unshare project with a user
 @app.post("/unshare_project")
 async def unshare_project(request: UnshareProjectRequest):
     try:
         project_id = request.project_id
-        shared_with_username = request.shared_with_username.strip()
+        shared_username = request.shared_username.strip()
 
         # Get target user ID
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         user_query = "SELECT user_id FROM user WHERE username = %s"
-        cursor.execute(user_query, (shared_with_username,))
+        cursor.execute(user_query, (shared_username,))
         target_user = cursor.fetchone()
         
         if not target_user:
             cursor.close()
             return {
                 "success": False,
-                "message": f"User '{shared_with_username}' not found"
+                "message": f"User '{shared_username}' not found"
             }
 
         # Remove share record
-        delete_query = "DELETE FROM project_shares WHERE project_id = %s AND shared_with_user_id = %s"
+        delete_query = "DELETE FROM project_shared_users WHERE project_id = %d AND user_id = %d"
         result = cursor.execute(delete_query, (project_id, target_user['user_id']))
         connection.commit()
         cursor.close()
@@ -1992,7 +1918,7 @@ async def unshare_project(request: UnshareProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e), "traceback": traceback.format_exc()}
         )
-
+# check
 # Get project shares
 @app.post("/get_project_shares")
 async def get_project_shares(request: ProjectRequest):
@@ -2005,7 +1931,7 @@ async def get_project_shares(request: ProjectRequest):
             SELECT ps.id, ps.permissions, ps.shared_at, u.username, u.user_id
             FROM project_shares ps
             JOIN user u ON ps.shared_with_user_id = u.user_id
-            WHERE ps.project_id = %s
+            WHERE ps.project_id = %d
             ORDER BY ps.shared_at DESC
         """
         cursor.execute(query, (project_id,))

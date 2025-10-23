@@ -127,7 +127,7 @@ export default function Dashboard() {
       const response = await apiRequest('/logout', {
         method: 'POST',
       });
-      
+
       const result = await response.json();
       
       if (result.success) {
@@ -148,7 +148,7 @@ export default function Dashboard() {
         log.error('DASHBOARD', 'Error clearing cookies', { error });
       }
     }
-    
+
     // 重定向到首頁（登錄頁面）
     router.push("/");
   };
@@ -164,19 +164,19 @@ export default function Dashboard() {
 
       setIsLoading(true);
       setApiError(null);
-      
+
       try {
         log.info('DASHBOARD', 'Starting project loading process', { userId });
-        
+
         // Always load fresh data from API for the current user
         log.info('DASHBOARD', 'Loading projects from API for user', { userId });
         const apiProjects = await getProjectsInfo(userId);
-        
+
         log.info('DASHBOARD', 'Received projects from API', { 
           projectCount: apiProjects.length,
           userId 
         });
-        
+
         // Add projects to context
         for (const project of apiProjects) {
           updateProject(project.id.toString(), {
@@ -188,10 +188,10 @@ export default function Dashboard() {
             status: project.status || 'Active'
           });
         }
-        
+
         // Update local state
         setProjects(apiProjects);
-        
+
       } catch (error) {
         log.error('DASHBOARD', 'Error loading projects', { 
           error: error instanceof Error ? error.message : 'Unknown error' 

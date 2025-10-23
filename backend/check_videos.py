@@ -10,7 +10,7 @@ def check_project_videos(project_id):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         
         # 檢查項目17的視頻記錄
-        cursor.execute('SELECT * FROM video WHERE project_id = %s', (project_id,))
+        cursor.execute('SELECT * FROM video WHERE project_id = %d', (project_id,))
         videos = cursor.fetchall()
         
         print(f'項目 {project_id} 的視頻記錄:')
