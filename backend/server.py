@@ -24,44 +24,19 @@ app.add_middleware(
 
 #=================================== Connect to database ==========================================
 
-config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '12345678',
-    'database': 'Nocodile',
-    'charset': 'utf8mb4'
-}
+# config = {
+#     'host': 'localhost',
+#     'user': 'root',
+#     'password': '12345678',
+#     'database': 'Nocodile',
+#     'charset': 'utf8mb4'
+# }
 
-try:
-    connection = pymysql.connect(**config)
-    print("数据库连接成功！")
-except pymysql.Error as e:
-    print(f"数据库连接失败: {e}")
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-        
-class UserRequest(BaseModel):
-    userID: str
-
-class ProjectRequest(BaseModel):
-    project_id: str
-
-class CreateProjectRequest(BaseModel):
-    userID: str
-    project_name: str
-    project_type: str = "YOLO object detection"
-
-class VideoRequest(BaseModel):
-    project_id: str
-    video_id: str
-
-class AnnotationRequest(BaseModel):
-    project_id: str
-    video_id: str
-    frame_num: int
-    bboxes: list
+# try:
+#     connection = pymysql.connect(**config)
+#     print("数据库连接成功！")
+# except pymysql.Error as e:
+#     print(f"数据库连接失败: {e}")
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
