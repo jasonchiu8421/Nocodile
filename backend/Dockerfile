@@ -18,6 +18,16 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# Create a non-privileged user.
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/app" \
+    --shell "/bin/bash" \
+    --uid "${UID}" \
+    appuser
+
 RUN apt-get update && apt-get install -y git
 
 # Download dependencies as a separate step to take advantage of Docker's caching.
@@ -30,8 +40,11 @@ RUN python -m pip install -r requirements.txt
 # Copy the source code into the container.
 COPY . .
 
+# Switch to non-privileged user.
+USER appuser
+
 # Expose the port that the application listens on.
-EXPOSE 8000
+EXPOSE 8888
 
 # Run the application.
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8888"]
