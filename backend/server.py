@@ -1,29 +1,11 @@
 import logging
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Dict, List
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from mysql.connector import Error
 import shutil
-import uuid
-import cv2
-import pandas as pd
 import os
-from cv_models import KCF, SAM
-import numpy as np
-import base64
-import aiofiles
-from ultralytics import YOLO
-import yaml
-import random
-import mysql.connector
-from shutil import copy2, rmtree
-from pathlib import Path
 import pymysql
-import hashlib
-import hmac
 
 #=================================== Initialize server ==========================================
 
@@ -1105,10 +1087,6 @@ async def get_model_path(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8888)
 
 if __name__ == "__main__":
     import uvicorn
