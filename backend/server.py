@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import shutil
-import os
 import pymysql
 
 #=================================== Initialize server ==========================================
@@ -80,11 +79,10 @@ async def login(request: LoginRequest):
         )
     
 # @app.post("/logout")
-# async def logout():
+# async def logout(username):
 #     """用戶登出端點"""
 #     try:
-#         # 在實際應用中，這裡可以進行服務器端的登出處理
-#         # 比如清除服務器端的會話、記錄登出日誌等
+#         print(f"User {username} logged out.")
 #         return {
 #             "success": True,
 #             "message": "Logout successful"
@@ -100,7 +98,7 @@ async def login(request: LoginRequest):
 #     password: str
 #     confirm_password: str
 
-# #register function by Jimmy for frontend login page to use
+# #Register function
 # @app.post("/register")
 # async def register(request: RegisterRequest):
 #     """用戶註冊端點"""
@@ -109,64 +107,9 @@ async def login(request: LoginRequest):
 #         password = request.password
 #         confirm_password = request.confirm_password
         
-#         # 基本驗證
-#         if not username:
-#             return {
-#                 "success": False,
-#                 "message": "用戶名不能為空"
-#             }
-        
-#         if len(username) < 3:
-#             return {
-#                 "success": False,
-#                 "message": "用戶名至少需要3個字符"
-#             }
-        
-#         if not password:
-#             return {
-#                 "success": False,
-#                 "message": "密碼不能為空"
-#             }
-        
-#         if len(password) < 6:
-#             return {
-#                 "success": False,
-#                 "message": "密碼至少需要6個字符"
-#             }
-        
-#         if password != confirm_password:
-#             return {
-#                 "success": False,
-#                 "message": "密碼確認不匹配"
-#             }
-        
-#         # 檢查用戶名是否已存在
-#         cursor = connection.cursor(pymysql.cursors.DictCursor)
-#         check_query = "SELECT user_id FROM user WHERE username = %s"
-#         cursor.execute(check_query, (username,))
-#         existing_user = cursor.fetchone()
-        
-#         if existing_user:
-#             cursor.close()
-#             return {
-#                 "success": False,
-#                 "message": "用戶名已存在"
-#             }
-        
-#         # 生成密碼哈希
-#         salt, pwd_hash = UserLogin._hash_password(password)
-#         stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
-        
-#         # 插入新用戶
-#         insert_query = """
-#             INSERT INTO user (username, password) 
-#             VALUES (%s, %s)
-#         """
-#         cursor.execute(insert_query, (username, stored_password))
-#         user_id = cursor.lastrowid
-        
-#         connection.commit()
-#         cursor.close()
+#         print(f"Attempting registration for user: {username}")
+#         print(f"Password provided: {password}")
+#         print(f"Confirm Password provided: {confirm_password}")
         
 #         return {
 #             "success": True,
@@ -194,39 +137,7 @@ async def login(request: LoginRequest):
 #     try: 
 #         userID = request.userID
 
-#         # Check database connection
-#         if not connection or not connection.open:
-#             return JSONResponse(
-#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#                 content={"error": "Database connection not available"}
-#             )
-
-#         user = User(userID)
-#         owned_project_ids = user.get_owned_projects()
-#         shared_project_ids = user.get_shared_projects()
-
-#         # Get detailed project information for owned projects
-#         owned_projects = []
-#         for project_id in owner_project_ids:
-#             project = Project(project_id)
-#             name = project.get_name()
-#             videoCount = project.get_video_count()
-#             status = project.get_project_status()
-#             isOwned = (user == project.get_owner())
-#             owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
-        
-#         # Get detailed project information for shared projects
-#         shared_projects = []
-#         for project_id in shared_project_ids:
-#             project = Project(project_id)
-#             name = project.get_name()
-#             videoCount = project.get_video_count()
-#             status = project.get_project_status()
-#             isOwned = (user == project.get_owner())
-#             shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
-        
-#         logger.info(f"Retrieved projects for user {userID}: {len(owned_projects)} owned, {len(shared_projects)} shared")
-        
+#         print(f"Fetching projects for userID: {userID}")        
         
 #         return {
 #             "owned projects": owned_projects,
@@ -251,20 +162,8 @@ async def login(request: LoginRequest):
 # @app.post("/get_project_details")
 # async def get_project_details(request: ProjectRequest):
 #     try:
-#         # 檢查資料庫連接
-#         if not connection or not connection.open:
-#             return JSONResponse(
-#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#                 content={"error": "Database connection not available"}
-#             )
-        
-#         project = Project(project_id = request.project_id)
-#         project_details = {
-#             "project name": project.get_project_name(),
-#             "project type": project.get_project_type(),
-#             "video count": project.get_video_count(),
-#             "status": project.get_project_status()
-#         }
+#         project_id = request.project_id
+#         print(f"Fetching details for project ID: {project_id}")
 
 #         return project_details
 
@@ -289,31 +188,7 @@ async def login(request: LoginRequest):
 #         project_name = request.project_name
 #         project_type = request.project_type
 
-#         logger.info(f"Creating project: name='{project_name}', type='{project_type}', userID={userID}")
-
-#         # Validate input
-#         if not project_name:
-#             logger.warning("Project name is empty")
-#             return {
-#                 "success": False,
-#                 "message": "Project name cannot be empty"
-#             }
-
-#         # Check database connection
-#         if not connection or not connection.open:
-#             logger.error("Database connection not available")
-#             return JSONResponse(
-#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#                 content={"error": "Database connection not available"}
-#             )
-
-#         # Create project instance and initialize
-#         logger.info("Initializing project...")
-#         # Initialize project
-#         project = Project(initialize=True)
-#         project_id = project.initialize(project_name, project_type, userID)
-
-#         logger.info(f"Project created successfully with ID: {project_id}")
+#         print(f"Creating project '{project_name}' of type '{project_type}' for userID: {userID}")
 
 #         return {
 #             "success": True,
@@ -336,15 +211,9 @@ async def login(request: LoginRequest):
 #     try:
 #         project = Project(project_id = request.project_id)
         
-#         # check if new_name already exists for this user
-#         # project_name_exists = False if "### project name does not exist ###" else True
-#         # if project_name_exists:
-#         #     return {
-#         #         "success": False,
-#         #         "message": "Project name already exists."
-#         #     }
+#         print(f"Changing project name to: {new_name}")
         
-#         success = project.change_project_name(new_name)
+#         success = True
         
 #         if success:
 #             return {
