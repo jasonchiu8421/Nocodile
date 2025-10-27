@@ -1707,7 +1707,7 @@ async def get_users_projects(request: UserRequest):
 
         # Get detailed project information for owned projects
         owned_projects = []
-        for project_id in owner_project_ids:
+        for project_id in owned_project_ids:
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
