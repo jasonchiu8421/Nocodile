@@ -501,6 +501,8 @@ async def upload(request: UploadRequest):
         }
 
     except Exception as e:
+        if len(e)>100:
+            e = e[0:99] + "...(truncated)"
         logger.error(f"Upload error: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
