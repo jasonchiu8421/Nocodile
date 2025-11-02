@@ -115,3 +115,6 @@ Nocodile/out/
 
 # Docker config backup
 .docker/config.json.backup
+
+*storybook.log
+storybook-static

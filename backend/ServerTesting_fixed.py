@@ -22,10 +22,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
-    
 # Root endpoint for server health check
 @app.get("/")
 async def root():
@@ -627,7 +623,7 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
                 new_class_name: "#FF0000"  # Assuming we change "car" to new name
             }
         }
-    
+
     except Exception as e:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

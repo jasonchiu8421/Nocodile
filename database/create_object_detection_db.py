@@ -115,26 +115,6 @@ class ObjectDetectionDB:
             cursor.execute(create_user_table)
             print("user表创建成功")
             
-#====================================创建class表====================================
-            create_class_table = """
-            CREATE TABLE IF NOT EXISTS class (
-                project_id INT NOT NULL,
-                class_id INT AUTO_INCREMENT PRIMARY KEY,
-                class_name VARCHAR(100) NOT NULL,
-                color VARCHAR(10) NOT NULL,
-
-                -- Foreign key
-                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
-                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`),
-
-                -- Index for quicker search
-                INDEX project_id (project_id),
-                INDEX class_name (class_name)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            cursor.execute(create_class_table)
-            print("class表创建成功")
-            
 #====================================创建project表====================================
             create_project_table = """
             CREATE TABLE IF NOT EXISTS project (
@@ -160,6 +140,26 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_project_table)
             print("project表创建成功")
+#====================================创建class表====================================
+            create_class_table = """
+            CREATE TABLE IF NOT EXISTS class (
+                project_id INT NOT NULL,
+                class_id INT AUTO_INCREMENT PRIMARY KEY,
+                class_name VARCHAR(100) NOT NULL,
+                color VARCHAR(10) NOT NULL,
+
+                -- Foreign key
+                FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
+                CONSTRAINT unique_project_class UNIQUE (`project_id`, `class_name`),
+
+                -- Index for quicker search
+                INDEX project_id (project_id),
+                INDEX class_name (class_name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+            cursor.execute(create_class_table)
+            print("class表创建成功")
+            
             
 #====================================创建video表====================================
             create_video_table = """

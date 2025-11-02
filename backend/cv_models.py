@@ -6,7 +6,7 @@ from PIL import Image
 from skimage import io, filters
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForImageSegmentation
+from transformers import Aut    oModelForImageSegmentation
 from torchvision.transforms.functional import normalize
 import numpy as np
 
