@@ -41,7 +41,7 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
-nocodile/.next/
+.next/
 .swc/
 .*.env
 
@@ -59,3 +59,4 @@ build/
 .vscode/*
 
 .npmignore
+__pycache__/
