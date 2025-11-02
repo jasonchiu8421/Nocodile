@@ -141,10 +141,10 @@ export default function Dashboard() {
       if (typeof window !== "undefined" && window.cookieStore) {
         const userIdCookie = await window.cookieStore.get("userId");
         const usernameCookie = await window.cookieStore.get("username");
-        if (!usernameCookie) {
-          console.warn("disjfkljkls");
-          redirect("/login");
-        }
+        // if (!usernameCookie) {
+        //   console.warn("disjfkljkls");
+        //   redirect("/login");
+        // }
         if (userIdCookie?.value) setUserId(parseInt(userIdCookie.value));
         if (usernameCookie?.value) setUsername(usernameCookie.value);
       }
