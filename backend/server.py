@@ -2351,8 +2351,7 @@ async def get_model(request: ProjectRequest):
         project = Project(project_id)
         
         # Define model path based on project ID
-        model_dir = Path(__file__).parent.resolve()
-        model_path = model_dir / project.get_model_path()
+        model_path = Path(project.get_model_path())
 
         if not model_path.is_file():
             raise RuntimeError(f"Model file not found: {model_path}")
