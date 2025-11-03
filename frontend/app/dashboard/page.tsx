@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useCallback, memo, useRef } from "react";
+import React, { useEffect, useState, useCallback, memo, useRef} from "react";
 import { Plus, Image, Video, RefreshCw, LogOut, User } from "lucide-react";
 import "../../css/dashboard.css";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import { CircleDot } from "lucide-react";
 import { log } from "@/lib/logger";
 import { apiRequest } from "@/lib/api-config";
 import { useProjectContext } from "@/contexts/ProjectContext";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 // === ProjectCard：支援即時更新 + memo 優化 ===
 const ProjectCard = memo(
@@ -41,13 +41,11 @@ const ProjectCard = memo(
           setDetails(freshDetails);
         }
       } catch (error) {
-        log.error("PROJECT_CARD", `Failed to load details for project ${id}`, {
-          error,
-        });
+        log.error('PROJECT_CARD', `Failed to load details for project ${id}`, { error });
       } finally {
         setIsLoadingDetails(false);
       }
-    }, [id, details]); // ← 正確依賴
+    }, [id, details]);  // ← 正確依賴
 
     return (
       <Link
@@ -56,42 +54,38 @@ const ProjectCard = memo(
         onMouseEnter={loadDetails}
       >
         <div className="project-header">
-          <h3 className="project-title">{details?.["project name"] || name}</h3>
+          <h3 className="project-title">
+            {details?.["project name"] || name}
+          </h3>
           <div className="project-id">ID: {id}</div>
 
           {isOwned !== undefined && (
             <div
               className="project-ownership"
               style={{
-                fontSize: "0.8em",
-                color: isOwned ? "#28a745" : "#ffc107",
-                marginTop: "2px",
+                fontSize: '0.8em',
+                color: isOwned ? '#28a745' : '#ffc107',
+                marginTop: '2px'
               }}
             >
-              {isOwned ? "Owned" : "Shared"}
+              {isOwned ? 'Owned' : 'Shared'}
             </div>
           )}
         </div>
 
         <div className="media-stats">
           <div className="media-item">
-            <div className="media-icon">
-              <Video className="icon" />
-            </div>
+            <div className="media-icon"><Video className="icon" /></div>
             <div className="media-info">
               <span className="media-count">
-                {details?.["video count"] !== undefined
-                  ? details["video count"]
-                  : videoCount}
+                {details?.["video count"] !== undefined ? details["video count"] : videoCount}
               </span>
               <span className="media-label">Videos</span>
             </div>
           </div>
 
           <div className="media-item">
-            <div className="media-icon">
-              <CircleDot className="icon" />
-            </div>
+            <div className="media-icon"><CircleDot className="icon" /></div>
             <div className="media-info">
               <span className="media-count">
                 {details?.["status"] || status || "—"}
@@ -114,12 +108,6 @@ const ProjectCard = memo(
 // === Dashboard 主頁面 ===
 export default function Dashboard() {
   const router = useRouter();
-  const {
-    projects: contextProjects,
-    updateProject,
-    isLoading: contextLoading,
-    error: contextError,
-  } = useProjectContext();
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [isNewProjectFormOpen, setIsNewProjectFormOpen] = useState(false);
   const [userId, setUserId] = useState<number>(-1);
@@ -128,29 +116,23 @@ export default function Dashboard() {
   const [username, setUsername] = useState<string>("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
-const { 
-  projects: contextProjects, 
-  updateProject, 
-  isLoading: contextLoading, 
-  error: contextError 
-} = useProjectContext();
+  const { projects: contextProjects, updateProject, isLoading: contextLoading, error: contextError } = useProjectContext();
   const lastLoadTimeRef = useRef<number>(0); // 記錄上次成功載入時間
   const isLoadingRef = useRef(false); // 防止重複 loading
   const stableUpdateProject = useCallback(updateProject, []); // 穩定化的 updateProject
 
-  // kick out if not logged in
   // === 獲取用戶資訊 ===
   useEffect(() => {
     const getUserInfo = async () => {
-      if (typeof window !== "undefined" && window.cookieStore) {
-        const userIdCookie = await window.cookieStore.get("userId");
-        const usernameCookie = await window.cookieStore.get("username");
-        // if (!usernameCookie) {
-        //   console.warn("disjfkljkls");
-        //   redirect("/login");
-        // }
-        if (userIdCookie?.value) setUserId(parseInt(userIdCookie.value));
-        if (usernameCookie?.value) setUsername(usernameCookie.value);
+      if (typeof window !== 'undefined' && window.cookieStore) {
+        try {
+          const userIdCookie = await window.cookieStore.get("userId");
+          const usernameCookie = await window.cookieStore.get("username");
+          if (userIdCookie?.value) setUserId(parseInt(userIdCookie.value));
+          if (usernameCookie?.value) setUsername(usernameCookie.value);
+        } catch (error) {
+          log.error('DASHBOARD', 'Error getting user info from cookies', { error });
+        }
       }
     };
     getUserInfo();
@@ -160,45 +142,27 @@ const {
   const loadProjectsWithThrottle = useCallback(async () => {
     // 步驟1：防止重複 loading
     if (isLoadingRef.current) {
-      log.warn("DASHBOARD", "Load already in progress, skipping");
+      log.warn('DASHBOARD', 'Load already in progress, skipping');
       return;
     }
 
-<<<<<<< HEAD
-    // 步驟2：10秒節流
-    const now = Date.now();
-    if (lastLoadTimeRef.current > 0 && now - lastLoadTimeRef.current < 10000) {
-      log.info(
-        "DASHBOARD",
-        `Too soon to reload (${now - lastLoadTimeRef.current}ms)`
-      );
-      return;
-    }
-
-=======
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
     // 步驟3：開始 loading
     isLoadingRef.current = true;
     setIsLoading(true);
     setApiError(null);
 
     try {
-      if (userId <= 0) throw new Error("Invalid userId");
+      if (userId <= 0) throw new Error('Invalid userId');
 
       const apiProjects = await getProjectsInfo(userId);
 
       // 更新 context
-<<<<<<< HEAD
-      apiProjects.forEach((project) => {
-        stableUpdateProject(project.id.toString(), {
-=======
       apiProjects.forEach(project => {
         updateProject(project.id.toString(), {
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
           id: project.id.toString(),
           name: project.name,
           videoCount: project.videoCount,
-          status: project.status || "Active",
+          status: project.status || 'Active'
         });
       });
 
@@ -206,18 +170,6 @@ const {
     lastLoadTimeRef.current = now;
     setLastUpdateTime(new Date());
 
-<<<<<<< HEAD
-      log.info("DASHBOARD", `Loaded ${apiProjects.length} projects`);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Unknown error";
-      setApiError(`Failed to load projects: ${msg}`);
-      log.error("DASHBOARD", "Load failed", { error, userId });
-    } finally {
-      isLoadingRef.current = false;
-      setIsLoading(false);
-    }
-  }, [userId, stableUpdateProject]);
-=======
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     setApiError(`Failed to load projects: ${msg}`);
@@ -226,21 +178,20 @@ const {
     setIsLoading(false); // 關鍵：UI 也要關
   }
 }, [userId, stableUpdateProject]);
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
 
   // === 登出功能 ===
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await apiRequest("/logout", { method: "POST" });
+      await apiRequest('/logout', { method: 'POST' });
     } catch (error) {
-      log.error("DASHBOARD", "Error during logout", { error });
+      log.error('DASHBOARD', 'Error during logout', { error });
     }
-    if (typeof window !== "undefined" && window.cookieStore) {
+    if (typeof window !== 'undefined' && window.cookieStore) {
       await window.cookieStore.delete("userId");
       await window.cookieStore.delete("username");
     }
-    redirect("/login");
+    router.push("/");
   };
 
   // === 初始載入 ===
@@ -250,40 +201,12 @@ const {
     }
   }, [userId, loadProjectsWithThrottle]);
 
-<<<<<<< HEAD
-  // === 10秒自動更新 ===
-  useEffect(() => {
-    if (userId <= 0) return;
-
-    const interval = setInterval(() => {
-      loadProjectsWithThrottle();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [userId, loadProjectsWithThrottle]);
-
-  // === context 更新（僅顯示）===
-  useEffect(() => {
-    if (!isLoadingRef.current && contextProjects.size > 0) {
-      const list = Array.from(contextProjects.values()).map((p) => ({
-        id: parseInt(p.id),
-        name: p.name,
-        videoCount: p.videoCount,
-        status: p.status,
-        isOwned: true,
-      }));
-      setProjects(list);
-    }
-  }, [contextProjects]);
-
-=======
 const resetLoading = useCallback(() => {
   isLoadingRef.current = false;     // 重開閘門
   setIsLoading(false); 
   setProjects([]);         // 清空舊資料
   loadProjectsWithThrottle();     // 真正重新載入 API
 }, [loadProjectsWithThrottle]);
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
   // === 手動刷新按鈕 ===
   return (
     <div className="dashboard-container">
@@ -307,20 +230,16 @@ const resetLoading = useCallback(() => {
                 disabled={isLoading}
                 title="Refresh projects manally"
               >
-                <RefreshCw
-                  className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
-                />
-                <span>{isLoading ? "Refreshing..." : "Refresh"}</span>
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
               </button>
               <button
                 className="btn-secondary flex items-center gap-2 mr-2"
                 onClick={handleLogout}
                 disabled={isLoggingOut}
               >
-                <LogOut
-                  className={`w-4 h-4 ${isLoggingOut ? "animate-spin" : ""}`}
-                />
-                <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
+                <LogOut className={`w-4 h-4 ${isLoggingOut ? 'animate-spin' : ''}`} />
+                <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
               </button>
               <button
                 className="btn-primary"
@@ -333,13 +252,6 @@ const resetLoading = useCallback(() => {
           </div>
         </div>
       </header>
-<<<<<<< HEAD
-      <main className="dashboard-main">
-        {(apiError || contextError) && (
-          <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4">
-            <p className="text-sm">{apiError || contextError}</p>
-          </div>
-=======
     <main className="dashboard-main">
 
       <div className="dashboard-content">
@@ -357,27 +269,9 @@ const resetLoading = useCallback(() => {
               onCreateProject={() => setIsNewProjectFormOpen(true)}
             />
           </section>
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
         )}
-
-        <div className="dashboard-content">
-          {/* 共享專案區塊（如果有 userId 才顯示） */}
-          {userId > 0 && username && (
-            <section>
-              <h2 className="text-xl font-semibold mb-4">Shared with Me</h2>{" "}
-              {/* h2: 明顯標題 */}
-              <UserProjectsManager
-                userId={userId}
-                username={username}
-                onProjectClick={(projectId) => {
-                  window.location.href = `/project/${projectId}/upload`;
-                }}
-                onCreateProject={() => setIsNewProjectFormOpen(true)}
-              />
-            </section>
-          )}
-        </div>
-      </main>
+      </div>
+    </main>
 
       {/* New Project Modal */}
       <NewProjectForm
@@ -386,10 +280,7 @@ const resetLoading = useCallback(() => {
         userId={userId}
         onProjectCreated={(newProject) => {
           setProjects((prev) => [
-            {
-              ...newProject,
-              status: (newProject as any).status ?? "Not started",
-            },
+            { ...newProject, status: (newProject as any).status ?? "Not started" },
             ...prev,
           ]);
         }}
