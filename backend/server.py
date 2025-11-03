@@ -574,7 +574,7 @@ async def upload(project_id: int, file: UploadFile = File(...)):
 
 # Get all uploaded videos for a project
 @app.post("/get_uploaded_videos")
-def get_uploaded_videos(request: ProjectRequest):
+async def get_uploaded_videos(request: ProjectRequest):
     try:
         project_id = request.project_id
 
@@ -598,7 +598,7 @@ def get_uploaded_videos(request: ProjectRequest):
 
 # Get project videos by project ID (RESTful endpoint)
 @app.get("/get_project_videos/{project_id}")
-def get_project_videos(project_id: int):
+async def get_project_videos(project_id: int):
     try:
         # Mock implementation
         mock_videos = [
