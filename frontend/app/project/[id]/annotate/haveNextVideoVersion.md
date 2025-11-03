@@ -41,6 +41,8 @@ function AnnotatePageContent() {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [currentImage, setCurrentImage] = useState(1);
   const [totalImages, setTotalImages] = useState(150); // 動態總幀數
+  const [currentVideo, setCurrentVideo] = useState(1);
+  const [totalVideos] = useState(10);
   const [selectedTool, setSelectedTool] = useState<"select" | "box">("box");
   const [selectedClass, setSelectedClass] = useState("stop_sign");
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -298,6 +300,31 @@ function AnnotatePageContent() {
     }
   };
 
+  const getNextVideo = async () => {
+    try {
+      if (safeProjectId && currentVideo < totalVideos) {
+        const videoData = await ApiService.getNextVideo(safeProjectId, currentVideoId);
+        if (videoData && videoData.success && videoData.next_video_id) {
+          setCurrentVideoId(videoData.next_video_id);
+          setCurrentVideo((prev) => prev + 1);
+          setCurrentImage(1);
+          setCurrentFrame(0);
+          setAnnotations([]);
+          setCurrentFrameImage("");
+          setTimeout(async () => {
+            await checkAnnotationStatus();
+            await loadCurrentFrame();
+          }, 100);
+          console.log('Next video loaded:', videoData);
+        } else {
+          console.log('No next video available');
+        }
+      }
+    } catch (error) {
+      console.error('Error getting next video:', error);
+    }
+  };
+
   const redrawAnnotations = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -465,6 +492,7 @@ function AnnotatePageContent() {
       console.log(`🔄 [FRONTEND] Key frame updated: ${currentFrame + 1}/${totalImages}`);
     } else {
       console.log('Already at the last frame, switching to next video');
+      await getNextVideo();
     }
   };
 
@@ -664,6 +692,7 @@ function AnnotatePageContent() {
   };
 
   const isLastImage = currentFrame >= totalImages - 1;
+  const isLastVideo = currentVideo >= totalVideos;
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -710,6 +739,43 @@ function AnnotatePageContent() {
               </div>
             </div>
             <div className="w-px h-6 bg-gray-200" />
+            <div className="flex items-center space-x-3">
+              <span className="font-semibold text-gray-700">
+                Video {currentVideo} of {totalVideos}
+              </span>
+              <div className="flex flex-col space-y-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (currentVideo > 1) {
+                      setCurrentVideo((prev) => prev - 1);
+                      setCurrentImage(1);
+                      setCurrentFrame(0);
+                      setAnnotations([]);
+                      setCurrentFrameImage("");
+                      setTimeout(async () => {
+                        await checkAnnotationStatus();
+                        await loadCurrentFrame();
+                      }, 100);
+                    }
+                  }}
+                  disabled={currentVideo <= 1}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Prev video
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={getNextVideo}
+                  disabled={isLastVideo}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Next video
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
           </div>
           <div className="flex items-center space-x-3">
             <Button
@@ -729,7 +795,7 @@ function AnnotatePageContent() {
             <div className="flex items-center space-x-4">
               <span className="font-semibold text-gray-700">Tools</span>
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-gray-600">state:</span>
+                <span className="text-gray-600">狀態:</span>
                 <span className={`px-2 py-1 rounded text-xs ${
                   annotationStatus === "not yet started" ? "bg-gray-200 text-gray-700" :
                   annotationStatus === "in progress" ? "bg-yellow-200 text-yellow-700" :
@@ -738,24 +804,24 @@ function AnnotatePageContent() {
                 }`}>
                   {annotationStatus}
                 </span>
-                <span className="text-gray-600">last annotated frame: {lastAnnotatedFrame}</span>
+                <span className="text-gray-600">最後註釋幀: {lastAnnotatedFrame}</span>
                 {saveStatus === 'saving' ? (
                   <span className="text-blue-600 text-xs flex items-center">
                     <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
-                    Saving automatically...
+                    自動保存中...
                   </span>
                 ) : saveStatus === 'saved' ? (
                   <span className="text-green-600 text-xs flex items-center">
                     <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
-                    saved{lastSavedTime ? new Date(lastSavedTime).toLocaleTimeString() : ''}
+                    已保存 {lastSavedTime ? new Date(lastSavedTime).toLocaleTimeString() : ''}
                   </span>
                 ) : saveStatus === 'error' ? (
                   <span className="text-red-600 text-xs flex items-center">
                     <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
-                    Failed to save (backed up locally)
+                    保存失敗 (已備份到本地)
                   </span>
                 ) : (
-                  <span className="text-green-600 text-xs">✓ Autosave is enabled</span>
+                  <span className="text-green-600 text-xs">✓ 自動保存已啟用</span>
                 )}
               </div>
               <div className="flex space-x-2">
@@ -765,8 +831,8 @@ function AnnotatePageContent() {
                   onClick={() => setSelectedTool("select")}
                   className="flex items-center"
                 >
-                  <Square className="w-4 h-4 mr-1" />
-                  Box
+                  <MousePointer className="w-4 h-4 mr-1" />
+                  Select
                 </Button>
                 <Button
                   variant={selectedTool === "box" ? "default" : "outline"}
@@ -774,8 +840,8 @@ function AnnotatePageContent() {
                   onClick={() => setSelectedTool("box")}
                   className="flex items-center"
                 >
-                  <MousePointer className="w-4 h-4 mr-1" />
-                  Select
+                  <Square className="w-4 h-4 mr-1" />
+                  Box
                 </Button>
               </div>
             </div>

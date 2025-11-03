@@ -90,11 +90,7 @@ export default function UserProjectsManager({
   useEffect(() => {
     loadProjects();
   }, [userId]);
-
-  const handleRefresh = () => {
-    loadProjects();
-  };
-
+  
   const handleShareProject = (project: ProjectInfo) => {
     setSelectedProject(project);
     setShareModalOpen(true);
@@ -128,23 +124,6 @@ export default function UserProjectsManager({
               Last updated: {lastUpdated.toLocaleTimeString()}
             </span>
           )}
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={handleRefresh}
-            disabled={isLoading}
-            className="flex items-center space-x-1 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-          <button
-            onClick={onCreateProject}
-            className="flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Project</span>
-          </button>
         </div>
       </div>
 

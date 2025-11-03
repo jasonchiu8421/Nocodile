@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ApiService } from "@/lib/api"
 
 export default function TrainingPage() {
   const params = useParams();
@@ -40,6 +41,9 @@ export default function TrainingPage() {
     setCreateDsProgress(0);
 
     try {
+
+      await ApiService.createDataset(project_id);
+
       const res = await fetch("/create_dataset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,16 +55,8 @@ export default function TrainingPage() {
       // 開始輪詢進度
       createDsIntervalRef.current = setInterval(async () => {
         try {
-          const progRes = await fetch("/get_auto_annotation_progress", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ project_id }),
-          });
-
-          if (!progRes.ok) throw new Error("取得進度失敗");
-
-          const data = await progRes.json();
-          setCreateDsProgress(data.progress);
+        const data = await ApiService.getAutoAnnotationProgress(project_id);
+        setCreateDsProgress(data.progress || 0);
 
           // 進度完成 → 停止輪詢
           if (data.progress >= 100) {
@@ -87,32 +83,18 @@ export default function TrainingPage() {
     setTrainProgress(0);
 
     try {
-      const res = await fetch("/train", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id }),
-      });
 
-      if (!res.ok) throw new Error("啟動訓練失敗");
-
+      await ApiService.startTraining(project_id);
       trainIntervalRef.current = setInterval(async () => {
         try {
-          const progRes = await fetch("/get_training_progress", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ project_id }),
-          });
+        const data = await ApiService.getTrainingProgress(project_id);
+        setTrainProgress(data.progress || 0);
 
-          if (!progRes.ok) throw new Error("取得訓練進度失敗");
-
-          const data = await progRes.json();
-          setTrainProgress(data.progress);
-
-          if (data.progress >= 100) {
-            clearTrainPolling();
-            setIsTraining(false);
-          }
-        } catch (err) {
+        if (data.progress >= 100) {
+          clearTrainPolling();
+          setIsTraining(false);
+        }
+      }catch (err) {
           console.error("訓練輪詢錯誤:", err);
         }
       }, 1000);

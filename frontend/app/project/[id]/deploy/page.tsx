@@ -1,22 +1,14 @@
+
 "use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ApiService } from "../../../../lib/api";
-import ApiConnectionValidator from "@/components/ApiConnectionValidator";
 import { log } from "@/lib/logger";
 
-const getSteps = (projectId: string) => [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Upload", href: `/project/${projectId}/upload` },
-  { label: "Annotate", href: `/project/${projectId}/annotate` },
-  { label: "Train", href: `/project/${projectId}/train` },
-  { label: "Deploy", href: `/project/${projectId}/deploy` },
-];
 
 interface ModelPerformance {
-  mAP?: number;
   precision?: number;
   recall?: number;
   f1_score?: number;
@@ -79,89 +71,78 @@ export default function DeployPage() {
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"deploy" | "debug" | "training">(
-    "deploy"
-  );
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   useEffect(() => {
-    const loadDeploymentData = async () => {
-      if (!projectId) return;
+  if (!projectId) return;
 
-      setIsLoading(true);
-      setError(null);
+  const loadDeploymentData = async () => {
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        log.info("DEPLOY", "Loading deployment data", { projectId });
+    try {
+      log.info("DEPLOY", "Loading deployment data", { projectId });
 
-        // Load all data in parallel
-        const [
-          performanceData,
-          pathData,
-          trainingData,
-          healthData,
-          routesData,
-        ] = await Promise.all([
-          ApiService.getModelPerformance(projectId),
-          ApiService.getModelPath(projectId),
-          ApiService.getTrainingStatus(projectId),
-          ApiService.checkBackendHealth(),
-          ApiService.getAvailableRoutes(),
-        ]);
+      // 並行載入 4 個 API（完全符合你的需求）
+      const [
+        performanceData,
+        pathData,
+        trainingData,
+        healthData
+      ] = await Promise.all([
+        ApiService.getModelPerformance(projectId),
+        ApiService.getModelPath(projectId),
+        ApiService.getTrainingStatus(projectId),
+        ApiService.checkBackendHealth()
+      ]);
 
-        // Set performance data
-        if (performanceData.success) {
-          setPerformance(performanceData["model performance"]);
-          log.info("DEPLOY", "Model performance loaded", {
-            projectId,
-            performance: performanceData["model performance"],
-          });
-        }
-
-        // Set model paths
-        if (pathData.success) {
-          setModelPath(pathData["model path"]);
-          log.info("DEPLOY", "Model paths loaded", {
-            projectId,
-            paths: pathData["model path"],
-          });
-        }
-
-        // Set training status
-        setTrainingStatus(trainingData);
-        log.info("DEPLOY", "Training status loaded", {
+      // 1. 模型效能
+      if (performanceData.success) {
+        setPerformance(performanceData["model performance"]);
+        log.info("DEPLOY", "Model performance loaded", {
           projectId,
-          training: trainingData,
+          performance: performanceData["model performance"],
         });
-
-        // Set health status
-        setHealthStatus(healthData);
-        log.info("DEPLOY", "Health status loaded", {
-          projectId,
-          health: healthData,
-        });
-
-        // Set available routes
-        setAvailableRoutes(routesData.available_routes || []);
-        log.info("DEPLOY", "Available routes loaded", {
-          projectId,
-          routesCount: routesData.available_routes?.length || 0,
-        });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        log.error("DEPLOY", "Error loading deployment data", {
-          projectId,
-          error: errorMessage,
-        });
-        console.error("Error loading deployment data:", err);
-        setError("Failed to load deployment data");
-      } finally {
-        setIsLoading(false);
       }
-    };
 
-    loadDeploymentData();
-  }, [projectId]);
+      // 2. 模型路徑
+      if (pathData.success) {
+        setModelPath(pathData["model path"]);
+        log.info("DEPLOY", "Model paths loaded", {
+          projectId,
+          paths: pathData["model path"],
+        });
+      }
+
+      // 3. 訓練狀態
+      setTrainingStatus(trainingData);
+      log.info("DEPLOY", "Training status loaded", {
+        projectId,
+        training: trainingData,
+      });
+
+      // 4. 後端健康
+      setHealthStatus(healthData);
+      log.info("DEPLOY", "Health status loaded", {
+        projectId,
+        health: healthData,
+      });
+
+      // 沒有 available_routes，完全符合你的需求！
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error("DEPLOY", "Error loading deployment data", {
+        projectId,
+        error: errorMessage,
+      });
+      setError("Failed to load deployment data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  loadDeploymentData();
+}, [projectId]);
 
   const loadDebugInfo = async () => {
     if (!projectId) return;
@@ -195,16 +176,15 @@ export default function DeployPage() {
     return `${Math.round(value * 100)}%`;
   };
 
-  const handleDownloadModel = async (
-    modelType: "onnx" | "pytorch" | "weights" | "config"
+  const handleDownloadModel = async (fileType:string
   ) => {
     try {
-      const result = await ApiService.downloadModelFile(projectId, modelType);
+      const result = await ApiService.downloadModelFile(projectId,'pytorch');
 
       if (result.success && result.downloadUrl) {
         const link = document.createElement("a");
         link.href = result.downloadUrl;
-        link.download = `model_${projectId}.${modelType === "pytorch" ? "pth" : modelType === "weights" ? "pt" : modelType === "config" ? "json" : "onnx"}`;
+        link.download = `model_${projectId}.${fileType}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -287,10 +267,17 @@ export default function DeployPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="text-sm font-medium text-gray-600">
+<<<<<<< HEAD
                   mAP (Mean Average Precision)
                 </div>
                 <div className="mt-2 text-3xl font-bold text-green-600">
                   {formatPercentage(performance.mAP)}
+=======
+                  Accuracy
+                </div>
+                <div className="mt-2 text-3xl font-bold text-green-600">
+                  {formatPercentage(performance.accuracy)}
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
                 </div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -333,6 +320,7 @@ export default function DeployPage() {
               </p>
               <div className="mt-3 space-y-2">
                 <div className="text-xs text-gray-500">
+<<<<<<< HEAD
                   Available formats: ONNX, PyTorch, Weights, Config
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -359,6 +347,16 @@ export default function DeployPage() {
                     className="inline-flex items-center bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 text-sm"
                   >
                     Download Config
+=======
+                  Download the File
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleDownloadModel("file")}
+                    className="inline-flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Download the file
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
                   </button>
                 </div>
               </div>
@@ -420,7 +418,11 @@ export default function DeployPage() {
         </section>
 
         {/* Training Status Tab */}
+<<<<<<< HEAD
         {activeTab === "training" && (
+=======
+        {(
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="text-lg font-semibold">Training Status</h2>
 

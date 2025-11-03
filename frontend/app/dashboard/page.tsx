@@ -128,10 +128,14 @@ export default function Dashboard() {
   const [username, setUsername] = useState<string>("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
-
+const { 
+  projects: contextProjects, 
+  updateProject, 
+  isLoading: contextLoading, 
+  error: contextError 
+} = useProjectContext();
   const lastLoadTimeRef = useRef<number>(0); // 記錄上次成功載入時間
   const isLoadingRef = useRef(false); // 防止重複 loading
-  const loadIntervalRef = useRef<NodeJS.Timeout | null>(null); // 10秒定時器
   const stableUpdateProject = useCallback(updateProject, []); // 穩定化的 updateProject
 
   // kick out if not logged in
@@ -151,7 +155,7 @@ export default function Dashboard() {
     };
     getUserInfo();
   }, []);
-
+  const now = Date.now(); // 加上這行！
   // === 完整節流載入函數 ===
   const loadProjectsWithThrottle = useCallback(async () => {
     // 步驟1：防止重複 loading
@@ -160,6 +164,7 @@ export default function Dashboard() {
       return;
     }
 
+<<<<<<< HEAD
     // 步驟2：10秒節流
     const now = Date.now();
     if (lastLoadTimeRef.current > 0 && now - lastLoadTimeRef.current < 10000) {
@@ -170,6 +175,8 @@ export default function Dashboard() {
       return;
     }
 
+=======
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
     // 步驟3：開始 loading
     isLoadingRef.current = true;
     setIsLoading(true);
@@ -181,8 +188,13 @@ export default function Dashboard() {
       const apiProjects = await getProjectsInfo(userId);
 
       // 更新 context
+<<<<<<< HEAD
       apiProjects.forEach((project) => {
         stableUpdateProject(project.id.toString(), {
+=======
+      apiProjects.forEach(project => {
+        updateProject(project.id.toString(), {
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
           id: project.id.toString(),
           name: project.name,
           videoCount: project.videoCount,
@@ -190,11 +202,11 @@ export default function Dashboard() {
         });
       });
 
-      // 更新本地狀態
-      setProjects(apiProjects);
-      lastLoadTimeRef.current = now;
-      setLastUpdateTime(new Date());
+    setProjects(apiProjects);
+    lastLoadTimeRef.current = now;
+    setLastUpdateTime(new Date());
 
+<<<<<<< HEAD
       log.info("DASHBOARD", `Loaded ${apiProjects.length} projects`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
@@ -205,6 +217,16 @@ export default function Dashboard() {
       setIsLoading(false);
     }
   }, [userId, stableUpdateProject]);
+=======
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    setApiError(`Failed to load projects: ${msg}`);
+  } finally {
+    isLoadingRef.current = false;
+    setIsLoading(false); // 關鍵：UI 也要關
+  }
+}, [userId, stableUpdateProject]);
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
 
   // === 登出功能 ===
   const handleLogout = async () => {
@@ -228,6 +250,7 @@ export default function Dashboard() {
     }
   }, [userId, loadProjectsWithThrottle]);
 
+<<<<<<< HEAD
   // === 10秒自動更新 ===
   useEffect(() => {
     if (userId <= 0) return;
@@ -253,11 +276,15 @@ export default function Dashboard() {
     }
   }, [contextProjects]);
 
+=======
+const resetLoading = useCallback(() => {
+  isLoadingRef.current = false;     // 重開閘門
+  setIsLoading(false); 
+  setProjects([]);         // 清空舊資料
+  loadProjectsWithThrottle();     // 真正重新載入 API
+}, [loadProjectsWithThrottle]);
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
   // === 手動刷新按鈕 ===
-  const handleManualRefresh = useCallback(() => {
-    loadProjectsWithThrottle();
-  }, [loadProjectsWithThrottle]);
-
   return (
     <div className="dashboard-container">
       {/* Header */}
@@ -276,9 +303,9 @@ export default function Dashboard() {
               )}
               <button
                 className="btn-secondary flex items-center gap-2 mr-2"
-                onClick={handleManualRefresh}
+                onClick={resetLoading}
                 disabled={isLoading}
-                title="Refresh projects (updates every 10 seconds automatically)"
+                title="Refresh projects manally"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
@@ -306,11 +333,31 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+<<<<<<< HEAD
       <main className="dashboard-main">
         {(apiError || contextError) && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4">
             <p className="text-sm">{apiError || contextError}</p>
           </div>
+=======
+    <main className="dashboard-main">
+
+      <div className="dashboard-content">
+
+        {/* 共享專案區塊（如果有 userId 才顯示） */}
+        {userId > 0 && username && (
+          <section> 
+            <h2 className="text-xl font-semibold mb-4">Shared with Me</h2>  {/* h2: 明顯標題 */}
+            <UserProjectsManager
+              userId={userId}
+              username={username}
+              onProjectClick={(projectId) => {
+                window.location.href = `/project/${projectId}/upload`;
+              }}
+              onCreateProject={() => setIsNewProjectFormOpen(true)}
+            />
+          </section>
+>>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
         )}
 
         <div className="dashboard-content">
