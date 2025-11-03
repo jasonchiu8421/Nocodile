@@ -568,7 +568,7 @@ async def get_classes(request:ProjectRequest):
         mock_classes = {
             "car": "#FF0000",
             "person": "#00FF00",
-            "bicycle": "#0000FF"
+            "bicycle": "#DDDDDD"
         }
 
         return {
@@ -583,6 +583,7 @@ async def get_classes(request:ProjectRequest):
         )
 
 # Add new class to a project and return new classes list
+###done jimmy
 @app.post("/add_class")
 async def add_class(request: ProjectRequest, class_name: str, colour: str):
     try:
@@ -756,7 +757,7 @@ async def next_video(request: ProjectRequest, current_video_id: str):
             content={"error": str(e)}
         )
 
-#=================================== Page 5 - Model Training ==========================================
+#===================================     - Model Training ==========================================
 
 # Create dataset for training
 @app.post("/create_dataset")
@@ -841,7 +842,7 @@ async def get_model_performance(request: ProjectRequest):
             "accuracy": 0.92,
             "precision": 0.89,
             "recall": 0.94,
-            "f1_score": 0.91
+            "f1_score": 1
         }
 
         return {

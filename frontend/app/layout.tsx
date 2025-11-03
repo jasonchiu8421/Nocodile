@@ -22,7 +22,7 @@ const Logo = () => {
   return (
     <img
       //className="fixed"
-      src="./IconNocodile.png"
+      //src="./IconNocodile.png"
       alt="logo"
       style={{ opacity: 0.2 }}
     />

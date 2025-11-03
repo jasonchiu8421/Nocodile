@@ -1237,119 +1237,71 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   }
 
   // ========== Training API Methods ==========
+// ========== Training API Methods (修正版) ==========
 
-  // Start training
-  static async startTraining(projectId: string) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/train`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+static async createDataset(projectId: string) {
+  const response = await this.makeApiCall(
+    '/create_dataset',
+    'POST',
+    { project_id: projectId },
+    true // useWorkingUrl = true → 強制用 findWorkingBackendUrl()
+  );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error starting training:', error);
-      return {
-        success: true,
-        message: "Training started successfully (frontend fallback)."
-      };
-    }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`建立資料集失敗: HTTP ${response.status} - ${errorText}`);
   }
 
-  // Get training progress
-  static async getTrainingProgress(projectId: string) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/get_training_progress`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+  return response.json();
+}
 
-      if (!response.ok) {
-        console.warn(`API returned ${response.status}, using fallback data`);
-        return this.getFallbackTrainingProgress();
-      }
+static async getAutoAnnotationProgress(projectId: string) {
+  const response = await this.makeApiCall(
+    '/get_auto_annotation_progress',
+    'POST',
+    { project_id: projectId },
+    true
+  );
 
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching training progress:', error);
-      return this.getFallbackTrainingProgress();
-    }
+  if (!response.ok) {
+    log.warn('API', 'Failed to get auto annotation progress', { status: response.status });
+    return { progress: 0 }; // fallback
   }
 
-  // Create dataset
-  static async createDataset(projectId: string) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/create_dataset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+  return response.json();
+}
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+static async startTraining(projectId: string) {
+  const response = await this.makeApiCall(
+    '/train',
+    'POST',
+    { project_id: projectId },
+    true
+  );
 
-      return await response.json();
-    } catch (error) {
-      console.error('Error creating dataset:', error);
-      return {
-        success: true,
-        message: "Dataset creation started successfully (frontend fallback)."
-      };
-    }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`啟動訓練失敗: HTTP ${response.status} - ${errorText}`);
   }
 
-  // Get auto annotation progress
-  static async getAutoAnnotationProgress(projectId: string) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/get_auto_annotation_progress`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+  return response.json();
+}
 
-      if (!response.ok) {
-        console.warn(`API returned ${response.status}, using fallback data`);
-        return this.getFallbackAutoAnnotationProgress();
-      }
+static async getTrainingProgress(projectId: string) {
+  const response = await this.makeApiCall(
+    '/get_training_progress',
+    'POST',
+    { project_id: projectId },
+    true
+  );
 
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching auto annotation progress:', error);
-      return this.getFallbackAutoAnnotationProgress();
-    }
+  if (!response.ok) {
+    log.warn('API', 'Failed to get training progress', { status: response.status });
+    return { progress: 0 }; // fallback
   }
 
-  // Fallback training progress when API fails
-  private static getFallbackTrainingProgress() {
-    return {
-      success: true,
-      status: "Training completed",
-      progress: 100
-    };
-  }
-
-  // Fallback auto annotation progress when API fails
-  private static getFallbackAutoAnnotationProgress() {
-    return {
-      success: true,
-      progress: 1.0
-    };
-  }
+  return response.json();
+}
 
   // ========== Deployment API Methods ==========
 
@@ -1478,33 +1430,33 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   // ========== Debug API Methods ==========
 
   // Get all available routes
-  static async getAvailableRoutes(): Promise<{
-    available_routes: Array<{
-      path: string;
-      methods: string[];
-    }>;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/debug/routes`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+  // static async getAvailableRoutes(): Promise<{
+  //   available_routes: Array<{
+  //     path: string;
+  //     methods: string[];
+  //   }>;
+  // }> {
+  //   try {
+  //     const workingUrl = await findWorkingBackendUrl();
+  //     const response = await fetch(`${workingUrl}/debug/routes`, {
+  //       method: 'GET',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`HTTP error! status: ${response.status}`);
+  //     }
 
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching available routes:', error);
-      return {
-        available_routes: []
-      };
-    }
-  }
+  //     return await response.json();
+  //   } catch (error) {
+  //     console.error('Error fetching available routes:', error);
+  //     return {
+  //       available_routes: []
+  //     };
+  //   }
+  // }
 
   // Get project debug information
   static async getProjectDebugInfo(projectId: string): Promise<{
@@ -1696,7 +1648,7 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   // ========== Model Download API Methods ==========
 
   // Download model file with proper error handling
-  static async downloadModelFile(projectId: string, modelType: 'onnx' | 'pytorch' | 'weights' | 'config'): Promise<{
+  static async downloadModelFile(projectId: string, modelType: 'pytorch'): Promise<{
     success: boolean;
     downloadUrl?: string;
     error?: string;
@@ -1716,17 +1668,8 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       let downloadPath: string | undefined;
 
       switch (modelType) {
-        case 'onnx':
-          downloadPath = modelPaths.onnx_path;
-          break;
         case 'pytorch':
           downloadPath = modelPaths.pytorch_path;
-          break;
-        case 'weights':
-          downloadPath = modelPaths.weights_path;
-          break;
-        case 'config':
-          downloadPath = modelPaths.config_path;
           break;
       }
 
