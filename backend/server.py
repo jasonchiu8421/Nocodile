@@ -2,7 +2,7 @@ import logging
 import traceback
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, List
@@ -210,7 +210,16 @@ def ensure_database_connection():
         connection = connect_to_database()
     return connection
 
+#=================================== Define Request Types ==========================================
+
+class AnnotationRequest(BaseModel):
+    project_id: int
+    video_id: int
+    frame_num: int
+    bboxes: list  # List of bounding boxes, each box is [class_name, x, y, w, h]
+
 #=================================== Class to deal with user logins ==========================================
+
 class UserLogin():
     def __init__(self, username, password, status=True):
         self.username = username
@@ -226,6 +235,7 @@ class UserLogin():
         password = cursor.fetchone()['password']
         cursor.close()
 
+# ???
         decoded_bytes = base64.b64decode(password)
         decoded_str = decoded_bytes.decode('utf-8')
         salt, pwd_hash = decoded_str.split(':', 1)
@@ -595,12 +605,6 @@ class Project():
     # Delete class from both the class and database
     # Output: True
     def delete_class(self, class_name: str):
-        # Ask Jimmy
-        # Not yet validated
-        # self.classes.pop(class_name)
-        # self.classes = self.get_classes()
-        # self.classes.pop(class_name, None)
-
         self.classes = self.get_classes()
         self.classes.pop(class_name)
 
@@ -1105,25 +1109,6 @@ class Video(Project):
                 return result['video_name']
         except (ValueError, TypeError):
             pass
-        
-        # Ask Jimmy
-        # # 如果整數查詢失敗，嘗試根據文件名查找
-        # query = "SELECT video_name FROM video WHERE video_name = %s AND project_id = %s"
-        # cursor.execute(query, (self.video_id, self.project_id))
-        # result = cursor.fetchone()
-        # if result:
-        #     return result['video_name']
-        
-        # # 如果還是找不到，嘗試模糊匹配文件名
-        # query = "SELECT video_name FROM video WHERE video_name LIKE %s AND project_id = %s"
-        # cursor.execute(query, (f"%{self.video_id}%", self.project_id))
-        # result = cursor.fetchone()
-        # if result:
-        #     return result['video_name']
-        
-        # # 如果都找不到，拋出錯誤
-        # raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
-    
     
     # Update video name and save to database
     def update_video_name(self, new_name: str):
@@ -1144,23 +1129,6 @@ class Video(Project):
                 return result['video_path']
         except (ValueError, TypeError):
             pass
-
-        # # 如果整數查詢失敗，嘗試根據文件名查找
-        # query = "SELECT video_path FROM video WHERE video_name = %s AND project_id = %s"
-        # cursor.execute(query, (self.video_name, self.project_id))
-        # result = cursor.fetchone()
-        # if result:
-        #     return result['video_path']
-        
-        # # 如果還是找不到，嘗試模糊匹配文件名
-        # query = "SELECT video_path FROM video WHERE video_name LIKE %s AND project_id = %s"
-        # cursor.execute(query, (f"%{self.video_name}%", self.project_id))
-        # result = cursor.fetchone()
-        # if result:
-        #     return result['video_path']
-        
-        # # 如果都找不到，拋出錯誤
-        # raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
     
     # Fetch video name (str) from database
     def get_frame_count(self):
@@ -1202,11 +1170,6 @@ class Video(Project):
         return bbox_data
     
     def get_annotation_status(self):
-        ### db ###
-        ### status can be "yet to start", "manual annotation in progress", "auto annotation in progress", "completed" ###
-        ### default is "yet to start" ###
-        ### last_annotated_frame is the last frame number that has been annotated (0-indexed) ###
-        ### default is None, not 0 ###
         annotation_status='yet to start'
         last_annotated_frame=None
 
@@ -1226,27 +1189,6 @@ class Video(Project):
         except (ValueError, TypeError):
             pass
 
-        # # 如果整數查詢失敗，嘗試根據文件名查找
-        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name = %s AND project_id = %s"
-        # cursor.execute(query, (self.video_id, self.project_id))
-        # data = cursor.fetchone()
-        # if data:
-        #     annotation_status = data['annotation_status']
-        #     last_annotated_frame = data['last_annotated_frame']
-        #     return annotation_status, last_annotated_frame
-        
-        # # 如果還是找不到，嘗試模糊匹配文件名
-        # query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_name LIKE %s AND project_id = %s"
-        # cursor.execute(query, (f"%{self.video_id}%", self.project_id))
-        # data = cursor.fetchone()
-        # if data:
-        #     annotation_status = data['annotation_status']
-        #     last_annotated_frame = data['last_annotated_frame']
-        #     return annotation_status, last_annotated_frame
-        
-        # # 如果都找不到，拋出錯誤
-        # raise ValueError(f"Video with ID/name '{self.video_id}' not found in project {self.project_id}")
-    
     ###### Selecting Frame for Manual Annotation ######
     # For testing purpose, annotate every second
     def get_next_frame_to_annotate(self):
@@ -1502,64 +1444,6 @@ async def login(request: LoginRequest):
             # if status is True, get userID from database, else None
             userID = userlogin.get_userID()
 
-            # Ask Jimmy
-            # # Get all project IDs for this user
-            # project_ids = []
-            # if userID:
-            #     try:
-            #         cursor = connection.cursor(pymysql.cursors.DictCursor)
-                    
-            #         # Get owned projects
-            #         owned_query = """
-            #             SELECT project_id, project_name, project_type, 
-            #                    (SELECT COUNT(*) FROM video WHERE project_id = p.project_id) as video_count,
-            #                    (SELECT COUNT(*) FROM image WHERE project_id = p.project_id) as image_count,
-            #                    project_status as status, 'owned' as ownership
-            #             FROM project p 
-            #             WHERE project_owner_id = %s
-            #         """
-            #         cursor.execute(owned_query, (userID,))
-            #         owned_projects = cursor.fetchall()
-                    
-            #         # Get shared projects
-            #         shared_query = """
-            #             SELECT p.project_id, p.project_name, p.project_type,
-            #                    (SELECT COUNT(*) FROM video WHERE project_id = p.project_id) as video_count,
-            #                    (SELECT COUNT(*) FROM image WHERE project_id = p.project_id) as image_count,
-            #                    p.project_status as status, 'shared' as ownership,
-            #                    ps.permissions, u.username as owner_username
-            #             FROM project p
-            #             JOIN project_shares ps ON p.project_id = ps.project_id
-            #             JOIN user u ON p.project_owner_id = u.user_id
-            #             WHERE ps.shared_with_user_id = %s
-            #         """
-            #         cursor.execute(shared_query, (userID,))
-            #         shared_projects = cursor.fetchall()
-                    
-            #         # Combine all projects
-            #         all_projects = owned_projects + shared_projects
-                    
-            #         # Format project data
-            #         project_ids = []
-            #         for project in all_projects:
-            #             project_data = {
-            #                 "project_id": project['project_id'],
-            #                 "project_name": project['project_name'],
-            #                 "project_type": project['project_type'],
-            #                 "video_count": project['video_count'] or 0,
-            #                 "image_count": project['image_count'] or 0,
-            #                 "status": project['status'] or 'Active',
-            #                 "ownership": project['ownership']
-            #             }
-            #             project_ids.append(project_data)
-                    
-            #         cursor.close()
-                    
-            #     except Exception as e:
-            #         print(f"Error fetching user projects: {e}")
-            #         # Continue with empty project list if there's an error
-            #         project_ids = []
-
             return {
                 "success": success,
                 "userID": userID,
@@ -1707,7 +1591,7 @@ async def get_users_projects(request: UserRequest):
 
         # Get detailed project information for owned projects
         owned_projects = []
-        for project_id in owned_project_ids:
+        for project_id in owner_project_ids:
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
@@ -1835,15 +1719,7 @@ async def create_project(request: CreateProjectRequest):
 async def change_project_name(request: ProjectRequest, new_name: str):
     try:
         project = Project(project_id = request.project_id)
-        
-        # check if new_name already exists for this user
-        # project_name_exists = False if "### project name does not exist ###" else True
-        # if project_name_exists:
-        #     return {
-        #         "success": False,
-        #         "message": "Project name already exists."
-        #     }
-        
+
         success = project.change_project_name(new_name)
         
         if success:
@@ -2079,7 +1955,7 @@ def get_uploaded_videos(request: ProjectRequest):
             content={"error": str(e)}
         )
     
-# Ask Jimmy (Why need this?)
+# ??? (Why need this?)
 # Get project videos by project ID (RESTful endpoint)
 # Output: ?
 @app.get("/get_project_videos/{project_id}")
@@ -2272,12 +2148,6 @@ async def check_annotation_status(request: VideoRequest):
             content={"error": str(e)}
         )
     
-class AnnotationRequest(BaseModel):
-    project_id: int
-    video_id: int
-    frame_num: int
-    bboxes: list  # List of bounding boxes, each box is [class_name, x, y, w, h]
-
 # Save annotation for a frame
 @app.post("/annotate")
 async def annotate(request: AnnotationRequest):
@@ -2474,19 +2344,44 @@ async def get_model_performance(request: ProjectRequest):
             content={"error": str(e)}
         )
 
-# Get model path
-@app.post("/get_model_path")
-async def get_model_path(request: ProjectRequest):
+@app.post("/get_model")
+async def get_model(request: ProjectRequest):
     try:
-        project = Project(project_id = request.project_id)
+        project_id = request.project_id
+        project = Project(project_id)
+        
+        # Define model path based on project ID
+        model_path = Path(project.get_model_path())
 
-        # Get model paths
-        model_path = project.get_model_path()
+        if not model_path.is_file():
+            raise RuntimeError(f"Model file not found: {model_path}")
 
-        return {
-            "success": True,
-            "model path": model_path
+        # stream the file in chunks
+        def file_iterator(file_path: Path, chunk_size: int = 8192):
+            """Yield file chunks – perfect for large models."""
+            with open(file_path, "rb") as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+
+        # Build safe headers
+        file_name = model_path.name  # "best.pt"
+        file_size = model_path.stat().st_size
+        headers = {
+            "Content-Disposition": f'attachment; filename="{file_name}"',
+            "Content-Type": "application/octet-stream",
+            "Content-Length": str(file_size),
+            # Optional: allow resumable downloads
+            "Accept-Ranges": "bytes",
         }
+
+        return StreamingResponse(
+            file_iterator(model_path),
+            media_type="application/octet-stream",
+            headers=headers,
+        )
 
     except Exception as e:
         return JSONResponse(
