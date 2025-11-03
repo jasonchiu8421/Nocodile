@@ -267,17 +267,10 @@ export default function DeployPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="text-sm font-medium text-gray-600">
-<<<<<<< HEAD
-                  mAP (Mean Average Precision)
-                </div>
-                <div className="mt-2 text-3xl font-bold text-green-600">
-                  {formatPercentage(performance.mAP)}
-=======
                   Accuracy
                 </div>
                 <div className="mt-2 text-3xl font-bold text-green-600">
                   {formatPercentage(performance.accuracy)}
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
                 </div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -320,34 +313,6 @@ export default function DeployPage() {
               </p>
               <div className="mt-3 space-y-2">
                 <div className="text-xs text-gray-500">
-<<<<<<< HEAD
-                  Available formats: ONNX, PyTorch, Weights, Config
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleDownloadModel("onnx")}
-                    className="inline-flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Download ONNX
-                  </button>
-                  <button
-                    onClick={() => handleDownloadModel("pytorch")}
-                    className="inline-flex items-center bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 text-sm"
-                  >
-                    Download PyTorch
-                  </button>
-                  <button
-                    onClick={() => handleDownloadModel("weights")}
-                    className="inline-flex items-center bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm"
-                  >
-                    Download Weights
-                  </button>
-                  <button
-                    onClick={() => handleDownloadModel("config")}
-                    className="inline-flex items-center bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 text-sm"
-                  >
-                    Download Config
-=======
                   Download the File
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -356,7 +321,6 @@ export default function DeployPage() {
                     className="inline-flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
                   >
                     Download the file
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
                   </button>
                 </div>
               </div>
@@ -418,11 +382,7 @@ export default function DeployPage() {
         </section>
 
         {/* Training Status Tab */}
-<<<<<<< HEAD
-        {activeTab === "training" && (
-=======
         {(
->>>>>>> 9ae86b4a23d9f4787954e458cdd88fec97dda321
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="text-lg font-semibold">Training Status</h2>
 
@@ -478,7 +438,7 @@ export default function DeployPage() {
         )}
 
         {/* Debug Info Tab */}
-        {activeTab === "debug" && (
+        {(
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Debug Information</h2>
