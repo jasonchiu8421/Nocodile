@@ -47,23 +47,23 @@ const Register = () => {
     
     // 基本驗證
     if (!formData.username.trim()) {
-      setErrorMsg("請輸入用戶名");
+      setErrorMsg("Please enter your username.");
       return;
     }
     if (formData.username.length < 3) {
-      setErrorMsg("用戶名至少需要3個字符");
+      setErrorMsg("Username must be at least 3 characters long.");
       return;
     }
     if (!formData.password) {
-      setErrorMsg("請輸入密碼");
+      setErrorMsg("Please enter your password.");
       return;
     }
     if (formData.password.length < 6) {
-      setErrorMsg("密碼至少需要6個字符");
+      setErrorMsg("Passwords must be at least 6 characters long.");
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      setErrorMsg("密碼確認不匹配");
+      setErrorMsg("Password confirmation mismatch");
       return;
     }
     
@@ -104,13 +104,13 @@ const Register = () => {
         // 重定向到儀表板
         router.push("/dashboard");
       } else {
-        const errorMessage = data.message || "註冊失敗";
+        const errorMessage = data.message || "Registration failed";
         setErrorMsg(errorMessage);
         log.warn('REGISTER', 'Registration failed', { message: errorMessage });
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      setErrorMsg("註冊失敗: " + errorMessage);
+      setErrorMsg("Registration failed: " + errorMessage);
       log.error('REGISTER', 'Registration error', { error: errorMessage });
     } finally {
       setIsLoading(false);
@@ -126,20 +126,16 @@ const Register = () => {
             <User className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Nocodile AI</h1>
-          <p className="text-gray-600 mt-2">創建您的帳戶開始使用</p>
+          <p className="text-gray-600 mt-2">Create your account and get started</p>
         </div>
 
         {/* Registration Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-auto border border-gray-100">
+          <form onSubmit={handleSubmit} className="space-y-7">
             {/* Username Field */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                用戶名
-              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="username"
@@ -148,7 +144,7 @@ const Register = () => {
                   value={formData.username}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="請輸入用戶名"
+                  placeholder="Please enter your username."
                   disabled={isLoading}
                 />
               </div>
@@ -156,12 +152,8 @@ const Register = () => {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                密碼
-              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="password"
@@ -170,7 +162,7 @@ const Register = () => {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="請輸入密碼"
+                  placeholder="Please enter your password."
                   disabled={isLoading}
                 />
                 <button
@@ -190,12 +182,8 @@ const Register = () => {
 
             {/* Confirm Password Field */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                確認密碼
-              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="confirmPassword"
@@ -204,7 +192,7 @@ const Register = () => {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="請再次輸入密碼"
+                  placeholder="Please enter your password again."
                   disabled={isLoading}
                 />
                 <button
@@ -242,12 +230,12 @@ const Register = () => {
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  註冊中...
+                  Registration in progress...
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  創建帳戶
+                  Create an account
                 </>
               )}
             </button>
@@ -255,12 +243,12 @@ const Register = () => {
             {/* Login Link */}
             <div className="text-center">
               <p className="text-sm text-gray-600">
-                已有帳戶？{' '}
+                Already have an account?{' '}
                 <Link
                   href="/login"
                   className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
                 >
-                  立即登錄
+                  Log in now
                 </Link>
               </p>
             </div>
