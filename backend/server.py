@@ -2,7 +2,7 @@ import logging
 import traceback
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, List
@@ -2344,19 +2344,45 @@ async def get_model_performance(request: ProjectRequest):
             content={"error": str(e)}
         )
 
-# Get model path
-@app.post("/get_model_path")
-async def get_model_path(request: ProjectRequest):
+@app.post("/get_model")
+async def get_model(request: ProjectRequest):
     try:
-        project = Project(project_id = request.project_id)
+        project_id = request.project_id
 
-        # Get model paths
-        model_path = project.get_model_path()
+        # Mock implementation
+        # Define model path based on project ID
+        model_dir = Path(__file__).parent.resolve()
+        model_path = model_dir / f"models/project_{project_id}/best.pt"
 
-        return {
-            "success": True,
-            "model path": model_path
+        if not model_path.is_file():
+            raise RuntimeError(f"Model file not found: {model_path}")
+
+        # stream the file in chunks
+        def file_iterator(file_path: Path, chunk_size: int = 8192):
+            """Yield file chunks – perfect for large models."""
+            with open(file_path, "rb") as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+
+        # Build safe headers
+        file_name = model_path.name  # "best.pt"
+        file_size = model_path.stat().st_size
+        headers = {
+            "Content-Disposition": f'attachment; filename="{file_name}"',
+            "Content-Type": "application/octet-stream",
+            "Content-Length": str(file_size),
+            # Optional: allow resumable downloads
+            "Accept-Ranges": "bytes",
         }
+
+        return StreamingResponse(
+            file_iterator(model_path),
+            media_type="application/octet-stream",
+            headers=headers,
+        )
 
     except Exception as e:
         return JSONResponse(
