@@ -568,7 +568,8 @@ async def get_classes(request:ProjectRequest):
         mock_classes = {
             "car": "#FF0000",
             "person": "#00FF00",
-            "bicycle": "#DDDDDD"
+            "bicycle": "#DDDDDD",
+            "3":"#AAAAAA"
         }
 
         return {
@@ -599,7 +600,7 @@ async def add_class(request: ProjectRequest, class_name: str, colour: str):
                 "car": "#FF0000",
                 "person": "#00FF00",
                 "bicycle": "#0000FF",
-                class_name: colour
+                ##class_name: colour
             }
         }
 
@@ -650,7 +651,7 @@ async def delete_class(request: ProjectRequest, class_name: str):
             "classes": {
                 "person": "#00FF00",
                 "bicycle": "#0000FF"
-                # "car" is removed
+                ##"car" is removed
             }
         }
 
