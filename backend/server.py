@@ -478,32 +478,94 @@ async def get_project_shares(request: ProjectRequest):
 
 #=================================== Page 3 - Video Upload & Management ==========================================
 
-class UploadRequest(BaseModel):
-    project_id: int
-    file: UploadFile = File(...)
-
 # Upload video
+async def save_upload_file(upload_file: UploadFile, destination: Path):
+    """
+    Stream upload to disk in chunks.
+    """
+    total_written = 0
+    chunk_size = 10 * 1024 * 1024  # 10 MB chunks
+
+    # Max file size: 5 GB (adjust as needed)
+    MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB in bytes
+
+    with destination.open("wb") as buffer:
+        while True:
+            chunk = await upload_file.read(chunk_size)
+            if not chunk:
+                break
+            buffer.write(chunk)
+            total_written += len(chunk)
+
+            # Optional: Log progress
+            if total_written % (100 * 1024 * 1024) == 0:  # every 100 MB
+                logger.info(f"Uploaded {total_written / (1024**2):.1f} MB of {upload_file.filename}")
+
+            # Enforce size limit
+            if total_written > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Max allowed: {MAX_FILE_SIZE / (1024**3):.1f} GB"
+                )
+
+    return total_written
+
 @app.post("/upload")
-async def upload(request: UploadRequest):
+async def upload(project_id: int, file: UploadFile = File(...)):
     try:
-        project_id = request.project_id
-        file = request.file
-
-        if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
-            raise HTTPException(status_code=400, detail="Invalid file type.")
-
-        # Mock implementation
-        logger.info(f"Uploading file {file.filename} to project {project_id}")
-
-        return {
-            "success": True,
-            "message": f"File {file.filename} uploaded successfully",
-            "video_id": 1
+        # Allowed video MIME types
+        ALLOWED_MIME_TYPES = {
+            "video/mp4",
+            "video/avi",
+            "video/mkv",
+            "video/webm",
+            "video/quicktime",  # .mov
+            "video/x-msvideo",  # .avi
         }
 
+        # 1. Validate filename
+        filename = file.filename
+        if not filename:
+            raise HTTPException(status_code=400, detail="No file name")
+
+        # Prevent path traversal
+        safe_filename = Path(filename).name
+        if safe_filename != filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        # 2. Validate content type
+        content_type = file.content_type
+        if content_type not in ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
+            )
+
+        # 3. Define destination
+        file_path = safe_filename
+
+        # Optional: Prevent overwrite (or allow with unique names)
+        if file_path.exists():
+            raise HTTPException(status_code=409, detail="File already exists")
+
+        # 4. Stream to disk
+        try:
+            size = await save_upload_file(file, file_path)
+            logger.info(f"Successfully uploaded: {file_path} ({size / (1024**3):.2f} GB)")
+        except Exception as e:
+            if file_path.exists():
+                file_path.unlink()  # cleanup partial
+            raise HTTPException(status_code=500, detail="Upload failed")
+        
+        return JSONResponse({
+            "message": "Upload successful",
+            "filename": safe_filename,
+            "size_bytes": size,
+            "size_gb": round(size / (1024**3), 2),
+            "path": str(file_path)
+        })
+
     except Exception as e:
-        if len(e)>100:
-            e = e[0:99] + "...(truncated)"
         logger.error(f"Upload error: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -846,7 +908,7 @@ async def get_model_performance(request: ProjectRequest):
             "accuracy": 0.92,
             "precision": 0.89,
             "recall": 0.94,
-            "f1_score": 1
+            "f1_score": 0.92
         }
 
         return {
