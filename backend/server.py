@@ -2348,11 +2348,11 @@ async def get_model_performance(request: ProjectRequest):
 async def get_model(request: ProjectRequest):
     try:
         project_id = request.project_id
-
-        # Mock implementation
+        project = Project(project_id)
+        
         # Define model path based on project ID
         model_dir = Path(__file__).parent.resolve()
-        model_path = model_dir / f"models/project_{project_id}/best.pt"
+        model_path = model_dir / project.get_model_path()
 
         if not model_path.is_file():
             raise RuntimeError(f"Model file not found: {model_path}")
