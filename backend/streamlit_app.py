@@ -97,6 +97,43 @@ def login_page():
                 else:
                     st.error("请输入用户名和密码")
 
+def register_page():
+    """用户注册页面"""
+    st.title("🎥 Noco - 视频标注与AI训练平台")
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.subheader("用户注册")
+        
+        username = st.text_input("用户名", placeholder="请输入用户名", key="register_username")
+        password = st.text_input("密码", type="password", placeholder="请输入密码", key="register_password")
+        confirm_password = st.text_input("确认密码", type="password", placeholder="请确认密码", key="confirm_password")
+        
+        if st.button("注册", use_container_width=True, key="register_btn"):
+            if username and password:
+                if password == confirm_password:
+                    with st.spinner("正在注册..."):
+                        response = make_request("/register", data={
+                            "username": username,
+                            "password": password,
+                            "confirm_password": confirm_password
+                        })
+                        
+                        if response and response.get("success"):
+                            st.success("注册成功！请登录。")
+                            time.sleep(1)
+                            st.experimental_rerun()
+                        elif response:
+                            st.error(response.get("message", "注册失败"))
+                        else:
+                            st.error("无法连接到服务器，请检查后端是否正在运行")
+                else:
+                    st.error("密码和确认密码不匹配")
+            else:
+                st.error("请输入用户名和密码")
+
 def project_management_page():
     """项目管理页面"""
     st.title("📁 项目管理")
