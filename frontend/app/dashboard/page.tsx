@@ -116,12 +116,7 @@ export default function Dashboard() {
   const [username, setUsername] = useState<string>("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
-const { 
-  projects: contextProjects, 
-  updateProject, 
-  isLoading: contextLoading, 
-  error: contextError 
-} = useProjectContext();
+  const { projects: contextProjects, updateProject, isLoading: contextLoading, error: contextError } = useProjectContext();
   const lastLoadTimeRef = useRef<number>(0); // 記錄上次成功載入時間
   const isLoadingRef = useRef(false); // 防止重複 loading
   const stableUpdateProject = useCallback(updateProject, []); // 穩定化的 updateProject

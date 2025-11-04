@@ -1,11 +1,12 @@
 import logging
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import shutil
 import os
 import pymysql
+from pathlib import Path
 
 #=================================== Initialize server ==========================================
 
@@ -477,28 +478,95 @@ async def get_project_shares(request: ProjectRequest):
 
 #=================================== Page 3 - Video Upload & Management ==========================================
 
-class UploadRequest(BaseModel):
-    project_id: int
-    file: UploadFile = File(...)
-
 # Upload video
+async def save_upload_file(upload_file: UploadFile, destination: Path):
+    """
+    Stream upload to disk in chunks.
+    """
+    total_written = 0
+    chunk_size = 10 * 1024 * 1024  # 10 MB chunks
+
+    # Max file size: 5 GB (adjust as needed)
+    MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB in bytes
+
+    with destination.open("wb") as buffer:
+        while True:
+            chunk = await upload_file.read(chunk_size)
+            if not chunk:
+                break
+            buffer.write(chunk)
+            total_written += len(chunk)
+
+            # Optional: Log progress
+            if total_written % (100 * 1024 * 1024) == 0:  # every 100 MB
+                logger.info(f"Uploaded {total_written / (1024**2):.1f} MB of {upload_file.filename}")
+
+            # Enforce size limit
+            if total_written > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Max allowed: {MAX_FILE_SIZE / (1024**3):.1f} GB"
+                )
+
+    return total_written
+
 @app.post("/upload")
-async def upload(request: UploadRequest):
+async def upload(project_id: int, file: UploadFile = File(...)):
     try:
-        project_id = request.project_id
-        file = request.file
-
-        if not file.filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
-            raise HTTPException(status_code=400, detail="Invalid file type.")
-
-        # Mock implementation
-        logger.info(f"Uploading file {file.filename} to project {project_id}")
-
-        return {
-            "success": True,
-            "message": f"File {file.filename} uploaded successfully",
-            "video_id": 1
+        # Allowed video MIME types
+        ALLOWED_MIME_TYPES = {
+            "video/mp4",
+            "video/avi",
+            "video/mkv",
+            "video/webm",
+            "video/quicktime",  # .mov
+            "video/x-msvideo",  # .avi
         }
+        print(file)
+        # 1. Validate filename
+        filename = file.filename
+        if not filename:
+            raise HTTPException(status_code=400, detail="No file name")
+
+        # Prevent path traversal
+        safe_filename = Path(filename).name
+        if safe_filename != filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        # 2. Validate content type
+        content_type = file.content_type
+        if content_type not in ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
+            )
+
+        # 3. Define destination
+        file_path = safe_filename
+
+        # Optional: Prevent overwrite (or allow with unique names)
+        if file_path.exists():
+            raise HTTPException(status_code=409, detail="File already exists")
+
+        # 4. Stream to disk
+        try:
+            size = await save_upload_file(file, file_path)
+            logger.info(f"Successfully uploaded: {file_path} ({size / (1024**3):.2f} GB)")
+        except Exception as e:
+            if file_path.exists():
+                file_path.unlink()  # cleanup partial
+            raise HTTPException(status_code=500, detail="Upload failed")
+        
+        video_id = int(time.time() * 1000)  # 或用 DB insert
+        
+        return JSONResponse({
+            "message": "Upload successful",
+            "video_id":video_id,
+            "filename": safe_filename,
+            "size_bytes": size,
+            "size_gb": round(size / (1024**3), 2),
+            "path": str(file_path)
+        })
 
     except Exception as e:
         logger.error(f"Upload error: {str(e)}")
@@ -509,7 +577,7 @@ async def upload(request: UploadRequest):
 
 # Get all uploaded videos for a project
 @app.post("/get_uploaded_videos")
-def get_uploaded_videos(request: ProjectRequest):
+async def get_uploaded_videos(request: ProjectRequest):
     try:
         project_id = request.project_id
 
@@ -533,7 +601,7 @@ def get_uploaded_videos(request: ProjectRequest):
 
 # Get project videos by project ID (RESTful endpoint)
 @app.get("/get_project_videos/{project_id}")
-def get_project_videos(project_id: int):
+async def get_project_videos(project_id: int):
     try:
         # Mock implementation
         mock_videos = [
@@ -843,7 +911,7 @@ async def get_model_performance(request: ProjectRequest):
             "accuracy": 0.92,
             "precision": 0.89,
             "recall": 0.94,
-            "f1_score": 1
+            "f1_score": 0.92
         }
 
         return {
@@ -858,18 +926,45 @@ async def get_model_performance(request: ProjectRequest):
         )
 
 # Get model path
-@app.post("/get_model_path")
-async def get_model_path(request: ProjectRequest):
+@app.post("/get_model")
+async def get_model(request: ProjectRequest):
     try:
         project_id = request.project_id
 
         # Mock implementation
-        model_path = f"/models/project_{project_id}/best_model.pt"
+        # Define model path based on project ID
+        model_dir = Path(__file__).parent.resolve()
+        model_path = model_dir / f"best.pt"
 
-        return {
-            "success": True,
-            "model path": model_path
+        if not model_path.is_file():
+            raise RuntimeError(f"Model file not found: {model_path}")
+
+        # stream the file in chunks
+        def file_iterator(file_path: Path, chunk_size: int = 8192):
+            """Yield file chunks – perfect for large models."""
+            with open(file_path, "rb") as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+
+        # Build safe headers
+        file_name = model_path.name  # "best.pt"
+        file_size = model_path.stat().st_size
+        headers = {
+            "Content-Disposition": f'attachment; filename="{file_name}"',
+            "Content-Type": "application/octet-stream",
+            "Content-Length": str(file_size),
+            # Optional: allow resumable downloads
+            "Accept-Ranges": "bytes",
         }
+
+        return StreamingResponse(
+            file_iterator(model_path),
+            media_type="application/octet-stream",
+            headers=headers,
+        )
 
     except Exception as e:
         return JSONResponse(

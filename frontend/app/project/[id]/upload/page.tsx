@@ -34,7 +34,7 @@ const UploadPage = () => {
         
         // Load project info
         try {
-          const projectDetails = await ApiService.getProjectDetails(Number(project_id));
+          const projectDetails = await ApiService.getProjectVideos(Number(project_id));
           setProjectInfo(projectDetails);
           console.log("Project info loaded:", projectDetails);
         } catch (error) {
@@ -149,7 +149,7 @@ const UploadPage = () => {
             url: URL.createObjectURL(file), // Use blob URL for preview
             title: file.name,
             file: file,
-            video_id: result.video_id,
+            video_id: result.video_id || Date.now(),
             video_path: result.video_path
           };
         } catch (error) {

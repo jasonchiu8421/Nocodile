@@ -144,6 +144,12 @@ export interface VideoRequest {
   project_id: string;
   video_id: string;
 }
+export type uploadedVid = {
+  name: string;
+  video_id: number;
+  url: string;
+  video_path?: string;
+};
 
 export interface AnnotationRequest {
   project_id: string;
@@ -210,73 +216,6 @@ export class ApiService {
   }
 
   // Upload video file
-  static async uploadVideo(projectId: string, file: File): Promise<{
-    success: boolean;
-    message: string;
-    video_id: string;
-    video_path: string;
-    file_size: number;
-    project_id: string;
-  }> {
-    const startTime = Date.now();
-    const endpoint = '/upload';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, fileName: file.name, fileSize: file.size });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      
-      // Create URL with project_id as query parameter
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      
-      // Create FormData for file upload (only file, not project_id)
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        body: formData, // Don't set Content-Type header, let browser set it with boundary
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
-        throw new Error(`Upload failed: HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, { 
-        videoId: data.video_id,
-        fileSize: data.file_size 
-      });
-      
-      return {
-        success: true,
-        message: data.message || 'Upload successful',
-        video_id: data.video_id,
-        video_path: data.video_path,
-        file_size: data.file_size,
-        project_id: data.project_id
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error uploading video', { 
-        projectId,
-        fileName: file.name,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      throw error;
-    }
-  }
-
-  // Fallback videos when API fails
-  private static getFallbackVideos(): any[] {
-    return [];
-  }
 
   // Get all projects for a user
   static async getProjectsInfo(userId: number): Promise<ProjectInfo[]> {
@@ -455,6 +394,102 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
     throw error; // 讓上層能 catch
   }
 }
+  // ========== Upload API Methods ==========
+static async uploadVideo(project_id: string, file: File): Promise<any> {
+    const baseUrl = await this.findWorkingBackendUrl();
+    const url = `${baseUrl}/upload?project_id=${project_id}`;
+    const formData = new FormData();
+    formData.append("file", file);
+
+   log.info('API', '開始上傳影片', {
+    project_id,
+    fileName: file.name,
+    fileSize: file.size,
+    url,
+    method: 'POST',
+    timestamp: new Date().toISOString(),
+  });
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Upload failed" }));
+      log.error('API', '上傳失敗', { status: response.status, error });
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    log.info('API', '上傳成功', {
+      filename: data.filename,
+      path: data.path,
+      size_bytes: data.size_bytes
+    });
+    return data;
+  }
+
+  // === 2. 取得專案影片（推薦 GET）===
+  static async getProjectVideos(project_id: number): Promise<uploadedVid[]> {
+    const baseUrl = await this.findWorkingBackendUrl();
+    const url = `${baseUrl}/get_project_videos/${project_id}`;
+
+    log.info('API', '查詢專案影片', { project_id });
+
+    const response = await fetch(url, { method: "GET" });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Failed to load" }));
+      log.error('API', '查詢失敗', { status: response.status, error });
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    const videos: uploadedVid[] = (result.videos || []).map((v: any) => ({
+      name: v.name,
+      video_id: v.video_id || Date.now(),
+      url: `${baseUrl}${v.path}`,
+      video_path: v.path,
+    }));
+
+    log.info('API', '查詢成功', { count: videos.length });
+    return videos;
+  }
+
+  // === 3. （備用）用 POST 查詢 ===
+  static async getUploadedVidsAsync(project_id: number): Promise<uploadedVid[]> {
+    const baseUrl = await this.findWorkingBackendUrl();
+    const response = await fetch(`${baseUrl}/get_uploaded_videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id }),
+    });
+
+    if (!response.ok) throw new Error("Failed to load videos");
+    const videos = await response.json();
+    return (videos || []).map((v: any) => ({
+      name: v.name,
+      video_id: v.video_id || Date.now(),
+      url: `${baseUrl}${v.path}`,
+      video_path: v.path,
+    }
+  ));
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   // ========== Annotation API Methods ==========
 
   // Get classes for a project
@@ -1749,68 +1784,6 @@ static async getTrainingProgress(projectId: string) {
         message: 'Backend connection test failed',
         timestamp: new Date().toISOString()
       };
-    }
-  }
-
-  // Get uploaded videos for a project
-  static async getUploadedVideos(projectId: string): Promise<any[]> {
-    const startTime = Date.now();
-    const endpoint = `/get_project_videos/${projectId}`;
-    
-    try {
-      // 驗證和清理輸入參數
-      const cleanProjectId = projectId.toString().replace(/\D/g, '');
-      
-      if (!cleanProjectId || cleanProjectId === "undefined" || cleanProjectId === "") {
-        throw new Error(`Invalid project ID: ${projectId}`);
-      }
-      
-      const projectIdInt = parseInt(cleanProjectId);
-      
-      if (isNaN(projectIdInt)) {
-        throw new Error(`Invalid project ID: ${projectIdInt}`);
-      }
-      
-      log.apiCall(endpoint, 'GET', { projectId: projectIdInt });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.error('API', `Server error (${response.status}) - possible causes: project not found, database issues`);
-        const errorText = await response.text();
-        log.error('API', `Server error details: ${errorText}`);
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(endpoint, 'GET', response.status, duration);
-      
-      // 返回視頻列表，確保格式正確
-      if (data && data.success && Array.isArray(data.videos)) {
-        return data.videos;
-      } else {
-        log.warn('API', 'API returned unexpected format, using fallback');
-        return [];
-      }
-      
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'GET', error, duration);
-      
-      // 返回空數組作為fallback
-      log.warn('API', 'Using fallback data for videos');
-      return [];
     }
   }
 
