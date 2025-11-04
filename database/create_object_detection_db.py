@@ -23,24 +23,31 @@ class ObjectDetectionDB:
         初始化数据库连接
         優先使用環境變數或配置模組
         """
-        if USE_CONFIG_MODULE:
-            # 使用配置模組
-            self.config = {
-                'host': host or config.database.host,
-                'user': user or config.database.user,
-                'password': password or config.database.password,
-                'database': database or config.database.database,
-                'charset': 'utf8mb4'
-            }
-        else:
-            # 使用環境變數或預設值
-            self.config = {
-                'host': host or os.getenv('MYSQL_HOST', 'localhost'),
-                'user': user or os.getenv('MYSQL_USER', 'root'),
-                'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
-                'database': database or os.getenv('MYSQL_DATABASE', 'nocodile_db'),
-                'charset': 'utf8mb4'
-            }
+        # if USE_CONFIG_MODULE:
+        #     # 使用配置模組
+        #     self.config = {
+        #         'host': host or config.database.host,
+        #         'user': user or config.database.user,
+        #         'password': password or config.database.password,
+        #         'database': database or config.database.database,
+        #         'charset': 'utf8mb4'
+        #     }
+        # else:
+        #     # 使用環境變數或預設值
+        #     self.config = {
+        #         'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+        #         'user': user or os.getenv('MYSQL_USER', 'root'),
+        #         'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+        #         'database': database or os.getenv('MYSQL_DATABASE', 'nocodile_db'),
+        #         'charset': 'utf8mb4'
+        #     }
+        self.config = {
+            'host': 'localhost',
+            'user': 'root',
+            'password': 'noconoconocodile',
+            'database': 'Nocodile',
+            'charset': 'utf8mb4'
+        }
         
         self.connection = None
         print(f"資料庫配置: {self.config['host']}:{self.config.get('port', 3306)}")
