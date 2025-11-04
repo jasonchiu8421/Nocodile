@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 6, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"","debugId":null}},
-    {"offset": {"line": 18, "column": 0}, "map": {"version":3,"sources":["file:///home/kris/Desktop/nocodile/app/page.tsx"],"sourcesContent":["import Image from \"next/image\";\nimport Link from \"next/link\";\n\nexport default function Home() {\n  return (\n    <div className=\"font-sans min-w-screen min-h-screen flex flex-col justify-center items-center\">\n      <Link href=\"/photos\" className=\"flex p-4\">\n        View your images\n      </Link>\n      <Link href=\"/workflow\" className=\"flex p-4 bg-amber-300 rounded-xl\">\n        Block interface\n      </Link>\n    </div>\n  );\n}\n"],"names":[],"mappings":";;;;AACA;;;AAEe,SAAS;IACtB,qBACE,8OAAC;QAAI,WAAU;;0BACb,8OAAC,4JAAA,CAAA,UAAI;gBAAC,MAAK;gBAAU,WAAU;0BAAW;;;;;;0BAG1C,8OAAC,4JAAA,CAAA,UAAI;gBAAC,MAAK;gBAAY,WAAU;0BAAmC;;;;;;;;;;;;AAK1E","debugId":null}}]
-}
