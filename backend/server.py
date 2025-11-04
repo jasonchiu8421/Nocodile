@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from passlib.context import CryptContext
+# from passlib.context import CryptContext
 import shutil
 import uuid
 import cv2
@@ -26,22 +26,22 @@ import pymysql
 import hashlib
 import hmac
 from starlette.middleware.base import BaseHTTPMiddleware
-from config import config
+# from config import config
 
-# 導入配置模組
-try:
-    USE_CONFIG_MODULE = True
-except ImportError:
-    USE_CONFIG_MODULE = False
-    # 如果無法導入配置模組，使用環境變數
-    import os
-    config = {
-        'host': os.getenv('MYSQL_HOST', 'localhost'),
-        'user': os.getenv('MYSQL_USER', 'root'),
-        'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
-        'database': os.getenv('MYSQL_DATABASE', 'object_detection'),
-        'charset': 'utf8mb4'
-    }
+# # 導入配置模組
+# try:
+#     USE_CONFIG_MODULE = True
+# except ImportError:
+#     USE_CONFIG_MODULE = False
+#     # 如果無法導入配置模組，使用環境變數
+#     import os
+#     config = {
+#         'host': os.getenv('MYSQL_HOST', 'localhost'),
+#         'user': os.getenv('MYSQL_USER', 'root'),
+#         'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+#         'database': os.getenv('MYSQL_DATABASE', 'object_detection'),
+#         'charset': 'utf8mb4'
+#     }
 
 #=================================== Initialize server ==========================================
 
@@ -76,8 +76,8 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestSizeLimitMiddleware, max_header_size=8192)
 
-# 添加靜態文件服務 - 提供視頻文件
-app.mount("/videos", StaticFiles(directory="/app/projects"), name="videos")
+# # 添加靜態文件服務 - 提供視頻文件
+# app.mount("/videos", StaticFiles(directory="/app/projects"), name="videos")
 
 #=================================== Health Check and Root Endpoints ==========================================
 
@@ -141,74 +141,86 @@ def sanitize_filename(filename):
     
     return filename
 
-#changed by Jimmy ,to ensure it is work in docker container.
-# 檢測是否在 Docker 環境中運行
-def get_database_config():
-    # 檢查是否在 Docker 容器中運行
-    if os.path.exists('/.dockerenv'):
-        # Docker 環境配置
-        return {
-            'host': os.getenv('MYSQL_HOST', 'mysql'),
-            'user': os.getenv('MYSQL_USER', 'root'),
-            'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
-            'database': os.getenv('MYSQL_DATABASE', 'object_detection'),
-            'charset': 'utf8mb4'
-        }
-    else:
-        # 本地開發環境配置
-        return {
-            'host': 'localhost',
-            'user': 'root',
-            'password': '12345678',
-            'database': 'Nocodile',
-            'charset': 'utf8mb4'
-        }
+# #changed by Jimmy ,to ensure it is work in docker container.
+# # 檢測是否在 Docker 環境中運行
+# def get_database_config():
+#     # 檢查是否在 Docker 容器中運行
+#     if os.path.exists('/.dockerenv'):
+#         # Docker 環境配置
+#         return {
+#             'host': os.getenv('MYSQL_HOST', 'mysql'),
+#             'user': os.getenv('MYSQL_USER', 'root'),
+#             'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+#             'database': os.getenv('MYSQL_DATABASE', 'object_detection'),
+#             'charset': 'utf8mb4'
+#         }
+#     else:
+#         # 本地開發環境配置
+#         return {
+#             'host': 'localhost',
+#             'user': 'root',
+#             'password': '12345678',
+#             'database': 'Nocodile',
+#             'charset': 'utf8mb4'
+#         }
 
-# 資料庫連接重試機制
-def connect_to_database(max_retries=5, delay=2):
-    """連接數據庫，支持多種配置嘗試"""
-    if USE_CONFIG_MODULE:
-        # 使用配置模組的多個連接配置
-        configs_to_try = config.database.get_connection_configs()
-    else:
-        # 使用 get_database_config 函數
-        base_config = get_database_config()
-        configs_to_try = [
-            base_config,
-            # Docker 本地映射端口
-            {**base_config, 'host': 'localhost', 'port': 3307},
-            # 標準本地端口
-            {**base_config, 'host': 'localhost', 'port': 3306}
-        ]
+# # 資料庫連接重試機制
+# def connect_to_database(max_retries=5, delay=2):
+#     """連接數據庫，支持多種配置嘗試"""
+#     if USE_CONFIG_MODULE:
+#         # 使用配置模組的多個連接配置
+#         configs_to_try = config.database.get_connection_configs()
+#     else:
+#         # 使用 get_database_config 函數
+#         base_config = get_database_config()
+#         configs_to_try = [
+#             base_config,
+#             # Docker 本地映射端口
+#             {**base_config, 'host': 'localhost', 'port': 3307},
+#             # 標準本地端口
+#             {**base_config, 'host': 'localhost', 'port': 3306}
+#         ]
     
-    for attempt in range(max_retries):
-        for i, conn_config in enumerate(configs_to_try):
-            try:
-                print(f"嘗試連接配置 {i+1}: {conn_config['host']}:{conn_config.get('port', 3306)}")
-                conn = pymysql.connect(**conn_config)
-                print(f"数据库连接成功！(尝试 {attempt + 1}/{max_retries}, 配置 {i+1})")
-                return conn
-            except pymysql.Error as e:
-                print(f"配置 {i+1} 連接失敗: {e}")
-                continue
+#     for attempt in range(max_retries):
+#         for i, conn_config in enumerate(configs_to_try):
+#             try:
+#                 print(f"嘗試連接配置 {i+1}: {conn_config['host']}:{conn_config.get('port', 3306)}")
+#                 conn = pymysql.connect(**conn_config)
+#                 print(f"数据库连接成功！(尝试 {attempt + 1}/{max_retries}, 配置 {i+1})")
+#                 return conn
+#             except pymysql.Error as e:
+#                 print(f"配置 {i+1} 連接失敗: {e}")
+#                 continue
         
-        if attempt < max_retries - 1:
-            print(f"所有配置都失敗，等待 {delay} 秒後重試...")
-            import time
-            time.sleep(delay)
-        else:
-            print("所有連接嘗試都失敗了")
-            return None
+#         if attempt < max_retries - 1:
+#             print(f"所有配置都失敗，等待 {delay} 秒後重試...")
+#             import time
+#             time.sleep(delay)
+#         else:
+#             print("所有連接嘗試都失敗了")
+#             return None
 
-connection = connect_to_database()
+config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'noconoconocodile',
+    'database': 'Nocodile',
+    'charset': 'utf8mb4'
+}
 
-# 資料庫連接重連機制 by (ensure the db will not crash when the db is lost)
-def ensure_database_connection():
-    global connection
-    if not connection or not connection.open:
-        logger.warning("Database connection lost, attempting to reconnect...")
-        connection = connect_to_database()
-    return connection
+try:
+    connection = pymysql.connect(**config)
+    print("数据库连接成功！")
+except pymysql.Error as e:
+    print(f"数据库连接失败: {e}")
+
+# # 資料庫連接重連機制 by (ensure the db will not crash when the db is lost)
+# def ensure_database_connection():
+#     global connection
+#     if not connection or not connection.open:
+#         logger.warning("Database connection lost, attempting to reconnect...")
+#         connection = connect_to_database()
+#     return connection
 
 #=================================== Define Request Types ==========================================
 
@@ -234,12 +246,8 @@ class UserLogin():
         cursor.execute(query, (self.username,))
         password = cursor.fetchone()['password']
         cursor.close()
-
-# ???
         decoded_bytes = base64.b64decode(password)
-        decoded_str = decoded_bytes.decode('utf-8')
-        salt, pwd_hash = decoded_str.split(':', 1)
-        
+        salt, pwd_hash = decoded_bytes.split(b':')
         return pwd_hash, salt
     
     # Fecth userID given self.username
@@ -286,14 +294,14 @@ class UserLogin():
         if salt is None:
             salt = os.urandom(16)
         # Use PBKDF2-HMAC-SHA256 as the hashing algorithm
-        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100_000)
+        pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100_000)
         return salt, pwd_hash
 
     # Check whether the hashed passwords matches
     @staticmethod
     def _verify_password(stored_hash, stored_salt, provided_password):
         # Hash the provided password using the stored salt
-        _, pwd_hash = UserLogin._hash_password(provided_password, stored_salt)
+        _, pwd_hash = UserLogin._hash_password(provided_password, salt=stored_salt)
         # Use hmac.compare_digest to avoid timing attacks
         return hmac.compare_digest(pwd_hash, stored_hash)
 
@@ -1462,7 +1470,7 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
 @app.post("/logout")
 async def logout():
     """用戶登出端點"""
@@ -1542,10 +1550,7 @@ async def register(request: RegisterRequest):
         stored_password = base64.b64encode(salt + b':' + pwd_hash).decode('utf-8')
         
         # 插入新用戶
-        insert_query = """
-            INSERT INTO user (username, password) 
-            VALUES (%s, %s)
-        """
+        insert_query = "INSERT INTO user (username, password) VALUES (%s, %s)"
         cursor.execute(insert_query, (username, stored_password))
         user_id = cursor.lastrowid
         
@@ -1591,7 +1596,7 @@ async def get_users_projects(request: UserRequest):
 
         # Get detailed project information for owned projects
         owned_projects = []
-        for project_id in owner_project_ids:
+        for project_id in owned_project_ids:
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
