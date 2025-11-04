@@ -1600,9 +1600,9 @@ async def get_users_projects(request: UserRequest):
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
-            status = project.get_project_status()
+            project_status = project.get_project_status()
             isOwned = (user == project.get_owner())
-            owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
+            owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": project_status, "isOwned": isOwned})
         
         # Get detailed project information for shared projects
         shared_projects = []
@@ -1610,12 +1610,11 @@ async def get_users_projects(request: UserRequest):
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
-            status = project.get_project_status()
+            project_status = project.get_project_status()
             isOwned = (user == project.get_owner())
-            shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
+            shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": project_status, "isOwned": isOwned})
         
         logger.info(f"Retrieved projects for user {userID}: {len(owned_projects)} owned, {len(shared_projects)} shared")
-        
         
         return {
             "owned projects": owned_projects,
