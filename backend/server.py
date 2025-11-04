@@ -568,6 +568,48 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             "path": str(file_path)
         })
 
+        # 1. Validate filename
+        filename = file.filename
+        if not filename:
+            raise HTTPException(status_code=400, detail="No file name")
+
+        # Prevent path traversal
+        safe_filename = Path(filename).name
+        if safe_filename != filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        # 2. Validate content type
+        content_type = file.content_type
+        if content_type not in ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
+            )
+
+        # 3. Define destination
+        file_path = safe_filename
+
+        # Optional: Prevent overwrite (or allow with unique names)
+        if file_path.exists():
+            raise HTTPException(status_code=409, detail="File already exists")
+
+        # 4. Stream to disk
+        try:
+            size = await save_upload_file(file, file_path)
+            logger.info(f"Successfully uploaded: {file_path} ({size / (1024**3):.2f} GB)")
+        except Exception as e:
+            if file_path.exists():
+                file_path.unlink()  # cleanup partial
+            raise HTTPException(status_code=500, detail="Upload failed")
+        
+        return JSONResponse({
+            "message": "Upload successful",
+            "filename": safe_filename,
+            "size_bytes": size,
+            "size_gb": round(size / (1024**3), 2),
+            "path": str(file_path)
+        })
+
     except Exception as e:
         logger.error(f"Upload error: {str(e)}")
         return JSONResponse(
