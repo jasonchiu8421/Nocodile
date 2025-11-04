@@ -1470,7 +1470,7 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
 @app.post("/logout")
 async def logout():
     """用戶登出端點"""

@@ -559,7 +559,7 @@ def main():
     """主函数"""
     # 检查是否已登录
     if st.session_state.user_id is None:
-        login_page()
+        register_page()
     else:
         # 显示用户信息和登出按钮
         col1, col2 = st.columns([3, 1])
