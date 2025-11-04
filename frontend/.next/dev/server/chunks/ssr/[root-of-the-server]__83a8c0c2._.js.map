@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 14, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/jason/Nocodile/frontend/app/page.tsx"],"sourcesContent":["import { redirect } from \"next/navigation\";\r\nimport Login from \"./login/page\";\r\n\r\nexport default function Home() {\r\n  redirect(\"/login\");\r\n}\r\n"],"names":[],"mappings":";;;;AAAA;AAAA;;AAGe,SAAS;IACtB,IAAA,6MAAQ,EAAC;AACX","debugId":null}}]
-}
