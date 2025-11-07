@@ -92,40 +92,39 @@ function AnnotatePageContent() {
       console.log('🆔 [ANNOTATE] Video ID from params:', videoId);
     } else {
       console.warn('⚠️ [ANNOTATE] No video_id parameter found, getting first available video');
-      getFirstAvailableVideoId();
     }
   }, [projectId]);
 
-  const getFirstAvailableVideoId = async () => {
-    try {
-      if (safeProjectId) {
-        const videos = await ApiService.getUploadedVideos(safeProjectId);
-        if (videos && videos.length > 0) {
-          const firstVideo = videos[0];
-          // 後端返回的數據結構：{name, file, path, url}，其中 file 是 video_id
-          const videoId = firstVideo.video_id || firstVideo.id || firstVideo.file_id;
-          if (videoId && videoId !== "undefined" && videoId !== "" && videoId !== undefined) { 
-            setCurrentVideoId(videoId.toString());
-            console.log('🆔 [ANNOTATE] Using first available video ID:', videoId);
-          } else {
-            console.warn('⚠️ [ANNOTATE] No valid video ID found in video data:', firstVideo);
-            const defaultVideoId = `1`;
-            setCurrentVideoId(defaultVideoId);
-            console.log('🆔 [ANNOTATE] Using fallback video ID:', defaultVideoId);
-          }
-        } else {
-          const defaultVideoId = `1`; // 使用數字 ID 而不是字符串
-          setCurrentVideoId(defaultVideoId);
-          console.log('🆔 [ANNOTATE] No videos found, using default video ID:', defaultVideoId);
-        }
-      }
-    } catch (error) {
-      console.error('Error getting first available video ID:', error);
-      const defaultVideoId = `1`; // 使用數字 ID 而不是字符串
-      setCurrentVideoId(defaultVideoId);
-      console.log('🆔 [ANNOTATE] Error occurred, using default video ID:', defaultVideoId);
-    }
-  };
+  // const getFirstAvailableVideoId = async () => {
+  //   try {
+  //     if (safeProjectId) {
+  //       const videos = await ApiService.getUploadedVideos(safeProjectId);
+  //       if (videos && videos.length > 0) {
+  //         const firstVideo = videos[0];
+  //         // 後端返回的數據結構：{name, file, path, url}，其中 file 是 video_id
+  //         const videoId = firstVideo.video_id || firstVideo.id || firstVideo.file_id;
+  //         if (videoId && videoId !== "undefined" && videoId !== "" && videoId !== undefined) { 
+  //           setCurrentVideoId(videoId.toString());
+  //           console.log('🆔 [ANNOTATE] Using first available video ID:', videoId);
+  //         } else {
+  //           console.warn('⚠️ [ANNOTATE] No valid video ID found in video data:', firstVideo);
+  //           const defaultVideoId = `1`;
+  //           setCurrentVideoId(defaultVideoId);
+  //           console.log('🆔 [ANNOTATE] Using fallback video ID:', defaultVideoId);
+  //         }
+  //       } else {
+  //         const defaultVideoId = `1`; // 使用數字 ID 而不是字符串
+  //         setCurrentVideoId(defaultVideoId);
+  //         console.log('🆔 [ANNOTATE] No videos found, using default video ID:', defaultVideoId);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Error getting first available video ID:', error);
+  //     const defaultVideoId = `1`; // 使用數字 ID 而不是字符串
+  //     setCurrentVideoId(defaultVideoId);
+  //     console.log('🆔 [ANNOTATE] Error occurred, using default video ID:', defaultVideoId);
+  //   }
+  // };
 
   useEffect(() => {
     const loadClasses = async () => {

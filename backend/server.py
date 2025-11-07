@@ -6,12 +6,16 @@ from pydantic import BaseModel
 import shutil
 import os
 import pymysql
+import time
 from pathlib import Path
 
 #=================================== Initialize server ==========================================
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+UPLOAD_DIR = Path("uploads")        # 所有上傳檔案的根目錄
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 app = FastAPI()
 
@@ -101,6 +105,7 @@ class LoginRequest(BaseModel):
 # User login
 # Input: username, password
 # Output: success, userID
+##Work
 @app.post("/login")
 async def login(request: LoginRequest):
     try:
@@ -113,7 +118,7 @@ async def login(request: LoginRequest):
 
         return {
                 "success": True,
-                "userID": 123,
+                "userID": 789,
                 "message": "Login successful"
             }
 
@@ -122,7 +127,7 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-
+#Work
 @app.post("/logout")
 async def logout():
     """用戶登出端點"""
@@ -186,6 +191,7 @@ async def register(request: RegisterRequest):
 
         # Mock implementation for testing (database not connected)
         # In production, this would check the database
+        ##work
         return {
             "success": True,
             "message": "註冊成功",
@@ -200,13 +206,14 @@ async def register(request: RegisterRequest):
         )
 
 #=================================== Page 2 - Project Management ==========================================
-
+#all work ,excpet get project info and details (not sure)
 class UserRequest(BaseModel):
     userID: int
 
 # Get all projects IDs for a user
 # Input: userID
 # Output: owner project IDs, shared project IDs #change
+#worked
 @app.post("/get_projects_info")
 async def get_users_projects(request: UserRequest):
     try:
@@ -459,7 +466,7 @@ async def get_project_shares(request: ProjectRequest):
                 "id": 1,
                 "permissions": "read",
                 "shared_at": "2023-01-01 10:00:00",
-                "username": "testuser2",
+                "username": "hoho",
                 "user_id": 456
             }
         ]
@@ -522,51 +529,6 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             "video/quicktime",  # .mov
             "video/x-msvideo",  # .avi
         }
-        print(file)
-        # 1. Validate filename
-        filename = file.filename
-        if not filename:
-            raise HTTPException(status_code=400, detail="No file name")
-
-        # Prevent path traversal
-        safe_filename = Path(filename).name
-        if safe_filename != filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-
-        # 2. Validate content type
-        content_type = file.content_type
-        if content_type not in ALLOWED_MIME_TYPES:
-            raise HTTPException(
-                status_code=415,
-                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
-            )
-
-        # 3. Define destination
-        file_path = safe_filename
-
-        # Optional: Prevent overwrite (or allow with unique names)
-        if file_path.exists():
-            raise HTTPException(status_code=409, detail="File already exists")
-
-        # 4. Stream to disk
-        try:
-            size = await save_upload_file(file, file_path)
-            logger.info(f"Successfully uploaded: {file_path} ({size / (1024**3):.2f} GB)")
-        except Exception as e:
-            if file_path.exists():
-                file_path.unlink()  # cleanup partial
-            raise HTTPException(status_code=500, detail="Upload failed")
-        
-        video_id = int(time.time() * 1000)  # 或用 DB insert
-        
-        return JSONResponse({
-            "message": "Upload successful",
-            "video_id":video_id,
-            "filename": safe_filename,
-            "size_bytes": size,
-            "size_gb": round(size / (1024**3), 2),
-            "path": str(file_path)
-        })
 
         # 1. Validate filename
         filename = file.filename
@@ -587,11 +549,14 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             )
 
         # 3. Define destination
-        file_path = safe_filename
+        #jimmy changed
+        project_dir = UPLOAD_DIR / str(project_id)
+        project_dir.mkdir(parents=True, exist_ok=True)   # 自動建立 uploads/1/
+        file_path = project_dir / safe_filename
 
         # Optional: Prevent overwrite (or allow with unique names)
-        if file_path.exists():
-            raise HTTPException(status_code=409, detail="File already exists")
+        # if file_path.exists():
+        #     raise HTTPException(status_code=409, detail="File already exists")
 
         # 4. Stream to disk
         try:
@@ -601,13 +566,16 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             if file_path.exists():
                 file_path.unlink()  # cleanup partial
             raise HTTPException(status_code=500, detail="Upload failed")
+
+        video_id = int(time.time() * 1000)  # 建議改用 DB
         
         return JSONResponse({
             "message": "Upload successful",
             "filename": safe_filename,
             "size_bytes": size,
             "size_gb": round(size / (1024**3), 2),
-            "path": str(file_path)
+            "path": str(file_path),
+            "video_id": video_id
         })
 
     except Exception as e:
