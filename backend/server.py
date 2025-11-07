@@ -2138,7 +2138,7 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
 # Delete class of a project and return new classes list
 # Output: {"class_name": colour, ...}
 @app.post("/delete_class")
-async def add_class(request: ProjectRequest, class_name: str):
+async def delete_class(request: ProjectRequest, class_name: str):
     try:
         project = Project(project_id = request.project_id)
         
@@ -2199,21 +2199,21 @@ async def get_next_frame_to_annotate(request: VideoRequest):
             content={"error": str(e)}
         )
 
-# Check annotation status of a video
-@app.post("/check_annotation_status")
-async def check_annotation_status(request: VideoRequest):  
-    try:
-        video = Video(project_id = request.project_id, video_id = request.video_id)
-        return {
-            "annotation status": video.annotation_status,
-            "last annotated frame": video.last_annotated_frame
-        }
+# # Check annotation status of a video
+# @app.post("/check_annotation_status")
+# async def check_annotation_status(request: VideoRequest):  
+#     try:
+#         video = Video(project_id = request.project_id, video_id = request.video_id)
+#         return {
+#             "annotation status": video.annotation_status,
+#             "last annotated frame": video.last_annotated_frame
+#         }
 
-    except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
+#     except Exception as e:
+#         return JSONResponse(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             content={"error": str(e)}
+#         )
     
 # Save annotation for a frame
 @app.post("/annotate")
@@ -2240,40 +2240,39 @@ async def annotate(request: AnnotationRequest):
             content={"error": str(e)}
         )
 
-# ? No need now?
-# Get next video to annotate
-@app.post("/next_video")
-async def next_video(request: ProjectRequest, current_video_id: str):
-    try:
-        project = Project(project_id = request.project_id)
-        if current_video_id not in project.videos:
-            return {
-                "success": False,
-                "message": "Current video not found in project.",
-                "next_video_id": None
-            }
+# # Get next video to annotate
+# @app.post("/next_video")
+# async def next_video(request: ProjectRequest, current_video_id: str):
+#     try:
+#         project = Project(project_id = request.project_id)
+#         if current_video_id not in project.videos:
+#             return {
+#                 "success": False,
+#                 "message": "Current video not found in project.",
+#                 "next_video_id": None
+#             }
         
-        current_index = project.videos.index(current_video_id)
-        if current_index + 1 < len(project.videos):
-            next_video_id = project.videos[current_index + 1]
-            return {
-                "success": True,
-                "message": "Next video fetched successfully.",
-                "next_video_id": next_video_id
-            }
-        else:
-            next_video_id = project.videos[0]
-            return {
-                "success": True,
-                "message": "Reached end of video list. Looping back to first video.",
-                "next_video_id": next_video_id
-            }
+#         current_index = project.videos.index(current_video_id)
+#         if current_index + 1 < len(project.videos):
+#             next_video_id = project.videos[current_index + 1]
+#             return {
+#                 "success": True,
+#                 "message": "Next video fetched successfully.",
+#                 "next_video_id": next_video_id
+#             }
+#         else:
+#             next_video_id = project.videos[0]
+#             return {
+#                 "success": True,
+#                 "message": "Reached end of video list. Looping back to first video.",
+#                 "next_video_id": next_video_id
+#             }
 
-    except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
+#     except Exception as e:
+#         return JSONResponse(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             content={"error": str(e)}
+#         )
     
 #=================================== Page 5 - Model Training ==========================================
 
