@@ -1873,38 +1873,38 @@ async def unshare_project(request: UnshareProjectRequest):
             content={"error": str(e), "traceback": traceback.format_exc()}
         )
 
-# Get project shares
-@app.post("/get_project_shares")
-async def get_project_shares(request: ProjectRequest):
-    try:
-        project_id = request.project_id
+# # Get project shares
+# @app.post("/get_project_shares")
+# async def get_project_shares(request: ProjectRequest):
+#     try:
+#         project_id = request.project_id
 
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        # Ask Jimmy (database has a table for project_shares?)
-        query = """
-            SELECT ps.id, ps.permissions, ps.shared_at, u.username, u.user_id
-            FROM project_shares ps
-            JOIN user u ON ps.shared_with_user_id = u.user_id
-            WHERE ps.project_id = %s
-            ORDER BY ps.shared_at DESC
-        """
-        cursor.execute(query, (project_id,))
-        shares = cursor.fetchall()
-        cursor.close()
+#         cursor = connection.cursor(pymysql.cursors.DictCursor)
+#         # Ask Jimmy (database has a table for project_shares?)
+#         query = """
+#             SELECT ps.id, ps.permissions, ps.shared_at, u.username, u.user_id
+#             FROM project_shares ps
+#             JOIN user u ON ps.shared_with_user_id = u.user_id
+#             WHERE ps.project_id = %s
+#             ORDER BY ps.shared_at DESC
+#         """
+#         cursor.execute(query, (project_id,))
+#         shares = cursor.fetchall()
+#         cursor.close()
 
-        return {
-            "success": True,
-            "shares": shares
-        }
+#         return {
+#             "success": True,
+#             "shares": shares
+#         }
 
-    except Exception as e:
-        logger.error(f"Error in get_project_shares: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e), "traceback": traceback.format_exc()}
-        )
+#     except Exception as e:
+#         logger.error(f"Error in get_project_shares: {str(e)}")
+#         import traceback
+#         logger.error(f"Traceback: {traceback.format_exc()}")
+#         return JSONResponse(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             content={"error": str(e), "traceback": traceback.format_exc()}
+#         )
 
 
 #=================================== Page 3 - Video Upload & Management ==========================================
@@ -2025,24 +2025,24 @@ def get_uploaded_videos(request: ProjectRequest):
 # ??? (Why need this?)
 # Get project videos by project ID (RESTful endpoint)
 # Output: ?
-@app.get("/get_project_videos/{project_id}")
-def get_project_videos(project_id: int):
-    try:
-        project = Project(project_id=project_id)
-        videos_info = project.get_uploaded_videos()
+# @app.get("/get_project_videos/{project_id}")
+# def get_project_videos(project_id: int):
+#     try:
+#         project = Project(project_id=project_id)
+#         videos_info = project.get_uploaded_videos()
         
-        return {
-            "success": True,
-            "videos": videos_info
-        }
+#         return {
+#             "success": True,
+#             "videos": videos_info
+#         }
     
-    except Exception as e:
-        logger.error(f"Get project videos error: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
+#     except Exception as e:
+#         logger.error(f"Get project videos error: {str(e)}")
+#         logger.error(f"Traceback: {traceback.format_exc()}")
+#         return JSONResponse(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             content={"error": str(e)}
+#         )
     
 #=================================== Page 4 - Annotation ==========================================
 
