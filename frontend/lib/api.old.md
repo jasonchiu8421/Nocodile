@@ -1456,7 +1456,7 @@ export class ApiService {
     };
   }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/get_model_path`, {
+      const response = await fetch(`${API_BASE_URL}/get_model`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,6 +1,8 @@
 // API service for connecting frontend to backend
 import { log, logger } from './logger';
 
+
+
 // Utility function to validate and fix image data
 function validateAndFixImageData(imageData: string): string {
   if (!imageData || typeof imageData !== 'string') {
@@ -215,8 +217,36 @@ export class ApiService {
     }
   }
 
-  // Upload video file
+// 正確的 Fallback 方法（取代現有的兩個錯誤版本）
+private static getFallbackModelPath() {
+  return {
+    success: false,
+    "model path": {
+      onnx_path: undefined,
+      pytorch_path: undefined,
+      config_path: undefined,
+      weights_path: undefined
+    },
+    error: "後端無法取得模型路徑",
+    fallback: true
+  };
+}
 
+private static getFallbackModelPerformance() {
+  return {
+    success: false,                    // 讓 UI 知道是假資料
+    "model performance": {              // ← 這裡是關鍵！不是 "model path"
+      mAP: 0,                          // 設為 0 而不是假高分，讓使用者知道有問題
+      precision: 0,
+      recall: 0,
+      f1_score: 0,
+      accuracy: 0,
+      status: "後端不可用 (fallback mode)"    // 明確標示
+    },
+    error: "後端無法取得模型性能數據",
+    fallback: true
+  };
+}
   // Get all projects for a user
   static async getProjectsInfo(userId: number): Promise<ProjectInfo[]> {
     const startTime = Date.now();
@@ -596,7 +626,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
-      
+      console.log(data.message);
       log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
       return data;
     } catch (error) {
@@ -730,7 +760,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
-      
+      console.log(data.message);
       log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
       return data;
     } catch (error) {
@@ -836,7 +866,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       }
 
       const data = await response.json();
-      
+      console.log(data.message);
       // 驗證響應數據結構
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
@@ -1274,7 +1304,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
   // ========== Training API Methods ==========
 // ========== Training API Methods (修正版) ==========
 
-static async createDataset(projectId: string) {
+static async createDataset(projectId: number) {
   const response = await this.makeApiCall(
     '/create_dataset',
     'POST',
@@ -1403,64 +1433,63 @@ static async getTrainingProgress(projectId: string) {
   }
 
   // Get model file paths
-  static async getModelPath(projectId: string): Promise<{
-    success: boolean;
-    "model path": {
-      onnx_path?: string;
-      pytorch_path?: string;
-      config_path?: string;
-      weights_path?: string;
-    };
-  }> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/get_model_path`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+static async getModelPath(projectId: string): Promise<{
+  success: boolean;
+  "model path": {
+    onnx_path?: string;
+    pytorch_path?: string;
+    config_path?: string;
+    weights_path?: string;
+  };
+  downloadedFile?: Blob;           // 新增：下載的檔案
+  fileName?: string;               // 新增：檔案名稱
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/get_model`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ project_id: projectId }),
+    });
 
-      if (!response.ok) {
-        console.warn(`API returned ${response.status}, using fallback data`);
-        return this.getFallbackModelPath();
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching model path:', error);
+    // 步驟1：先檢查 HTTP status
+    // 原因：StreamingResponse 若檔案不存在會回 500，必須先判斷
+    if (!response.ok) {
+      console.warn(`API returned ${response.status}, using fallback data`);
       return this.getFallbackModelPath();
     }
-  }
 
-  // Fallback model performance data when API fails
-  private static getFallbackModelPerformance() {
-    return {
-      success: true,
-      "model performance": {
-        mAP: 0.92,
-        precision: 0.94,
-        recall: 0.89,
-        f1_score: 0.91,
-        accuracy: 0.88,
-        status: "Fallback data (backend unavailable)"
-      }
-    };
-  }
+    // 步驟2：從 headers 取得檔案名稱與大小（可選）
+    // 原因：後端有提供 Content-Disposition，讓我們知道檔名
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let fileName = 'best.pt';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match) fileName = match[1];
+    }
 
-  // Fallback model path data when API fails
-  private static getFallbackModelPath() {
+    // 步驟3：使用 response.blob() 取得二進位檔案
+    // 原因：這是檔案流，不能用 .json()，必須轉成 Blob 才能後續載入模型
+    const blob = await response.blob();
+
+    // 步驟4：回傳成功 + Blob（供後續 new URL.createObjectURL 使用）
+    // 原因：前端若要用 ort.InferenceSession 載入 ONNX / PT，就需要 Blob URL
     return {
       success: true,
       "model path": {
-        onnx_path: "/models/project_1/model.onnx",
-        pytorch_path: "/models/project_1/model.pth",
-        config_path: "/models/project_1/config.json",
-        weights_path: "/models/project_1/weights.pt"
-      }
+        // 這裡保留舊格式給舊程式相容，也可直接留空
+        pytorch_path: URL.createObjectURL(blob),   // 直接給 Blob URL
+      },
+      downloadedFile: blob,
+      fileName,
     };
+
+  } catch (error) {
+    console.error('Error downloading model:', error);
+    return this.getFallbackModelPath();
   }
+}
 
   // ========== Debug API Methods ==========
 
@@ -1687,11 +1716,12 @@ static async getTrainingProgress(projectId: string) {
     success: boolean;
     downloadUrl?: string;
     error?: string;
+    suggestedFileName?: string;
   }> {
     try {
       // First get the model paths
       const pathData = await this.getModelPath(projectId);
-      
+      const originalFileName = pathData.fileName
       if (!pathData.success) {
         return {
           success: false,
@@ -1717,7 +1747,8 @@ static async getTrainingProgress(projectId: string) {
 
       return {
         success: true,
-        downloadUrl: downloadPath
+        downloadUrl: downloadPath,
+        suggestedFileName: originalFileName
       };
     } catch (error) {
       console.error('Error downloading model file:', error);

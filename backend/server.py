@@ -14,9 +14,6 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = Path("uploads")        # 所有上傳檔案的根目錄
-UPLOAD_DIR.mkdir(exist_ok=True)
-
 app = FastAPI()
 
 app.add_middleware(
@@ -550,13 +547,13 @@ async def upload(project_id: int, file: UploadFile = File(...)):
 
         # 3. Define destination
         #jimmy changed
-        project_dir = UPLOAD_DIR / str(project_id)
+        project_dir = Path(str(project_id))
         project_dir.mkdir(parents=True, exist_ok=True)   # 自動建立 uploads/1/
         file_path = project_dir / safe_filename
 
         # Optional: Prevent overwrite (or allow with unique names)
-        # if file_path.exists():
-        #     raise HTTPException(status_code=409, detail="File already exists")
+        if file_path.exists():
+            raise HTTPException(status_code=409, detail="File already exists")
 
         # 4. Stream to disk
         try:

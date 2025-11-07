@@ -33,47 +33,37 @@ export default function TrainingPage() {
     }
   };
 
-  // 建立資料集
-  const handleCreateDs = async () => {
-    if (isCreatingDs) return; // 防止重複點擊
+const handleCreateDs = async () => {
+  if (isCreatingDs) return;
 
-    setIsCreatingDs(true);
-    setCreateDsProgress(0);
+  setIsCreatingDs(true);
+  setCreateDsProgress(0);
 
-    try {
+  try {
+    // 1. 真正啟動建立資料集（只呼叫這一行！）
+    await ApiService.createDataset(Number(project_id));
 
-      await ApiService.createDataset(project_id);
-
-      const res = await fetch("/create_dataset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id }),
-      });
-
-      if (!res.ok) throw new Error("建立資料集失敗");
-
-      // 開始輪詢進度
-      createDsIntervalRef.current = setInterval(async () => {
-        try {
+    // 2. 開始輪詢進度
+    createDsIntervalRef.current = setInterval(async () => {
+      try {
         const data = await ApiService.getAutoAnnotationProgress(project_id);
         setCreateDsProgress(data.progress || 0);
 
-          // 進度完成 → 停止輪詢
-          if (data.progress >= 100) {
-            clearCreateDsPolling();
-            setIsCreatingDs(false);
-          }
-        } catch (err) {
-          console.error("輪詢錯誤:", err);
-          // 可選：顯示錯誤訊息
+        if (data.progress >= 100) {
+          clearCreateDsPolling();
+          setIsCreatingDs(false);
         }
-      }, 1000);
-    } catch (err) {
-      console.error("建立資料集失敗:", err);
-      alert("無法建立資料集");
-      setIsCreatingDs(false);
-    }
-  };
+      } catch (err) {
+        console.error("輪詢錯誤:", err);
+      }
+    }, 1000);
+
+  } catch (err: any) {
+    console.error("建立資料集失敗:", err);
+    alert(err.message || "無法建立資料集");
+    setIsCreatingDs(false);
+  }
+};
 
   // 訓練模型
   const handleTraining = async () => {
@@ -89,7 +79,6 @@ export default function TrainingPage() {
         try {
         const data = await ApiService.getTrainingProgress(project_id);
         setTrainProgress(data.progress || 0);
-
         if (data.progress >= 100) {
           clearTrainPolling();
           setIsTraining(false);
