@@ -201,9 +201,9 @@ def sanitize_filename(filename):
 #             return None
 
 config = {
-    'host': 'localhost',
+    'host': 'database',
     'user': 'root',
-    'password': 'noconoconocodile',
+    'password': 'rootpassword',
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }
