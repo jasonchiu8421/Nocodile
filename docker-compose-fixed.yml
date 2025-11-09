@@ -1,0 +1,118 @@
+services:
+  # 數據庫初始化服務 - 只在第一次運行時執行
+  database-init:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - MYSQL_HOST=database
+      - MYSQL_USER=${MYSQL_USER:-root}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+    volumes:
+      - ./database:/app/database
+      - ./backend:/app
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - nocodile-network
+    command: python database/create_object_detection_db.py
+    restart: "no"
+    profiles:
+      - init
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PORT:-8888}:8888"
+    environment:
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+      - PYTHONDONTWRITEBYTECODE=${PYTHONDONTWRITEBYTECODE:-1}
+      - MYSQL_HOST=${MYSQL_HOST:-database}
+      - MYSQL_USER=${MYSQL_USER:-root}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - QT_QPA_PLATFORM=offscreen
+      - DISPLAY=:99
+      - LIBGL_ALWAYS_SOFTWARE=1
+    volumes:
+      - ./backend:/app
+      - ./database:/app/database
+      - backend-node-modules:/app/node_modules
+      - ./backend/projects:/app/projects
+      - ./backend/safe_projects:/app/safe_projects
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - nocodile-network
+    restart: unless-stopped
+    # 在啟動後台服務前先初始化數據庫
+    command: >
+      sh -c "
+        echo '🐍 執行數據庫初始化...' &&
+        python database/create_object_detection_db.py &&
+        echo '🚀 啟動後台服務...' &&
+        uvicorn server:app --host 0.0.0.0 --port 8888
+      "
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=http://localhost:8888
+      #- NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8888}
+      - WATCHPACK_POLLING=true
+    volumes:
+      #- ./Nocodile/nocodile:/app
+      - frontend-node-modules:/app/node_modules
+      - frontend-next-cache:/app/.next
+    networks:
+      - nocodile-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  database:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
+    ports:
+      - "3307:${MYSQL_PORT:-3306}"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d
+    networks:
+      - nocodile-network
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+volumes:
+  mysql-data:
+    name: nocodile-mysql-data
+  backend-node-modules:
+    name: nocodile-backend-node-modules
+  frontend-node-modules:
+    name: nocodile-frontend-node-modules
+  frontend-next-cache:
+    name: nocodile-frontend-next-cache
+
+networks:
+  nocodile-network:
+    driver: bridge
