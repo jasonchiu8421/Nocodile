@@ -9,7 +9,6 @@ from transformers import AutoModelForImageSegmentation
 from torchvision.transforms.functional import normalize
 import numpy as np
 from scipy.interpolate import interp1d, PchipInterpolator
-from server import Video
 
 # @staticmethod
 # def calculate_iou(bbox1, bbox2):
