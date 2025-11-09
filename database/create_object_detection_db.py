@@ -21,24 +21,25 @@ class ObjectDetectionDB:
     def __init__(self, host=None, user=None, password=None, database=None):
         """
         初始化数据库连接
-        優先使用環境變數或配置模組
+        優先使用環境變數或配置模組，否則使用預設值
         """
         if USE_CONFIG_MODULE:
-            # 使用配置模組
+            # 使用配置模組，但優先使用傳入的參數
             self.config = {
-                'host': host or config.database.host,
-                'user': user or config.database.user,
-                'password': password or config.database.password,
-                'database': database or config.database.database,
+                'host': host or os.getenv('MYSQL_HOST') or config.database.host,
+                'user': user or os.getenv('MYSQL_USER') or config.database.user,
+                'password': password or os.getenv('MYSQL_PASSWORD') or config.database.password,
+                'database': database or os.getenv('MYSQL_DATABASE') or config.database.database,
                 'charset': 'utf8mb4'
             }
         else:
             # 使用環境變數或預設值
+            # 預設配置：host='localhost', user='root', password='12345678', database='Nocodile'
             self.config = {
                 'host': host or os.getenv('MYSQL_HOST', 'localhost'),
                 'user': user or os.getenv('MYSQL_USER', 'root'),
-                'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
-                'database': database or os.getenv('MYSQL_DATABASE', 'nocodile_db'),
+                'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
+                'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
                 'charset': 'utf8mb4'
             }
         
@@ -48,27 +49,32 @@ class ObjectDetectionDB:
     
     def connect(self):
         """连接数据库"""
-        # 嘗試多個連接配置
-        configs_to_try = [
-            self.config,
-            # Docker 本地映射端口
-            {**self.config, 'host': 'localhost', 'port': 3307},
-            # 標準本地端口
-            {**self.config, 'host': 'localhost', 'port': 3306}
-        ]
-        
-        for i, config in enumerate(configs_to_try, 1):
-            try:
-                print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3306)}")
-                self.connection = pymysql.connect(**config)
-                print(f"資料庫連接成功！使用配置 {i}")
-                return True
-            except Exception as e:
-                print(f"配置 {i} 連接失敗: {e}")
-                continue
-        
-        print("所有資料庫連接配置都失敗")
-        return False
+        try:
+            self.connection = pymysql.connect(**self.config)
+            print("数据库连接成功")
+            return True
+        except Exception as e:
+            print(f"数据库连接失败: {e}")
+            # 如果默认配置失败，尝试其他常见配置
+            configs_to_try = [
+                # Docker 本地映射端口
+                {**self.config, 'host': 'localhost', 'port': 3307},
+                # 標準本地端口
+                {**self.config, 'host': 'localhost', 'port': 3306}
+            ]
+            
+            for i, config in enumerate(configs_to_try, 1):
+                try:
+                    print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3306)}")
+                    self.connection = pymysql.connect(**config)
+                    print(f"資料庫連接成功！使用配置 {i}")
+                    return True
+                except Exception as e2:
+                    print(f"配置 {i} 連接失敗: {e2}")
+                    continue
+            
+            print("所有資料庫連接配置都失敗")
+            return False
     
     def create_database(self):
         """创建数据库"""
@@ -292,7 +298,13 @@ def main():
     else:
         print("檢測到本地環境")
     
-    db = ObjectDetectionDB()
+    # 使用您的数据库配置
+    db = ObjectDetectionDB(
+        host='localhost',
+        user='root',
+        password='12345678',
+        database='Nocodile'
+    )
     
     try:
         # 1. 創建資料庫

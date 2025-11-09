@@ -1,5 +1,5 @@
 // API service for connecting frontend to backend
-import { log, logger } from './logger';
+import { log, logger } from '@/lib/logger';
 
 
 

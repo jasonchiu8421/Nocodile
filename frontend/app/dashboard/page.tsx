@@ -116,6 +116,7 @@ export default function Dashboard() {
   const [username, setUsername] = useState<string>("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // 用于触发 UserProjectsManager 刷新
   const { projects: contextProjects, updateProject, isLoading: contextLoading, error: contextError } = useProjectContext();
   const lastLoadTimeRef = useRef<number>(0); // 記錄上次成功載入時間
   const isLoadingRef = useRef(false); // 防止重複 loading
@@ -137,7 +138,7 @@ export default function Dashboard() {
     };
     getUserInfo();
   }, []);
-  const now = Date.now(); // 加上這行！
+  
   // === 完整節流載入函數 ===
   const loadProjectsWithThrottle = useCallback(async () => {
     // 步驟1：防止重複 loading
@@ -167,7 +168,7 @@ export default function Dashboard() {
       });
 
     setProjects(apiProjects);
-    lastLoadTimeRef.current = now;
+    lastLoadTimeRef.current = Date.now();
     setLastUpdateTime(new Date());
 
   } catch (error) {
@@ -267,6 +268,7 @@ const resetLoading = useCallback(() => {
                 window.location.href = `/project/${projectId}/upload`;
               }}
               onCreateProject={() => setIsNewProjectFormOpen(true)}
+              refreshTrigger={refreshTrigger}
             />
           </section>
         )}
@@ -279,10 +281,17 @@ const resetLoading = useCallback(() => {
         onClose={() => setIsNewProjectFormOpen(false)}
         userId={userId}
         onProjectCreated={(newProject) => {
+          // 更新本地状态
           setProjects((prev) => [
             { ...newProject, status: (newProject as any).status ?? "Not started" },
             ...prev,
           ]);
+          // 触发 UserProjectsManager 重新加载
+          setRefreshTrigger(prev => prev + 1);
+          // 同时重新从 API 加载最新数据
+          setTimeout(() => {
+            loadProjectsWithThrottle();
+          }, 500);
         }}
       />
     </div>

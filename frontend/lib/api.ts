@@ -264,7 +264,7 @@ private static getFallbackModelPerformance() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userID: userId.toString() }),
+        body: JSON.stringify({ userID: userId }),
       });
 
       const duration = Date.now() - startTime;
@@ -585,27 +585,24 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數 - 注意後端期望 'colour' 而不是 'color'
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('class_name', className);
-      url.searchParams.append('colour', color); // 後端期望 'colour' 參數
+      const fullUrl = `${workingUrl}${endpoint}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
+          project_id: parseInt(projectId),
+          class_name: className,
+          colour: color, // 後端期望 'colour' 參數
         }),
       });
 
       const duration = Date.now() - startTime;
 
       if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
+        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
         
         // 嘗試解析錯誤響應
         try {
@@ -663,27 +660,24 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數 - 注意後端期望的參數名稱
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('original_class_name', originalName);
-      url.searchParams.append('new_class_name', newName);
+      const fullUrl = `${workingUrl}${endpoint}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
+          project_id: parseInt(projectId),
+          original_class_name: originalName,
+          new_class_name: newName,
         }),
       });
 
       const duration = Date.now() - startTime;
 
       if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
+        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -719,19 +713,15 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('class_name', className);
+      const fullUrl = `${workingUrl}${endpoint}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
+          project_id: parseInt(projectId),
           class_name: className,
         }),
       });
@@ -739,7 +729,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       const duration = Date.now() - startTime;
 
       if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
+        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
         
         // 嘗試解析錯誤響應
         try {

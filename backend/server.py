@@ -86,8 +86,15 @@ async def health_check():
     """健康檢查端點"""
     try:
         # 檢查資料庫連接
-        if connection and connection.open:
-            return {"status": "healthy", "database": "connected", "config": config}
+        if connection:
+            try:
+                # 嘗試執行簡單查詢來驗證連接
+                cursor = connection.cursor()
+                cursor.execute("SELECT 1")
+                cursor.close()
+                return {"status": "healthy", "database": "connected", "config": config}
+            except Exception:
+                return {"status": "unhealthy", "database": "disconnected", "config": config}
         else:
             return {"status": "unhealthy", "database": "disconnected", "config": config}
     except Exception as e:
@@ -203,7 +210,7 @@ def sanitize_filename(filename):
 config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'noconoconocodile',
+    'password': '12345678',
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }
@@ -213,6 +220,20 @@ try:
     print("数据库连接成功！")
 except pymysql.Error as e:
     print(f"数据库连接失败: {e}")
+    connection = None
+
+# 辅助函数：检查数据库连接是否有效
+def is_db_connection_valid():
+    """检查数据库连接是否有效"""
+    if not connection:
+        return False
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        return True
+    except Exception:
+        return False
 
 # # 資料庫連接重連機制 by (ensure the db will not crash when the db is lost)
 # def ensure_database_connection():
@@ -284,7 +305,7 @@ class UserLogin():
             self.login_attempts += 1
             if self.login_attempts >= max_attempts:
                 self.status = False
-                return "Login attempts exceeded. Account locked."
+                return False, "Login attempts exceeded. Account locked."
             return False, "Invalid password."
         
     # Hash a plain-text password with a given salt
@@ -326,7 +347,7 @@ class User():
     def get_owned_projects(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
-        cursor.execute(query,(self.userID))
+        cursor.execute(query,(self.userID,))
         result = cursor.fetchall()
         cursor.close()
         owned_projects = [d['project_id'] for d in result if 'project_id' in d]
@@ -338,7 +359,7 @@ class User():
     def get_shared_projects(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
-        cursor.execute(query,(self.userID))
+        cursor.execute(query,(self.userID,))
         result = cursor.fetchall()
         cursor.close()
         shared_projects = [d['project_id'] for d in result if 'project_id' in d]
@@ -406,7 +427,7 @@ class Project():
     def get_project_name(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
+            if not is_db_connection_valid():
                 logger.error("Database connection not available in get_project_name")
                 return None
                 
@@ -436,7 +457,7 @@ class Project():
     def get_videos(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
+            if not is_db_connection_valid():
                 logger.error("Database connection not available in get_videos")
                 return []
                 
@@ -456,20 +477,20 @@ class Project():
     def get_video_count(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
-                logger.error("Database connection not available in get_videos")
-                return []
+            if not is_db_connection_valid():
+                logger.error("Database connection not available in get_video_count")
+                return 0
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT COUNT(video_id) as total FROM video WHERE project_id = %s"
             cursor.execute(query,(self.project_id,))
             result = cursor.fetchone()
-            video_count = result['total']
+            video_count = result['total'] if result else 0
             cursor.close()
-            return video_count
+            return int(video_count) if video_count is not None else 0
         except Exception as e:
-            logger.error(f"Error in get_videos: {str(e)}")
-            return []
+            logger.error(f"Error in get_video_count: {str(e)}")
+            return 0
     
     # Fetch the ID of the owner of a project
     # Output: Owner's ID (int)
@@ -509,7 +530,7 @@ class Project():
     def get_project_status(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
+            if not is_db_connection_valid():
                 logger.error("Database connection not available in get_project_status")
                 return "Unknown"
                 
@@ -530,9 +551,9 @@ class Project():
     def get_project_progress(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
-                logger.error("Database connection not available in get_project_status")
-                return "Unknown"
+            if not is_db_connection_valid():
+                logger.error("Database connection not available in get_project_progress")
+                return 0
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT training_progress FROM project WHERE project_id = %s"
@@ -752,7 +773,7 @@ class Project():
         return result['dataset_path'] if result else None
     
     # Get model path from database
-    def get_model_path(self):
+    def get_model_path_from_db(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT model_path FROM project WHERE project_id = %s"
         cursor.execute(query,(self.project_id,))
@@ -1031,10 +1052,17 @@ class Video(Project):
         super().__init__(project_id)
         self.video_id = video_id
         if not initialize:
-            self.video_path = self.get_video_path()
-            # self.cap = cv2.VideoCapture(self.video_path)
-            # 从数据库获取标注状态
-            self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+            # 只有在 video_id 有效时才尝试获取视频路径和标注状态
+            if video_id >= 0:
+                self.video_path = self.get_video_path()
+                # self.cap = cv2.VideoCapture(self.video_path)
+                # 从数据库获取标注状态
+                self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+            else:
+                # 对于新视频（video_id=-1），设置默认值
+                self.video_path = None
+                self.annotation_status = "yet to start"
+                self.last_annotated_frame = -1
             # 获取视频信息
             # self.frame_count = self.get_frame_count()
             # self.fps = self.get_fps()
@@ -1046,34 +1074,57 @@ class Video(Project):
 
         # 清理文件名，確保安全
         safe_name = sanitize_filename(name)
+        # 移除扩展名中的点（如果存在）
+        if ext and ext.startswith('.'):
+            ext = ext[1:]
+        
+        # 构建初始路径
         self.video_path = Path(self.get_project_path()) / "videos" / f"{safe_name}.{ext}"
 
         count = 2
-        stem, ext = safe_name.split(".")
-        while self.video_path.exists:
-            safe_name = f"{stem}({count}).{ext}"
+        # 如果文件已存在，生成新文件名
+        while self.video_path.exists():
+            safe_name_new = f"{safe_name}({count})"
+            self.video_path = Path(self.get_project_path()) / "videos" / f"{safe_name_new}.{ext}"
             count += 1
 
-        self.video_name = safe_name
+        # 最终的文件名（包含扩展名）
+        self.video_name = f"{safe_name}.{ext}" if count == 2 else f"{safe_name}({count-1}).{ext}"
         
         # 确保视频目录存在
         video_dir = Path(self.get_project_path()) / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
         
+        # 获取视频数量
         try:
-            self.video_count = self.get_video_count()
-        except:
+            video_count = self.get_video_count()
+            # 确保 video_count 是数字
+            if isinstance(video_count, list):
+                self.video_count = 0
+            else:
+                self.video_count = int(video_count) if video_count is not None else 0
+        except Exception as e:
+            logger.error(f"Error getting video count: {e}")
             self.video_count = 0
         self.video_count += 1
 
+        # 检查数据库连接
+        if not is_db_connection_valid():
+            logger.error("Database connection not available in Video.initialize")
+            raise Exception("Database connection not available")
+
         # Add row to video
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %s, %s);"
-        cursor.execute(query,(self.project_id, self.video_path, self.video_name, self.annotation_status))
-        print("Video ID: "+str(self.video_id))
-        self.video_id = cursor.lastrowid
-        connection.commit()  # 提交事务
-        cursor.close()
+        try:
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %s, %s);"
+            cursor.execute(query,(self.project_id, str(self.video_path), self.video_name, self.annotation_status))
+            print("Video ID: "+str(self.video_id))
+            self.video_id = cursor.lastrowid
+            connection.commit()  # 提交事务
+            cursor.close()
+        except Exception as e:
+            logger.error(f"Error inserting video into database: {e}")
+            raise Exception(f"Failed to insert video into database: {e}")
 
         return self.video_id, self.video_path
     
@@ -1182,29 +1233,36 @@ class Video(Project):
             # fetch all if frame_num is not specified
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s"
-            cursor.execute(query,(self.video_id))
+            cursor.execute(query,(self.video_id,))
             bbox_data = cursor.fetchall()
         return bbox_data
     
     def get_annotation_status(self):
         annotation_status='yet to start'
-        last_annotated_frame=None
+        last_annotated_frame=-1
 
         # 首先嘗試將 video_id 轉換為整數（向後兼容）
         try:
             video_id_int = int(self.video_id)
+            # 如果 video_id 是 -1 或无效，返回默认值
+            if video_id_int < 0:
+                return annotation_status, last_annotated_frame
+                
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %s"
-            cursor.execute(query,(self.video_id,))
+            cursor.execute(query,(video_id_int,))
             result = cursor.fetchone()
             if result:
                 annotation_status = result['annotation_status']
                 last_annotated_frame = result['last_annotated_frame']
                 return annotation_status, last_annotated_frame
-            else:
-                raise ValueError(f"Video with ID {self.video_id} not found")
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error getting annotation status for video_id {self.video_id}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_annotation_status: {e}")
+        
+        # 返回默认值
+        return annotation_status, last_annotated_frame
 
     ###### Selecting Frame for Manual Annotation ######
     # For testing purpose, annotate every second
@@ -1385,21 +1443,21 @@ class Video(Project):
 #         iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
 #         return iou
 
+#list: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
 class AutoAnnotator:
-    def __init__(self, video_path: str, manual_annotations: dict):
+    def __init__(self, video_path: str, manual_annotations: list):
         self.video_path = video_path
         self.manual_annotations = manual_annotations
         self.translate_annotations()
         self.classes = self.manual_annotations[0]['class_name'] if self.manual_annotations else 'unnamed_object' # Assume one class only
 
-    @staticmethod
     def translate_annotations(self):
         self.translated_annotations = {}
         # Translate annotations to (center_x, center_y, width, height) format
-        for annotation in self.bbox_data:
+        for annotation in self.manual_annotations:
             bbox = annotation['coordinates']
             frame_num = annotation['frame_num']
-            x, y, w, h = tuple(eval(var) for var in bbox.split())
+            x, y, w, h = tuple(map(float, bbox.split()))
             center_x = x + w / 2
             center_y = y + h / 2
             self.translated_annotations[frame_num] = (center_x, center_y, w, h)
@@ -1430,10 +1488,17 @@ class AutoAnnotator:
         #         combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
 
         combined_annotations = []
-        for frame_num, bbox in tracked_annotations:
-            combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": bbox})
+        for frame_num, bbox in tracked_annotations.items():
+            # bbox格式: (center_x, center_y, width, height)
+            center_x, center_y, w, h = bbox
+            # 转换回 (x, y, width, height) 格式
+            x = center_x - w / 2
+            y = center_y - h / 2
+            coordinates = f"{int(x)} {int(y)} {int(w)} {int(h)}"
+            combined_annotations.append({"frame_num": frame_num, "class_name": self.classes, "coordinates": coordinates})
 
         return combined_annotations
+
 
 # Track object in a video given manual annotations
 class ObjectTracker:
@@ -1448,12 +1513,14 @@ class ObjectTracker:
         return predicted_annotations
 
 class ObjectIdentifier():
-    def __init__(self, image):
+    def __init__(self, image, video_path=None):
         self.image = image
+        self.video_path = video_path
 
     # Use Distilled SAM for object identification
     def segment(self, tracked_annotations, video_id):
-        
+        if not self.video_path:
+            raise ValueError("video_path must be provided to ObjectIdentifier")
         cap = cv2.VideoCapture(self.video_path)
         identified_objects = {}
         
@@ -1642,7 +1709,7 @@ async def get_users_projects(request: UserRequest):
         userID = request.userID
 
         # Check database connection
-        if not connection or not connection.open:
+        if not is_db_connection_valid():
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={"error": "Database connection not available"}
@@ -1659,7 +1726,7 @@ async def get_users_projects(request: UserRequest):
             name = project.get_project_name()
             videoCount = project.get_video_count()
             project_status = project.get_project_status()
-            isOwned = (user == project.get_owner())
+            isOwned = (user.userID == project.get_owner())
             owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": project_status, "isOwned": isOwned, "project name": name, "project id": project_id, "video count": videoCount})
         
         # Get detailed project information for shared projects
@@ -1669,7 +1736,7 @@ async def get_users_projects(request: UserRequest):
             name = project.get_project_name()
             videoCount = project.get_video_count()
             project_status = project.get_project_status()
-            isOwned = (user == project.get_owner())
+            isOwned = (user.userID == project.get_owner())
             shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": project_status, "isOwned": isOwned, "project name": name, "project id": project_id, "video count": videoCount})
         print(owned_projects)
         print(shared_projects)
@@ -1778,17 +1845,21 @@ async def create_project(request: CreateProjectRequest):
         )
         
 # Change project name
+class ChangeProjectNameRequest(BaseModel):
+    project_id: int
+    new_name: str
+
 @app.post("/change_project_name")
-async def change_project_name(request: ProjectRequest, new_name: str):
+async def change_project_name(request: ChangeProjectNameRequest):
     try:
         project = Project(project_id = request.project_id)
 
-        success = project.change_project_name(new_name)
+        success = project.change_project_name(request.new_name)
         
         if success:
             return {
                 "success": True,
-                "message": f"Project name changed to {new_name}"
+                "message": f"Project name changed to {request.new_name}"
             }
         else:
             return {
@@ -2123,14 +2194,19 @@ async def get_classes(request:ProjectRequest):
         )
 
 # Add new class to a project and return new classes list
-# Output: {"class_name": colour, ...} 
+# Output: {"class_name": colour, ...}
+class AddClassRequest(BaseModel):
+    project_id: int
+    class_name: str
+    colour: str
+
 @app.post("/add_class")
-async def add_class(request: ProjectRequest, class_name: str, colour: str):
+async def add_class(request: AddClassRequest):
     try:
         project = Project(project_id = request.project_id)
         
         # check if class_name already exists for this project
-        class_name_exists = project.check_class_exists(class_name)
+        class_name_exists = project.check_class_exists(request.class_name)
         if class_name_exists:
             return {
                 "success": False,
@@ -2138,7 +2214,7 @@ async def add_class(request: ProjectRequest, class_name: str, colour: str):
                 "classes": project.classes
             }
         
-        project.add_class(class_name, colour)
+        project.add_class(request.class_name, request.colour)
         
         return {
             "success": True,
@@ -2154,13 +2230,18 @@ async def add_class(request: ProjectRequest, class_name: str, colour: str):
 
 # Modify class name of a project and return new classes list
 # Output: {"class_name": colour, ...}
+class ModifyClassRequest(BaseModel):
+    project_id: int
+    original_class_name: str
+    new_class_name: str
+
 @app.post("/modify_class")
-async def modify_class(request: ProjectRequest, original_class_name: str, new_class_name: str):
+async def modify_class(request: ModifyClassRequest):
     try:
         project = Project(project_id = request.project_id)
 
         # check if original_class_name exists for this project
-        class_name_exists = project.check_class_exists(original_class_name)
+        class_name_exists = project.check_class_exists(request.original_class_name)
         if not class_name_exists:
             return {
                 "success": False,
@@ -2169,7 +2250,7 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
             }
         
         # check if new_class_name already exists for this project
-        class_name_exists = project.check_class_exists(new_class_name)
+        class_name_exists = project.check_class_exists(request.new_class_name)
         if class_name_exists:
             return {
                 "success": False,
@@ -2177,7 +2258,7 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
                 "classes": project.classes
             }
         
-        project.modify_class(original_class_name, new_class_name)
+        project.modify_class(request.original_class_name, request.new_class_name)
         
         return {
             "success": True,
@@ -2193,13 +2274,17 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
     
 # Delete class of a project and return new classes list
 # Output: {"class_name": colour, ...}
+class DeleteClassRequest(BaseModel):
+    project_id: int
+    class_name: str
+
 @app.post("/delete_class")
-async def delete_class(request: ProjectRequest, class_name: str):
+async def delete_class(request: DeleteClassRequest):
     try:
         project = Project(project_id = request.project_id)
         
         # check if class_name already exists for this project
-        class_name_exists = project.check_class_exists(class_name)
+        class_name_exists = project.check_class_exists(request.class_name)
         if not class_name_exists:
             return {
                 "success": False,
@@ -2207,7 +2292,7 @@ async def delete_class(request: ProjectRequest, class_name: str):
                 "classes": project.classes
             }
         
-        project.delete_class(class_name)
+        project.delete_class(request.class_name)
         
         return {
             "success": True,

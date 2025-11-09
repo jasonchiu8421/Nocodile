@@ -12,13 +12,15 @@ interface UserProjectsManagerProps {
   username: string;
   onProjectClick: (projectId: number) => void;
   onCreateProject: () => void;
+  refreshTrigger?: number; // 添加刷新触发器
 }
 
 export default function UserProjectsManager({
   userId,
   username,
   onProjectClick,
-  onCreateProject
+  onCreateProject,
+  refreshTrigger
 }: UserProjectsManagerProps) {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,16 +29,23 @@ export default function UserProjectsManager({
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectInfo | null>(null);
 
-  const loadProjects = async () => {
+  const loadProjects = async (forceRefresh = false) => {
     if (userId <= 0) return;
     setIsLoading(true);
     setError(null);
     try {
-      log.info('USER_PROJECTS', 'Loading projects for user', { userId, username });
+      log.info('USER_PROJECTS', 'Loading projects for user', { userId, username, forceRefresh });
 
       let userProjects: ProjectInfo[] = [];
+      
+      // 如果强制刷新，清除缓存
+      if (forceRefresh) {
+        await ProjectCache.clearCache();
+        log.info('USER_PROJECTS', 'Cache cleared, fetching fresh data from API');
+      }
+      
       const cachedProjects = await ProjectCache.getProjects();
-      if (cachedProjects && cachedProjects.length > 0) {
+      if (cachedProjects && cachedProjects.length > 0 && !forceRefresh) {
         userProjects = ProjectCache.convertToProjectInfo(cachedProjects);
         log.info('USER_PROJECTS', 'Using cached projects', {
           userId,
@@ -44,7 +53,7 @@ export default function UserProjectsManager({
           projectCount: userProjects.length
         });
       } else {
-        log.info('USER_PROJECTS', 'No cached projects, fetching from API');
+        log.info('USER_PROJECTS', 'No cached projects or force refresh, fetching from API');
         userProjects = await getProjectsInfo(userId);
 
         // === 修正點：正確映射到 ProjectCache 格式 ===
@@ -88,8 +97,10 @@ export default function UserProjectsManager({
   };
 
   useEffect(() => {
-    loadProjects();
-  }, [userId]);
+    // 当 refreshTrigger 变化时，强制刷新（清除缓存）
+    const forceRefresh = refreshTrigger !== undefined && refreshTrigger > 0;
+    loadProjects(forceRefresh);
+  }, [userId, refreshTrigger]); // 当 refreshTrigger 变化时也重新加载
   
   const handleShareProject = (project: ProjectInfo) => {
     setSelectedProject(project);

@@ -1,5 +1,5 @@
 import cv2
-# from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
+from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
 import os
 from PIL import Image
 from skimage import io, filters
@@ -288,190 +288,190 @@ class InterpolatedObjectTracker:
         
         return result
 
-# class MobileSAM:
-#     def __init__(self, image, checkpoint="mobile_sam.pt"):
-#         """
-#         Initialize MobileSAM - lightweight SAM for CPU/mobile devices
+class MobileSAM:
+    def __init__(self, image, checkpoint="mobile_sam.pt"):
+        """
+        Initialize MobileSAM - lightweight SAM for CPU/mobile devices
         
-#         Args:
-#             image: input image
-#             checkpoint: Path to mobile_sam.pt checkpoint
-#         """
+        Args:
+            image: input image
+            checkpoint: Path to mobile_sam.pt checkpoint
+        """
         
-#         self.image = image
+        self.image = image
         
-#         self.image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-#         self.cv_image = image
+        self.image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        self.cv_image = image
         
-#         # Initialize MobileSAM model (uses vit_t - Tiny ViT)
-#         self.sam = sam_model_registry["vit_t"](checkpoint=checkpoint)
+        # Initialize MobileSAM model (uses vit_t - Tiny ViT)
+        self.sam = sam_model_registry["vit_t"](checkpoint=checkpoint)
         
-#         # Move to CPU (MobileSAM is designed for CPU)
-#         device = "cuda" if torch.cuda.is_available() else "cpu"
-#         self.sam.to(device=device)
+        # Move to CPU (MobileSAM is designed for CPU)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.sam.to(device=device)
         
-#         self.bboxes = []
-#         self.masks = []
+        self.bboxes = []
+        self.masks = []
 
-#     def segment(self):
-#         """
-#         Perform automatic mask generation on the entire image
+    def segment(self):
+        """
+        Perform automatic mask generation on the entire image
         
-#         Returns:
-#             bboxes: List of bounding boxes [(x, y, w, h), ...]
-#         """
-#         mask_generator = SamAutomaticMaskGenerator(self.sam)
-#         masks = mask_generator.generate(self.image)
-#         self.bboxes = []
-#         # self.masks = []
+        Returns:
+            bboxes: List of bounding boxes [(x, y, w, h), ...]
+        """
+        mask_generator = SamAutomaticMaskGenerator(self.sam)
+        masks = mask_generator.generate(self.image)
+        self.bboxes = []
+        self.masks = []
         
-#         for mask in masks:
-#             bbox = mask['bbox']
-#             self.bboxes.append(bbox)
-#             # self.masks.append(mask['segmentation'])
+        for mask in masks:
+            bbox = mask['bbox']
+            self.bboxes.append(bbox)
+            self.masks.append(mask['segmentation'])
         
-#         return self.bboxes
+        return self.bboxes
     
-#     def segment_with_points(self, points, labels):
-#         """
-#         Segment using point prompts
+    def segment_with_points(self, points, labels):
+        """
+        Segment using point prompts
         
-#         Args:
-#             points: numpy array of shape (N, 2) with (x, y) coordinates
-#             labels: numpy array of shape (N,) with labels:
-#                     0=background, 1=foreground
+        Args:
+            points: numpy array of shape (N, 2) with (x, y) coordinates
+            labels: numpy array of shape (N,) with labels:
+                    0=background, 1=foreground
         
-#         Returns:
-#             mask: Binary segmentation mask
-#         """
-#         from mobile_sam import SamPredictor
+        Returns:
+            mask: Binary segmentation mask
+        """
+        from mobile_sam import SamPredictor
         
-#         predictor = SamPredictor(self.sam)
-#         predictor.set_image(self.image)
+        predictor = SamPredictor(self.sam)
+        predictor.set_image(self.image)
         
-#         masks, scores, logits = predictor.predict(
-#             point_coords=points,
-#             point_labels=labels,
-#             multimask_output=False,
-#         )
+        masks, scores, logits = predictor.predict(
+            point_coords=points,
+            point_labels=labels,
+            multimask_output=False,
+        )
         
-#         mask = masks[0]
-#         self.masks.append(mask)
+        mask = masks[0]
+        self.masks.append(mask)
         
-#         return mask
+        return mask
     
-#     def segment_with_bbox(self, bbox):
-#         """
-#         Segment using bounding box prompt
+    def segment_with_bbox(self, bbox):
+        """
+        Segment using bounding box prompt
         
-#         Args:
-#             bbox: tuple (x, y, width, height) or array [[x1, y1, x2, y2]]
+        Args:
+            bbox: tuple (x, y, width, height) or array [[x1, y1, x2, y2]]
         
-#         Returns:
-#             mask: Binary segmentation mask
-#         """
-#         from mobile_sam import SamPredictor
+        Returns:
+            mask: Binary segmentation mask
+        """
+        from mobile_sam import SamPredictor
         
-#         # Convert (x, y, w, h) to [[x1, y1, x2, y2]]
-#         if len(bbox) == 4 and isinstance(bbox, (tuple, list)):
-#             x, y, w, h = bbox
-#             input_box = np.array([[x, y, x + w, y + h]])
-#         else:
-#             input_box = np.array([bbox])
+        # Convert (x, y, w, h) to [[x1, y1, x2, y2]]
+        if len(bbox) == 4 and isinstance(bbox, (tuple, list)):
+            x, y, w, h = bbox
+            input_box = np.array([[x, y, x + w, y + h]])
+        else:
+            input_box = np.array([bbox])
         
-#         predictor = SamPredictor(self.sam)
-#         predictor.set_image(self.image)
+        predictor = SamPredictor(self.sam)
+        predictor.set_image(self.image)
         
-#         masks, scores, logits = predictor.predict(
-#             point_coords=None,
-#             point_labels=None,
-#             box=input_box,
-#             multimask_output=False,
-#         )
+        masks, scores, logits = predictor.predict(
+            point_coords=None,
+            point_labels=None,
+            box=input_box,
+            multimask_output=False,
+        )
         
-#         mask = masks[0]
-#         self.bboxes.append(bbox)
-#         self.masks.append(mask)
+        mask = masks[0]
+        self.bboxes.append(bbox)
+        self.masks.append(mask)
         
-#         return mask
+        return mask
     
-#     def segment_multiple_bboxes(self, bboxes):
-#         """
-#         Segment multiple objects given their bounding boxes
+    def segment_multiple_bboxes(self, bboxes):
+        """
+        Segment multiple objects given their bounding boxes
         
-#         Args:
-#             bboxes: list of tuples [(x, y, width, height), ...]
+        Args:
+            bboxes: list of tuples [(x, y, width, height), ...]
         
-#         Returns:
-#             masks: list of binary segmentation masks
-#         """
-#         masks = []
-#         self.bboxes = []
-#         self.masks = []
+        Returns:
+            masks: list of binary segmentation masks
+        """
+        masks = []
+        self.bboxes = []
+        self.masks = []
         
-#         for bbox in bboxes:
-#             mask = self.segment_with_bbox(bbox)
-#             masks.append(mask)
+        for bbox in bboxes:
+            mask = self.segment_with_bbox(bbox)
+            masks.append(mask)
         
-#         return masks
+        return masks
     
-#     def visualize_segmentation_result(self, output_path=None):
-#         """
-#         Visualize bounding boxes on image
+    def visualize_segmentation_result(self, output_path=None):
+        """
+        Visualize bounding boxes on image
         
-#         Args:
-#             output_path: Path to save output image (optional)
+        Args:
+            output_path: Path to save output image (optional)
         
-#         Returns:
-#             output_path: Path where image was saved
-#         """
-#         # Create a copy
-#         img_copy = self.cv_image.copy()
+        Returns:
+            output_path: Path where image was saved
+        """
+        # Create a copy
+        img_copy = self.cv_image.copy()
         
-#         for bbox in self.bboxes:
-#             if len(bbox) == 4:
-#                 x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-#                 cv2.rectangle(img_copy, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        for bbox in self.bboxes:
+            if len(bbox) == 4:
+                x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+                cv2.rectangle(img_copy, (x, y), (x + w, y + h), (0, 255, 0), 2)
         
-#         # Generate output path
-#         if output_path is None:
-#             output_path = f"mobilesam_segmented.jpg"
+        # Generate output path
+        if output_path is None:
+            output_path = f"mobilesam_segmented.jpg"
         
-#         cv2.imwrite(output_path, img_copy)
-#         print(f"Saved segmentation to: {output_path}")
+        cv2.imwrite(output_path, img_copy)
+        print(f"Saved segmentation to: {output_path}")
         
-#         return output_path
+        return output_path
     
-#     def visualize_masks(self, output_path=None):
-#         """
-#         Visualize segmentation masks overlaid on image
+    def visualize_masks(self, output_path=None):
+        """
+        Visualize segmentation masks overlaid on image
         
-#         Args:
-#             output_path: Path to save output image
+        Args:
+            output_path: Path to save output image
             
-#         Returns:
-#             output_path: Path where image was saved
-#         """
-#         img_copy = self.cv_image.copy()
+        Returns:
+            output_path: Path where image was saved
+        """
+        img_copy = self.cv_image.copy()
         
-#         # Create colored overlay for each mask
-#         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
+        # Create colored overlay for each mask
+        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
         
-#         for idx, mask in enumerate(self.masks):
-#             color = colors[idx % len(colors)]
-#             # Create colored mask
-#             colored_mask = np.zeros_like(img_copy)
-#             colored_mask[mask > 0] = color
-#             # Blend with original image
-#             img_copy = cv2.addWeighted(img_copy, 0.7, colored_mask, 0.3, 0)
+        for idx, mask in enumerate(self.masks):
+            color = colors[idx % len(colors)]
+            # Create colored mask
+            colored_mask = np.zeros_like(img_copy)
+            colored_mask[mask > 0] = color
+            # Blend with original image
+            img_copy = cv2.addWeighted(img_copy, 0.7, colored_mask, 0.3, 0)
         
-#         if output_path is None:
-#             output_path = f"mobilesam_masks.jpg"
+        if output_path is None:
+            output_path = f"mobilesam_masks.jpg"
         
-#         cv2.imwrite(output_path, img_copy)
-#         print(f"Saved masks to: {output_path}")
+        cv2.imwrite(output_path, img_copy)
+        print(f"Saved masks to: {output_path}")
         
-#         return output_path
+        return output_path
 
 
 class KCF:
