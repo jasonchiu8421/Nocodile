@@ -1399,28 +1399,32 @@ class AutoAnnotator:
         tracker = ObjectTracker(video_path=self.video_path)
         tracked_annotations = tracker.tracking(manual_annotations=self.translated_annotations)
 
-        # Identify objects in each frame using distilled SAM
-        identifier = ObjectIdentifier(image=None)
-        identified_objects = identifier.segment(tracked_annotations=tracked_annotations, video_id=video_id)
+        # # Identify objects in each frame using distilled SAM
+        # identifier = ObjectIdentifier(image=None)
+        # identified_objects = identifier.segment(tracked_annotations=tracked_annotations, video_id=video_id)
 
-        # Combine tracking and identification results
+        # # Combine tracking and identification results
+        # combined_annotations = []
+        # for frame_num, tracked_bbox in tracked_annotations.items():
+        #     best_iou = -1
+        #     best_bbox = None
+        #     identified_bboxes = identified_objects[frame_num]
+        #     for identified_bbox in identified_bboxes:
+        #         iou = calculate_iou(tracked_bbox, identified_bbox)
+        #         if iou > best_iou:
+        #             best_iou = iou
+        #             best_bbox = identified_bbox
+        #     if best_bbox:
+        #         x, y, w, h = best_bbox
+        #         best_bbox_str = f"{x} {y} {w} {h}"
+        #         combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
+
         combined_annotations = []
-        for frame_num, tracked_bbox in tracked_annotations.items():
-            best_iou = -1
-            best_bbox = None
-            identified_bboxes = identified_objects[frame_num]
-            for identified_bbox in identified_bboxes:
-                iou = calculate_iou(tracked_bbox, identified_bbox)
-                if iou > best_iou:
-                    best_iou = iou
-                    best_bbox = identified_bbox
-            if best_bbox:
-                x, y, w, h = best_bbox
-                best_bbox_str = f"{x} {y} {w} {h}"
-                combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
+        for frame_num, bbox in tracked_annotations:
+            combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": bbox})
 
         return combined_annotations
-    
+
 # Track object in a video given manual annotations
 class ObjectTracker:
     def __init__(self, video_path):
@@ -1432,7 +1436,7 @@ class ObjectTracker:
         predicted_annotations = tracker.predict_frame(manual_annotations)
 
         return predicted_annotations
-    
+
 class ObjectIdentifier():
     def __init__(self, image):
         self.image = image

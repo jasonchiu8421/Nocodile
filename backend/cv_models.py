@@ -323,12 +323,12 @@ class MobileSAM:
         mask_generator = SamAutomaticMaskGenerator(self.sam)
         masks = mask_generator.generate(self.image)
         self.bboxes = []
-        self.masks = []
+        # self.masks = []
         
         for mask in masks:
             bbox = mask['bbox']
             self.bboxes.append(bbox)
-            self.masks.append(mask['segmentation'])
+            # self.masks.append(mask['segmentation'])
         
         return self.bboxes
     
