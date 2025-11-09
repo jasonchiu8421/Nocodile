@@ -145,11 +145,16 @@ const UploadPage = () => {
           const result = await ApiService.uploadVideo(project_id as string, file);
           console.log(`Backend upload successful for ${file.name}:`, result);
           
+          // 确保后端返回了 video_id
+          if (!result.video_id) {
+            throw new Error(`Upload succeeded but no video_id returned: ${JSON.stringify(result)}`);
+          }
+          
           return {
             url: URL.createObjectURL(file), // Use blob URL for preview
             title: file.name,
             file: file,
-            video_id: result.video_id || Date.now(),
+            video_id: result.video_id,
             video_path: result.video_path
           };
         } catch (error) {

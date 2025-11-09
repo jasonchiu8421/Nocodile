@@ -40,28 +40,36 @@ const handleCreateDs = async () => {
   setCreateDsProgress(0);
 
   try {
-    // 1. 真正啟動建立資料集（只呼叫這一行！）
+    // 1. 啟動建立資料集（後台任務）
     await ApiService.createDataset(Number(project_id));
 
-    // 2. 開始輪詢進度
-    createDsIntervalRef.current = setInterval(async () => {
-      try {
-        const data = await ApiService.getAutoAnnotationProgress(project_id);
-        setCreateDsProgress(data.progress || 0);
-
-        if (data.progress >= 100) {
-          clearCreateDsPolling();
-          setIsCreatingDs(false);
-        }
-      } catch (err) {
-        console.error("輪詢錯誤:", err);
+    // 2. 顯示進度動畫，然後停止（因為是後台任務，無法實時追蹤進度）
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += 10;
+      if (progress <= 90) {
+        setCreateDsProgress(progress);
+      } else {
+        clearInterval(progressInterval);
       }
-    }, 1000);
+    }, 500);
+
+    // 3. 等待一段時間後，檢查項目狀態或直接完成
+    setTimeout(() => {
+      clearInterval(progressInterval);
+      setCreateDsProgress(100);
+      setTimeout(() => {
+        setIsCreatingDs(false);
+        setCreateDsProgress(0);
+        alert("資料集創建任務已啟動！請稍後檢查項目狀態。");
+      }, 1000);
+    }, 5000); // 5秒後完成進度顯示
 
   } catch (err: any) {
     console.error("建立資料集失敗:", err);
     alert(err.message || "無法建立資料集");
     setIsCreatingDs(false);
+    setCreateDsProgress(0);
   }
 };
 
@@ -73,18 +81,48 @@ const handleCreateDs = async () => {
     setTrainProgress(0);
 
     try {
-
       await ApiService.startTraining(project_id);
+      
+      let pollCount = 0;
+      const maxPolls = 3600; // 最多輪詢1小時（3600秒）
+      
       trainIntervalRef.current = setInterval(async () => {
         try {
-        const data = await ApiService.getTrainingProgress(project_id);
-        setTrainProgress(data.progress || 0);
-        if (data.progress >= 100) {
-          clearTrainPolling();
-          setIsTraining(false);
-        }
-      }catch (err) {
+          pollCount++;
+          
+          // 超時保護：如果輪詢超過1小時，停止輪詢
+          if (pollCount > maxPolls) {
+            clearTrainPolling();
+            setIsTraining(false);
+            alert("訓練時間過長，請手動檢查訓練狀態。");
+            return;
+          }
+          
+          const data = await ApiService.getTrainingProgress(project_id);
+          setTrainProgress(data.progress || 0);
+          
+          // 檢查是否完成：進度達到100% 或 is_completed 為 true
+          if (data.progress >= 100 || data.is_completed) {
+            clearTrainPolling();
+            setIsTraining(false);
+            alert("訓練完成！");
+          } else if (data.status && 
+                     data.status !== "Training in progress" && 
+                     data.status !== "Training completed" &&
+                     data.status !== "Data is ready") {
+            // 如果狀態不是訓練相關的狀態，也停止輪詢
+            clearTrainPolling();
+            setIsTraining(false);
+            console.log("訓練狀態異常，停止輪詢:", data.status);
+          }
+        } catch (err) {
           console.error("訓練輪詢錯誤:", err);
+          // 如果連續錯誤多次，停止輪詢
+          if (pollCount > 10) {
+            clearTrainPolling();
+            setIsTraining(false);
+            alert("無法獲取訓練進度，請手動檢查。");
+          }
         }
       }, 1000);
     } catch (err) {

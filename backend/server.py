@@ -1,5 +1,7 @@
 import logging
 import traceback
+import threading
+from datetime import datetime
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
@@ -48,6 +50,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def getClientTimestamp():
+    """Get current timestamp in ISO format"""
+    return datetime.now().isoformat()
+
 app = FastAPI()
 
 app.add_middleware(
@@ -85,8 +91,8 @@ app.add_middleware(RequestSizeLimitMiddleware, max_header_size=8192)
 async def health_check():
     """健康檢查端點"""
     try:
-        # 檢查資料庫連接
-        if connection:
+        # 檢查資料庫連接（使用线程安全的方法）
+        if is_db_connection_valid():
             try:
                 # 嘗試執行簡單查詢來驗證連接
                 cursor = connection.cursor()
@@ -222,18 +228,83 @@ except pymysql.Error as e:
     print(f"数据库连接失败: {e}")
     connection = None
 
-# 辅助函数：检查数据库连接是否有效
+# 数据库连接锁，用于线程安全
+_db_lock = threading.Lock()
+
+# 辅助函数：重新连接数据库
+def reconnect_database():
+    """重新连接数据库（线程安全）"""
+    global connection
+    with _db_lock:
+        try:
+            if connection:
+                try:
+                    connection.close()
+                except:
+                    pass
+            connection = pymysql.connect(**config)
+            logger.info("数据库重新连接成功！")
+            return True
+        except pymysql.Error as e:
+            logger.error(f"数据库重新连接失败: {e}")
+            connection = None
+            return False
+
+# 辅助函数：检查数据库连接是否有效，如果无效则尝试重连
 def is_db_connection_valid():
-    """检查数据库连接是否有效"""
-    if not connection:
-        return False
-    try:
-        cursor = connection.cursor()
-        cursor.execute("SELECT 1")
-        cursor.close()
-        return True
-    except Exception:
-        return False
+    """检查数据库连接是否有效，如果无效则尝试重连（线程安全）"""
+    global connection
+    with _db_lock:
+        if not connection:
+            logger.warning("数据库连接不存在，尝试重新连接...")
+            return reconnect_database()
+        
+        try:
+            # 使用 ping() 方法检查连接，这比执行查询更轻量
+            connection.ping(reconnect=False)
+            return True
+        except (pymysql.err.InterfaceError, pymysql.err.OperationalError, AttributeError) as e:
+            logger.warning(f"数据库连接已断开，尝试重新连接: {e}")
+            return reconnect_database()
+        except Exception as e:
+            logger.error(f"数据库连接检查失败: {e}")
+            # 如果 ping 失败，尝试重连
+            try:
+                return reconnect_database()
+            except:
+                return False
+
+# 辅助函数：安全地获取数据库游标
+def get_db_cursor(cursor_type=pymysql.cursors.DictCursor):
+    """安全地获取数据库游标，确保连接有效（线程安全）"""
+    global connection
+    with _db_lock:
+        # 在锁内检查连接（避免死锁，因为 is_db_connection_valid 也使用锁）
+        if not connection:
+            logger.warning("数据库连接不存在，尝试重新连接...")
+            if not reconnect_database():
+                raise Exception("无法建立数据库连接")
+        
+        # 检查连接是否有效（使用 ping，不获取锁）
+        try:
+            connection.ping(reconnect=False)
+        except (pymysql.err.InterfaceError, pymysql.err.OperationalError, AttributeError, OSError) as e:
+            logger.warning(f"连接检查失败，尝试重连: {e}")
+            if not reconnect_database():
+                raise Exception("无法重新连接数据库")
+        
+        try:
+            return connection.cursor(cursor_type)
+        except (pymysql.err.InterfaceError, pymysql.err.OperationalError, OSError) as e:
+            logger.warning(f"获取游标时连接错误，尝试重连: {e}")
+            if reconnect_database():
+                try:
+                    return connection.cursor(cursor_type)
+                except Exception as e2:
+                    logger.error(f"重连后仍无法获取游标: {e2}")
+                    raise Exception(f"无法获取数据库游标: {e2}")
+            else:
+                raise Exception("无法重新连接数据库")
 
 # # 資料庫連接重連機制 by (ensure the db will not crash when the db is lost)
 # def ensure_database_connection():
@@ -335,36 +406,48 @@ class User():
     
     # Fetch username from database given the userID
     def get_username(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query= "SELECT username FROM user WHERE user_id =%s"
-        cursor.execute(query,(self.userID,))
-        username = cursor.fetchone()['username']
-        cursor.close()
-        return username
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query= "SELECT username FROM user WHERE user_id =%s"
+            cursor.execute(query,(self.userID,))
+            result = cursor.fetchone()
+            return result['username'] if result else None
+        finally:
+            cursor.close()
 
     # Fetch all project IDs of projects the user own
     # Output: [projectID, projectID, ...]
     def get_owned_projects(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
-        cursor.execute(query,(self.userID,))
-        result = cursor.fetchall()
-        cursor.close()
-        owned_projects = [d['project_id'] for d in result if 'project_id' in d]
-        self.owned_projects = owned_projects
-        return owned_projects
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
+            cursor.execute(query,(self.userID,))
+            result = cursor.fetchall()
+            owned_projects = [d['project_id'] for d in result if 'project_id' in d]
+            self.owned_projects = owned_projects
+            return owned_projects
+        finally:
+            cursor.close()
     
     # Fetch all the project IDs of projects the user has been shared with
     # Output: [projectID, projectID, ...]
     def get_shared_projects(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
-        cursor.execute(query,(self.userID,))
-        result = cursor.fetchall()
-        cursor.close()
-        shared_projects = [d['project_id'] for d in result if 'project_id' in d]
-        self.shared_projects = shared_projects
-        return shared_projects
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
+            cursor.execute(query,(self.userID,))
+            result = cursor.fetchall()
+            shared_projects = [d['project_id'] for d in result if 'project_id' in d]
+            self.shared_projects = shared_projects
+            return shared_projects
+        finally:
+            cursor.close()
 
 #=================================== Class to deal with projects ==========================================
 
@@ -495,15 +578,19 @@ class Project():
     # Fetch the ID of the owner of a project
     # Output: Owner's ID (int)
     def get_owner(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT project_owner_id FROM project WHERE project_id = %s"
-        cursor.execute(query,(self.project_id,))
-        result = cursor.fetchone()
-        cursor.close()
-        if result:
-            return result['project_owner_id']
-        else:
-            return None
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+            cursor.execute(query,(self.project_id,))
+            result = cursor.fetchone()
+            if result:
+                return result['project_owner_id']
+            else:
+                return None
+        finally:
+            cursor.close()
     
     # Fetch all shared users of a project
     # Output: [shared user ID (int), ...]
@@ -676,35 +763,85 @@ class Project():
         self.save_class_ids(class_id_dict)
 
         self.videos = self.get_videos()
+        logger.info(f"📦 [DATASET] Starting dataset creation for {len(self.videos)} video(s)")
+        
+        if not self.videos:
+            logger.warning("⚠️ [DATASET] No videos found in project")
+            raise ValueError("No videos found in project. Please upload videos first.")
+        
         for video_id in self.videos:
-            video = Video(self.project_id, video_id)
+            try:
+                video = Video(self.project_id, video_id)
+                logger.info(f"📹 [DATASET] Processing video {video_id}")
 
-            # Write labels in txt files
-            bbox_data = video.get_bbox_data()
-            for result in bbox_data:
-                # bbox_data = [{"frame_num": 0, "class_name": "车", "coordinates": "100 100 50 50"}, ...]
-                frame_num = result['frame_num']
-                class_name = result['class_name']
-                coordinates = result['coordinates']
-
-                if not isinstance(coordinates, str):
-                    raise ValueError(f"Video {video.video_id} has unannotated frames. Please complete annotation before creating dataset.")
+                # 获取视频路径
+                video_path = video.get_video_path()
+                if not video_path:
+                    logger.error(f"❌ [DATASET] Video path not found for video_id {video_id}")
+                    raise ValueError(f"Video path not found for video_id {video_id}")
                 
-                filename = f"{label_dir}/{video.video_id}_frame_{frame_num}.txt"
+                if not os.path.exists(video_path):
+                    logger.error(f"❌ [DATASET] Video file does not exist: {video_path}")
+                    raise ValueError(f"Video file does not exist: {video_path}")
 
-                with open(filename, 'a') as file:
-                    file.write(f"{class_id_dict[class_name]} {coordinates}\n")
+                # Write labels in txt files
+                bbox_data = video.get_bbox_data()
+                logger.info(f"📝 [DATASET] Found {len(bbox_data)} bbox annotations for video {video_id}")
+                
+                if not bbox_data:
+                    logger.warning(f"⚠️ [DATASET] No bbox data found for video {video_id}, skipping label creation")
+                else:
+                    for result in bbox_data:
+                        # bbox_data = [{"frame_num": 0, "class_name": "车", "coordinates": "100 100 50 50"}, ...]
+                        frame_num = result['frame_num']
+                        class_name = result['class_name']
+                        coordinates = result['coordinates']
 
-            # Decompose videos into jpg images
-            cap = cv2.VideoCapture(video.get_video_path())
-            frame_idx = 0
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                image_path = f"{image_dir}/{video.video_id}_frame_"+str(frame_idx)+".jpg"
-                cv2.imwrite(image_path, frame)
-                frame_idx += 1
+                        if not isinstance(coordinates, str):
+                            logger.error(f"❌ [DATASET] Invalid coordinates for video {video_id}, frame {frame_num}")
+                            raise ValueError(f"Video {video.video_id} has unannotated frames. Please complete annotation before creating dataset.")
+                        
+                        if class_name not in class_id_dict:
+                            logger.warning(f"⚠️ [DATASET] Class '{class_name}' not found in class list, skipping")
+                            continue
+                        
+                        filename = f"{label_dir}/{video.video_id}_frame_{frame_num}.txt"
+
+                        with open(filename, 'a') as file:
+                            file.write(f"{class_id_dict[class_name]} {coordinates}\n")
+                    
+                    logger.info(f"✅ [DATASET] Created {len(bbox_data)} label files for video {video_id}")
+
+                # Decompose videos into jpg images
+                logger.info(f"🎬 [DATASET] Extracting frames from video {video_id}: {video_path}")
+                cap = cv2.VideoCapture(str(video_path))
+                
+                if not cap.isOpened():
+                    logger.error(f"❌ [DATASET] Could not open video file: {video_path}")
+                    cap.release()
+                    raise ValueError(f"Could not open video file: {video_path}")
+                
+                frame_idx = 0
+                extracted_count = 0
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    image_path = f"{image_dir}/{video.video_id}_frame_{frame_idx}.jpg"
+                    success = cv2.imwrite(image_path, frame)
+                    if success:
+                        extracted_count += 1
+                    else:
+                        logger.warning(f"⚠️ [DATASET] Failed to save frame {frame_idx} for video {video_id}")
+                    frame_idx += 1
+                
+                cap.release()
+                logger.info(f"✅ [DATASET] Extracted {extracted_count} frames from video {video_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ [DATASET] Error processing video {video_id}: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
 
         self.project_status = "Data is ready"
         self.save_project_status()
@@ -717,20 +854,44 @@ class Project():
     
     # Get auto annotation progress (int) from database
     def get_auto_annotation_progress(self):
-        finished_frames = 0
-        total_frames = 0
-        for video_id in self.videos:
-            video = Video(project_id=self.project_id, video_id=video_id)
-            annotation_status, last_annotated_frame = video.get_annotation_status()
-            frame_count = video.get_frame_count()
-            if annotation_status == "auto annotation in progress":
-                total_frames = last_annotated_frame + 1
-            elif annotation_status == "completed":
-                finished_frames += frame_count
-            total_frames += frame_count
-        overall_progress = finished_frames / total_frames if total_frames > 0 else 0
-
-        return overall_progress
+        try:
+            finished_frames = 0
+            total_frames = 0
+            # 确保 videos 列表已初始化
+            if not hasattr(self, 'videos') or self.videos is None:
+                self.videos = self.get_videos()
+            
+            if not self.videos:
+                # 如果没有视频，返回 0 进度
+                return 0.0
+            
+            for video_id in self.videos:
+                try:
+                    video = Video(project_id=self.project_id, video_id=video_id)
+                    annotation_status, last_annotated_frame = video.get_annotation_status()
+                    
+                    # 尝试获取帧数，如果失败则跳过该视频
+                    try:
+                        frame_count = video.get_frame_count()
+                    except Exception as e:
+                        logger.warning(f"Could not get frame count for video {video_id}: {e}")
+                        continue
+                    
+                    if annotation_status == "auto annotation in progress":
+                        total_frames = last_annotated_frame + 1
+                    elif annotation_status == "completed" or annotation_status == "manual annotation completed":
+                        finished_frames += frame_count
+                    total_frames += frame_count
+                except Exception as e:
+                    logger.error(f"Error processing video {video_id} in get_auto_annotation_progress: {e}")
+                    continue
+            
+            overall_progress = finished_frames / total_frames if total_frames > 0 else 0.0
+            return overall_progress
+        except Exception as e:
+            logger.error(f"Error in get_auto_annotation_progress: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return 0.0
     
     # Get basic information of all videos from database
     # Output: [{"name": video_name, "file: video, "path": video_path}, ...]
@@ -1131,18 +1292,15 @@ class Video(Project):
     # Return some video info (used in project.get_videos_info)
     def get_video_info(self):
         video_path = self.get_video_path()
-        # 將絕對路徑轉換為相對URL路徑
-        # 例如: /app/projects/17/videos/IMG_0499..mp4 -> /videos/17/videos/IMG_0499..mp4
-        if video_path.startswith('/app/projects/'):
-            relative_path = video_path.replace('/app/projects/', '/videos/')
-        else:
-            relative_path = video_path
+        # 使用后端端点来提供视频文件，而不是直接使用文件路径
+        # 这样前端可以通过 /serve_video/{video_id} 访问视频
+        video_url = f"/serve_video/{self.video_id}"
 
         info = {
             "name": self.get_video_name(),
             "file": self.video_id,
-            "path": video_path,
-            "url": relative_path  # 添加URL字段供前端使用
+            "path": video_path,  # 保留原始路径用于后端内部使用
+            "url": video_url  # 前端使用的URL，指向后端端点
         }
         return info
     
@@ -1279,8 +1437,14 @@ class Video(Project):
             cursor.execute(query,(video_id_int,))
             result = cursor.fetchone()
             if result:
-                annotation_status = result['annotation_status']
+                annotation_status = result['annotation_status'] or 'yet to start'
                 last_annotated_frame = result['last_annotated_frame']
+                # 确保 last_annotated_frame 是整数或 None
+                if last_annotated_frame is not None:
+                    try:
+                        last_annotated_frame = int(last_annotated_frame)
+                    except (ValueError, TypeError):
+                        last_annotated_frame = -1
                 return annotation_status, last_annotated_frame
         except (ValueError, TypeError) as e:
             logger.warning(f"Error getting annotation status for video_id {self.video_id}: {e}")
@@ -1295,24 +1459,31 @@ class Video(Project):
     def get_next_frame_to_annotate(self):
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
-        if self.annotation_status == "yet to start":
+        
+        # 如果状态是 "yet to start" 或者 last_annotated_frame 是 -1 或 None，从第0帧开始
+        if self.annotation_status == "yet to start" or self.last_annotated_frame is None or self.last_annotated_frame == -1:
             frame_num = 0
+            logger.info(f"🎬 [FRAME] Starting annotation from frame 0 (status: {self.annotation_status}, last_frame: {self.last_annotated_frame})")
             return self.get_frame(frame_num), frame_num
-        elif self.annotation_status == "completed":
+        elif self.annotation_status == "completed" or self.annotation_status == "manual annotation completed":
+            logger.info(f"✅ [FRAME] Annotation already completed (status: {self.annotation_status})")
             return None, None
-        elif isinstance(self.last_annotated_frame, int):
+        elif isinstance(self.last_annotated_frame, int) and self.last_annotated_frame >= 0:
+            # 计算下一帧：每秒钟取一帧（即 last_annotated_frame + fps）
             next_frame = self.last_annotated_frame + self.fps
             if next_frame < self.frame_count:
+                logger.info(f"📹 [FRAME] Next frame: {next_frame} (last: {self.last_annotated_frame}, fps: {self.fps})")
                 return self.get_frame(next_frame), next_frame
             else:
                 # no more frames to annotate
+                logger.info(f"🏁 [FRAME] All frames annotated (last: {self.last_annotated_frame}, total: {self.frame_count})")
                 self.annotation_status = "manual annotation completed"
                 self.save_annotation_status()
                 
                 # 检查是否所有视频都已完成标注
                 project = Project(project_id=self.project_id)
                 all_videos_completed = True
-                for video_id in project.videos:
+                for video_id in project.get_videos():
                     video = Video(project_id=self.project_id, video_id=video_id)
                     if video.annotation_status not in ["completed", "manual annotation completed"]:
                         all_videos_completed = False
@@ -1325,7 +1496,13 @@ class Video(Project):
                 
                 return None, None
         else:
-            return None, None
+            # 如果 last_annotated_frame 无效，重置并从第0帧开始
+            logger.warning(f"⚠️ [FRAME] Invalid last_annotated_frame: {self.last_annotated_frame}, resetting to frame 0")
+            self.last_annotated_frame = -1
+            self.annotation_status = "yet to start"
+            self.save_annotation_status()
+            frame_num = 0
+            return self.get_frame(frame_num), frame_num
     
     def get_frame(self, frame_num: int):
         if not self.video_path:
@@ -1419,32 +1596,44 @@ class Video(Project):
     
     # Save annotation status to database
     def save_annotation_status(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET annotation_status = %s WHERE video_id = %s"
-        cursor.execute(query,(self.annotation_status, self.video_id))
-        connection.commit()  # 提交事务
-        success = bool(cursor.rowcount)
-        cursor.close()
-        return success
+        """保存标注状态到数据库"""
+        cursor = get_db_cursor()
+        try:
+            query = "UPDATE video SET annotation_status = %s WHERE video_id = %s"
+            cursor.execute(query,(self.annotation_status, self.video_id))
+            connection.commit()  # 提交事务
+            success = bool(cursor.rowcount)
+            logger.debug(f"💾 [SAVE] Saved annotation_status='{self.annotation_status}' for video_id={self.video_id}, success={success}")
+            return success
+        finally:
+            cursor.close()
     
     # Save last annotated frame to database
     def save_last_annotated_frame(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "UPDATE video SET last_annotated_frame = %s WHERE video_id = %s"
-        cursor.execute(query,(self.last_annotated_frame, self.video_id))
-        connection.commit()  # 提交事务
-        success = bool(cursor.rowcount)
-        cursor.close()
-        return success
+        """保存最后标注的帧号到数据库"""
+        cursor = get_db_cursor()
+        try:
+            query = "UPDATE video SET last_annotated_frame = %s WHERE video_id = %s"
+            cursor.execute(query,(self.last_annotated_frame, self.video_id))
+            connection.commit()  # 提交事务
+            success = bool(cursor.rowcount)
+            logger.debug(f"💾 [SAVE] Saved last_annotated_frame={self.last_annotated_frame} for video_id={self.video_id}, success={success}")
+            return success
+        finally:
+            cursor.close()
     
     def save_bbox_data(self, frame_num, class_name, coordinates):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO bbox (frame_num, class_name, coordinates, video_id) VALUES (%s, %s, %s, %s)"
-        cursor.execute(query,(frame_num, class_name, coordinates, self.video_id))
-        connection.commit()  # 提交事务
-        success = bool(cursor.rowcount)
-        cursor.close()
-        return success
+        """保存边界框数据到数据库"""
+        cursor = get_db_cursor()
+        try:
+            query = "INSERT INTO bbox (frame_num, class_name, coordinates, video_id) VALUES (%s, %s, %s, %s)"
+            cursor.execute(query,(frame_num, class_name, coordinates, self.video_id))
+            connection.commit()  # 提交事务
+            success = bool(cursor.rowcount)
+            logger.debug(f"💾 [SAVE] Saved bbox: video_id={self.video_id}, frame={frame_num}, class={class_name}, coords={coordinates}, success={success}")
+            return success
+        finally:
+            cursor.close()
 
 # @staticmethod
 # def calculate_iou(bbox1, bbox2):
@@ -2202,6 +2391,68 @@ def get_project_videos(project_id: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+
+# Serve video file by video_id
+@app.get("/serve_video/{video_id}")
+async def serve_video(video_id: int, project_id: int = None):
+    """通过 video_id 提供视频文件"""
+    try:
+        # 如果提供了 project_id，使用它；否则需要从数据库查询
+        if project_id is None:
+            # 从数据库查询 project_id
+            if not is_db_connection_valid():
+                raise HTTPException(status_code=503, detail="Database connection not available")
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            query = "SELECT project_id FROM video WHERE video_id = %s"
+            cursor.execute(query, (video_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            if not result:
+                raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+            project_id = result['project_id']
+        
+        # 创建 Video 对象并获取视频路径
+        video = Video(project_id=project_id, video_id=video_id)
+        video_path = video.get_video_path()
+        
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail=f"Video file not found for video_id {video_id}")
+        
+        # 确定媒体类型
+        ext = os.path.splitext(video_path)[-1].lower()
+        media_types = {
+            '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+            '.webm': 'video/webm',
+            '.mkv': 'video/x-matroska'
+        }
+        media_type = media_types.get(ext, "application/octet-stream")
+        
+        # 使用 StreamingResponse 来流式传输大文件
+        def iterfile():
+            with open(video_path, "rb") as f:
+                while True:
+                    chunk = f.read(8192)  # 8KB chunks
+                    if not chunk:
+                        break
+                    yield chunk
+        
+        return StreamingResponse(
+            iterfile(),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"inline; filename={os.path.basename(video_path)}",
+                "Accept-Ranges": "bytes"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Serve video error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error serving video: {str(e)}")
     
 #=================================== Page 4 - Annotation ==========================================
 
@@ -2358,19 +2609,33 @@ async def get_next_frame_to_annotate(request: VideoRequest):
         video = Video(project_id = request.project_id, video_id = request.video_id)
         next_frame, frame_num = video.get_next_frame_to_annotate()
         
+        # 获取视频总帧数（用于前端显示进度）
+        frame_count = video.get_frame_count()
+        fps = video.get_fps()
+        
+        # 计算需要标注的关键帧总数（每秒钟一帧）
+        # 例如：如果视频有900帧，FPS=30，则总共有 900/30 = 30 个关键帧需要标注
+        total_key_frames = int(frame_count / fps) if fps > 0 else 0
+        
         if next_frame is None:
             return {
                 "success": False,
                 "message": "All frames have been annotated.",
                 "image": None,
-                "frame_num": None
+                "frame_num": None,
+                "total_frames": total_key_frames,
+                "frame_count": frame_count,
+                "fps": fps
             }
         
         return {
                 "success": True,
                 "message": "Next frame fetched successfully.",
                 "image": next_frame,
-                "frame_num": frame_num
+                "frame_num": frame_num,
+                "total_frames": total_key_frames,  # 关键帧总数（每秒钟一帧）
+                "frame_count": frame_count,  # 视频总帧数
+                "fps": fps  # 视频帧率
         }
 
     except Exception as e:
@@ -2386,9 +2651,12 @@ async def get_next_frame_to_annotate(request: VideoRequest):
 async def check_annotation_status(request: VideoRequest):  
     try:
         video = Video(project_id = request.project_id, video_id = request.video_id)
+        # 重新从数据库获取最新状态，确保数据是最新的
+        annotation_status, last_annotated_frame = video.get_annotation_status()
+        logger.info(f"📊 [STATUS] Video {request.video_id} status: {annotation_status}, last_frame: {last_annotated_frame}")
         return {
-            "annotation status": video.annotation_status,
-            "last annotated frame": video.last_annotated_frame
+            "annotation status": annotation_status,
+            "last annotated frame": last_annotated_frame if last_annotated_frame is not None else 0
         }
 
     except Exception as e:
@@ -2403,60 +2671,136 @@ async def check_annotation_status(request: VideoRequest):
 @app.post("/annotate")
 async def annotate(request: AnnotationRequest):
     try:
+        logger.info(f"📝 [ANNOTATE] Saving annotation: project_id={request.project_id}, video_id={request.video_id}, frame_num={request.frame_num}, bbox_count={len(request.bboxes)}")
         video = Video(project_id = request.project_id, video_id = request.video_id)
-        for bbox in request.bboxes:
-            success = video.annotate(request.frame_num, bbox)
         
-        if success:
+        # 获取视频信息，用于判断是否完成
+        frame_count = video.get_frame_count()
+        fps = video.get_fps()
+        total_key_frames = int(frame_count / fps) if fps > 0 else 0
+        
+        all_success = True
+        for bbox in request.bboxes:
+            # bbox should be a dict with class_name, x, y, width, height
+            if isinstance(bbox, dict):
+                bbox_list = [bbox.get('class_name', ''), bbox.get('x', 0), bbox.get('y', 0), bbox.get('width', 0), bbox.get('height', 0)]
+            else:
+                # If it's already a list, use it directly
+                bbox_list = bbox
+            
+            success = video.annotate(request.frame_num, bbox_list)
+            if not success:
+                all_success = False
+                logger.warning(f"⚠️ [ANNOTATE] Failed to save bbox: {bbox}")
+        
+        if all_success:
+            # 检查是否已完成所有关键帧的标注
+            # 计算当前帧对应的关键帧索引
+            current_key_frame = int(request.frame_num / fps) + 1 if fps > 0 else 0
+            
+            # 重新获取最新的状态（因为 annotate 方法已经更新了 last_annotated_frame）
+            video.annotation_status, video.last_annotated_frame = video.get_annotation_status()
+            
+            # 如果当前关键帧是最后一个，或者下一帧会超出范围，标记为完成
+            next_frame = video.last_annotated_frame + fps
+            if next_frame >= frame_count or current_key_frame >= total_key_frames:
+                video.annotation_status = "manual annotation completed"
+                video.save_annotation_status()
+                logger.info(f"🎉 [ANNOTATE] Video annotation completed! (frame {request.frame_num}, key frame {current_key_frame}/{total_key_frames})")
+            
+            logger.info(f"✅ [ANNOTATE] All annotations saved successfully for frame {request.frame_num} (last_annotated_frame: {video.last_annotated_frame}, status: {video.annotation_status})")
             return {
                 "success": True,
-                "message": "Annotation saved."
+                "message": "Annotation saved.",
+                "savedAt": getClientTimestamp(),
+                "annotation_status": video.annotation_status,
+                "last_annotated_frame": video.last_annotated_frame,
+                "is_completed": video.annotation_status == "manual annotation completed"
             }
         else:
+            logger.warning(f"⚠️ [ANNOTATE] Some annotations failed to save for frame {request.frame_num}")
             return {
-                    "success": False,
-                    "message": success
+                "success": False,
+                "message": "Some annotations failed to save."
             }
 
     except Exception as e:
+        logger.error(f"❌ [ANNOTATE] Error saving annotation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
 
-# # Get next video to annotate
-# @app.post("/next_video")
-# async def next_video(request: ProjectRequest, current_video_id: str):
-#     try:
-#         project = Project(project_id = request.project_id)
-#         if current_video_id not in project.videos:
-#             return {
-#                 "success": False,
-#                 "message": "Current video not found in project.",
-#                 "next_video_id": None
-#             }
-        
-#         current_index = project.videos.index(current_video_id)
-#         if current_index + 1 < len(project.videos):
-#             next_video_id = project.videos[current_index + 1]
-#             return {
-#                 "success": True,
-#                 "message": "Next video fetched successfully.",
-#                 "next_video_id": next_video_id
-#             }
-#         else:
-#             next_video_id = project.videos[0]
-#             return {
-#                 "success": True,
-#                 "message": "Reached end of video list. Looping back to first video.",
-#                 "next_video_id": next_video_id
-#             }
+# Get next video to annotate
+class NextVideoRequest(BaseModel):
+    project_id: int
+    current_video_id: str  # Can be int or string, will be converted
+    
+    @validator('current_video_id', pre=True)
+    def convert_current_video_id(cls, v):
+        if isinstance(v, (int, float)):
+            return str(int(v))
+        return str(v)
 
-#     except Exception as e:
-#         return JSONResponse(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             content={"error": str(e)}
-#         )
+@app.post("/next_video")
+async def next_video(request: NextVideoRequest):
+    try:
+        project = Project(project_id=request.project_id)
+        video_ids = project.get_videos()  # Returns list of int video_ids
+        
+        if not video_ids:
+            return {
+                "success": False,
+                "message": "No videos found in project.",
+                "next_video_id": None
+            }
+        
+        # Convert current_video_id to int for comparison
+        try:
+            current_video_id_int = int(request.current_video_id)
+        except (ValueError, TypeError):
+            # If current_video_id is invalid, return first video
+            return {
+                "success": True,
+                "message": "Invalid current video ID. Returning first video.",
+                "next_video_id": str(video_ids[0])
+            }
+        
+        # Find current video index
+        if current_video_id_int not in video_ids:
+            # Current video not found, return first video
+            return {
+                "success": True,
+                "message": "Current video not found in project. Returning first video.",
+                "next_video_id": str(video_ids[0])
+            }
+        
+        current_index = video_ids.index(current_video_id_int)
+        
+        # Get next video
+        if current_index + 1 < len(video_ids):
+            next_video_id = video_ids[current_index + 1]
+            return {
+                "success": True,
+                "message": "Next video fetched successfully.",
+                "next_video_id": str(next_video_id)
+            }
+        else:
+            # Reached end, no more videos
+            return {
+                "success": False,
+                "message": "No more videos available. This is the last video.",
+                "next_video_id": None
+            }
+
+    except Exception as e:
+        logger.error(f"Next video error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
 
 #=================================== Page 5 - Model Training ==========================================
 
@@ -2471,36 +2815,120 @@ async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTa
 
 async def _create_dataset(project_id: int):
     try:
+        logger.info(f"🚀 [DATASET] Starting dataset creation for project {project_id}")
         project = Project(project_id = project_id)
 
         # 检查所有视频是否都已完成标注
-        for video_id in project.videos:
+        videos = project.get_videos()
+        logger.info(f"📹 [DATASET] Found {len(videos)} video(s) in project {project_id}")
+        
+        if not videos:
+            error_msg = "No videos found in project. Please upload videos first."
+            logger.error(f"❌ [DATASET] {error_msg}")
+            return {
+                "success": False,
+                "message": error_msg
+            }
+        
+        for video_id in videos:
             video = Video(project_id = project_id, video_id = video_id)
-            if video.annotation_status not in ["completed", "manual annotation completed"]:
+            # 重新从数据库获取最新状态
+            annotation_status, last_annotated_frame = video.get_annotation_status()
+            video.annotation_status = annotation_status
+            video.last_annotated_frame = last_annotated_frame
+            
+            logger.info(f"🔍 [DATASET] Checking video {video_id}, status: {annotation_status}, last_frame: {last_annotated_frame}")
+            
+            # 如果状态是 "manual annotation in progress"，检查是否真的完成了
+            if annotation_status == "manual annotation in progress":
+                # 检查是否所有关键帧都已标注
+                try:
+                    frame_count = video.get_frame_count()
+                    fps = video.get_fps()
+                    total_key_frames = int(frame_count / fps) if fps > 0 else 0
+                    
+                    # 计算最后一帧对应的关键帧索引（从1开始）
+                    if last_annotated_frame is not None and last_annotated_frame >= 0:
+                        # 关键帧索引 = floor(帧号 / fps) + 1
+                        # 例如：帧0对应关键帧1，帧30对应关键帧2，帧420对应关键帧15（420/30+1=15）
+                        last_key_frame = int(last_annotated_frame / fps) + 1 if fps > 0 else 0
+                        next_frame = last_annotated_frame + fps
+                        
+                        logger.info(f"🔍 [DATASET] Video {video_id} completion check: last_frame={last_annotated_frame}, frame_count={frame_count}, fps={fps}, last_key_frame={last_key_frame}, total_key_frames={total_key_frames}, next_frame={next_frame}")
+                        
+                        # 判断是否完成：
+                        # 1. 下一帧超出总帧数，或者
+                        # 2. 最后一个关键帧已经达到或超过总关键帧数（允许1帧的误差，因为可能最后一个关键帧在最后一秒）
+                        if next_frame >= frame_count or last_key_frame >= total_key_frames:
+                            logger.info(f"✅ [DATASET] Video {video_id} appears to be completed (last_frame: {last_annotated_frame}, last_key_frame: {last_key_frame}/{total_key_frames}), updating status...")
+                            video.annotation_status = "manual annotation completed"
+                            video.save_annotation_status()
+                            annotation_status = "manual annotation completed"
+                        else:
+                            # 如果还有关键帧未标注，但差距很小（只差1个关键帧），也认为已完成
+                            remaining_key_frames = total_key_frames - last_key_frame
+                            if remaining_key_frames <= 1:
+                                logger.info(f"✅ [DATASET] Video {video_id} is almost completed (last_key_frame: {last_key_frame}/{total_key_frames}, remaining: {remaining_key_frames}), updating status...")
+                                video.annotation_status = "manual annotation completed"
+                                video.save_annotation_status()
+                                annotation_status = "manual annotation completed"
+                            else:
+                                error_msg = f"Video {video_id} is not completed. Last annotated frame: {last_annotated_frame} (key frame {last_key_frame}/{total_key_frames}), total frames: {frame_count}, fps: {fps}. Please complete annotation first."
+                                logger.error(f"❌ [DATASET] {error_msg}")
+                                return {
+                                    "success": False,
+                                    "message": error_msg
+                                }
+                    else:
+                        error_msg = f"Video {video_id} has invalid last_annotated_frame: {last_annotated_frame}. Please complete annotation first."
+                        logger.error(f"❌ [DATASET] {error_msg}")
+                        return {
+                            "success": False,
+                            "message": error_msg
+                        }
+                except Exception as e:
+                    logger.error(f"❌ [DATASET] Error checking video {video_id} completion: {e}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    error_msg = f"Error checking video {video_id} completion: {str(e)}"
+                    return {
+                        "success": False,
+                        "message": error_msg
+                    }
+            
+            if annotation_status not in ["completed", "manual annotation completed"]:
+                error_msg = f"Video {video_id} is not completed. Current status: {annotation_status}. Please complete annotation first."
+                logger.error(f"❌ [DATASET] {error_msg}")
                 return {
                     "success": False,
-                    "message": f"Video {video_id} is not completed. Current status: {video.annotation_status}. Please complete annotation first.",
+                    "message": error_msg
                 }
 
         # 所有视频都已完成标注，创建数据集
+        logger.info(f"✅ [DATASET] All videos completed, starting dataset creation...")
         success = project.create_dataset()
         
         if success:
+            logger.info(f"🎉 [DATASET] Dataset created successfully for project {project_id}")
             return {
                 "success": True,
                 "message": "Dataset created successfully."
             }
         else:
+            error_msg = "Failed to create dataset."
+            logger.error(f"❌ [DATASET] {error_msg}")
             return {
                 "success": False,
-                "message": "Failed to create dataset."
+                "message": error_msg
             }
 
     except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
+        error_msg = f"Error creating dataset: {str(e)}"
+        logger.error(f"❌ [DATASET] {error_msg}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "message": error_msg
+        }
 
 # Get auto annotation progress of a project
 @app.post("/get_auto_annotation_progress")
@@ -2517,9 +2945,11 @@ async def get_auto_annotation_progress(request: ProjectRequest):
         }
 
     except Exception as e:
+        logger.error(f"Get auto annotation progress error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
+            content={"error": str(e), "progress": 0.0}
         )
 
 # Train model for a project

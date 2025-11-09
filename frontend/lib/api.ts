@@ -487,7 +487,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       return {
         name: v.name,
         video_id: typeof videoId === 'number' ? videoId : parseInt(videoId.toString()),
-        url: `${baseUrl}${v.path}`,
+        url: v.url ? `${baseUrl}${v.url}` : `${baseUrl}/serve_video/${videoId}`, // 使用后端返回的 url，如果没有则使用默认端点
         video_path: v.path,
       };
     });
@@ -507,13 +507,21 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
 
     if (!response.ok) throw new Error("Failed to load videos");
     const videos = await response.json();
-    return (videos || []).map((v: any) => ({
-      name: v.name,
-      video_id: v.video_id || Date.now(),
-      url: `${baseUrl}${v.path}`,
-      video_path: v.path,
-    }
-  ));
+    return (videos || []).map((v: any) => {
+      // 从 get_video_info() 返回的数据结构中提取 video_id
+      // 结构是: {name, file, path, url}，其中 file 是 video_id
+      const videoId = v.file || v.video_id || v.id;
+      if (!videoId) {
+        log.warn('API', 'Video missing ID in getUploadedVidsAsync', { video: v });
+        throw new Error(`Video missing ID: ${JSON.stringify(v)}`);
+      }
+      return {
+        name: v.name,
+        video_id: typeof videoId === 'number' ? videoId : parseInt(videoId.toString()),
+        url: v.url ? `${baseUrl}${v.url}` : `${baseUrl}/serve_video/${videoId}`, // 使用后端返回的 url，如果没有则使用默认端点
+        video_path: v.path,
+      };
+    });
   }
 
 
@@ -799,19 +807,24 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       const cleanProjectId = projectId.toString().replace(/\D/g, '');
       
       // 直接使用傳入的視頻 ID（應該是資料庫中的唯一 ID）
-      const cleanVideoId = videoId.toString();
+      const cleanVideoId = videoId.toString().replace(/\D/g, '');
       
       if (!cleanProjectId || !cleanVideoId || cleanVideoId === "undefined" || cleanVideoId === "") {
         throw new Error(`Invalid parameters: projectId=${projectId}, videoId=${videoId}`);
       }
       
       const projectIdInt = parseInt(cleanProjectId);
+      const videoIdInt = parseInt(cleanVideoId);
       
       if (isNaN(projectIdInt)) {
         throw new Error(`Invalid project ID: ${projectIdInt}`);
       }
       
-      log.apiCall(endpoint, 'POST', { projectId: projectIdInt, videoId: cleanVideoId, currentFrame });
+      if (isNaN(videoIdInt) || videoIdInt <= 0) {
+        throw new Error(`Invalid video ID: ${videoIdInt}`);
+      }
+      
+      log.apiCall(endpoint, 'POST', { projectId: projectIdInt, videoId: videoIdInt, currentFrame });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
@@ -824,7 +837,7 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
         },
         body: JSON.stringify({
           project_id: projectIdInt,
-          video_id: cleanVideoId,  // 保持為字符串
+          video_id: videoIdInt,  // 發送為整數，validator 會處理字符串轉換
         }),
       });
 
@@ -1110,6 +1123,9 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
     success: boolean;
     message: string;
     savedAt?: string;
+    annotation_status?: string;
+    last_annotated_frame?: number;
+    is_completed?: boolean;
   }> {
     const startTime = Date.now();
     const endpoint = '/annotate';
@@ -1204,7 +1220,10 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       return {
         success: data.success || true,
         message: data.message || 'Annotation saved successfully',
-        savedAt: new Date().toISOString()
+        savedAt: data.savedAt || new Date().toISOString(),
+        annotation_status: data.annotation_status,
+        last_annotated_frame: data.last_annotated_frame,
+        is_completed: data.is_completed || false
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -1230,7 +1249,10 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       return {
         success: true,
         message: `Annotation saved successfully (frontend fallback). ${annotationData.bboxes.length} bounding boxes processed.`,
-        savedAt: new Date().toISOString()
+        savedAt: new Date().toISOString(),
+        annotation_status: undefined,
+        last_annotated_frame: undefined,
+        is_completed: false
       };
     }
   }
