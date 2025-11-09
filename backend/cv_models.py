@@ -294,7 +294,7 @@ class MobileSAM:
         Initialize MobileSAM - lightweight SAM for CPU/mobile devices
         
         Args:
-            image_path: Path to input image
+            image: input image
             checkpoint: Path to mobile_sam.pt checkpoint
         """
         
@@ -435,8 +435,7 @@ class MobileSAM:
         
         # Generate output path
         if output_path is None:
-            base, ext = os.path.splitext(self.image_path)
-            output_path = f"{base}_mobilesam_segmented{ext}"
+            output_path = f"mobilesam_segmented.jpg"
         
         cv2.imwrite(output_path, img_copy)
         print(f"Saved segmentation to: {output_path}")
@@ -467,8 +466,7 @@ class MobileSAM:
             img_copy = cv2.addWeighted(img_copy, 0.7, colored_mask, 0.3, 0)
         
         if output_path is None:
-            base, ext = os.path.splitext(self.image_path)
-            output_path = f"{base}_mobilesam_masks{ext}"
+            output_path = f"mobilesam_masks.jpg"
         
         cv2.imwrite(output_path, img_copy)
         print(f"Saved masks to: {output_path}")
