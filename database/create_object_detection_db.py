@@ -148,13 +148,8 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_project_table)
             print("project表创建成功")
-<<<<<<< HEAD
 
 #====================================创建class表====================================
-            
-=======
-#====================================创建class表====================================
->>>>>>> 8f86a8029743637710873db2db8283b134b214c3
             create_class_table = """
             CREATE TABLE IF NOT EXISTS class (
                 project_id INT NOT NULL,
@@ -173,10 +168,6 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_class_table)
             print("class表创建成功")
-<<<<<<< HEAD
-=======
-            
->>>>>>> 8f86a8029743637710873db2db8283b134b214c3
             
 #====================================创建video表====================================
             create_video_table = """
