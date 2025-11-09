@@ -216,7 +216,7 @@ def sanitize_filename(filename):
 config = {
     'host': 'localhost',
     'user': 'root',
-    'password': '12345678',
+    'password': 'noconoconocodile',
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }
@@ -2807,7 +2807,7 @@ async def next_video(request: NextVideoRequest):
 # Create dataset for training
 @app.post("/create_dataset")
 async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks):
-    background_tasks.add_task(_create_dataset, request.project_id)
+    # background_tasks.add_task(_create_dataset, request.project_id)
     return {
         "success": True,
         "message": "Training started in the background."

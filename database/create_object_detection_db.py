@@ -23,26 +23,34 @@ class ObjectDetectionDB:
         初始化数据库连接
         優先使用環境變數或配置模組，否則使用預設值
         """
-        if USE_CONFIG_MODULE:
-            # 使用配置模組，但優先使用傳入的參數
-            self.config = {
-                'host': host or os.getenv('MYSQL_HOST') or config.database.host,
-                'user': user or os.getenv('MYSQL_USER') or config.database.user,
-                'password': password or os.getenv('MYSQL_PASSWORD') or config.database.password,
-                'database': database or os.getenv('MYSQL_DATABASE') or config.database.database,
-                'charset': 'utf8mb4'
-            }
-        else:
-            # 使用環境變數或預設值
-            # 預設配置：host='localhost', user='root', password='12345678', database='Nocodile'
-            self.config = {
-                'host': host or os.getenv('MYSQL_HOST', 'localhost'),
-                'user': user or os.getenv('MYSQL_USER', 'root'),
-                'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
-                'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
-                'charset': 'utf8mb4'
-            }
-        
+        # if USE_CONFIG_MODULE:
+        #     # 使用配置模組，但優先使用傳入的參數
+        #     self.config = {
+        #         'host': host or os.getenv('MYSQL_HOST') or config.database.host,
+        #         'user': user or os.getenv('MYSQL_USER') or config.database.user,
+        #         'password': password or os.getenv('MYSQL_PASSWORD') or config.database.password,
+        #         'database': database or os.getenv('MYSQL_DATABASE') or config.database.database,
+        #         'charset': 'utf8mb4'
+        #     }
+        # else:
+        #     # 使用環境變數或預設值
+        #     # 預設配置：host='localhost', user='root', password='12345678', database='Nocodile'
+        #     self.config = {
+        #         'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+        #         'user': user or os.getenv('MYSQL_USER', 'root'),
+        #         'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
+        #         'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
+        #         'charset': 'utf8mb4'
+        #     }
+
+        self.config = {
+            'host': 'localhost',
+            'user': 'root',
+            'password': 'noconoconocodile',
+            'database': 'Nocodile',
+            'charset': 'utf8mb4'
+        }
+
         self.connection = None
         print(f"資料庫配置: {self.config['host']}:{self.config.get('port', 3306)}")
         print(f"目標資料庫: {self.config['database']}")
