@@ -228,7 +228,7 @@ const UploadPage = () => {
         </video>
         <div className="flex flex-row gap-2">
           <Link
-            href={`/project/${project_id}/annotate?video_id=${vid.file_id || vid.video_id || '1'}`}
+            href={`/project/${project_id}/annotate?video_id=${vid.video_id || '1'}`}
             className="btn-secondary w-fit"
           >
             Annotate this video

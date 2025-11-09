@@ -476,12 +476,21 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
     }
 
     const result = await response.json();
-    const videos: uploadedVid[] = (result.videos || []).map((v: any) => ({
-      name: v.name,
-      video_id: v.video_id || Date.now(),
-      url: `${baseUrl}${v.path}`,
-      video_path: v.path,
-    }));
+    const videos: uploadedVid[] = (result.videos || []).map((v: any) => {
+      // 从 get_video_info() 返回的数据结构中提取 video_id
+      // 结构是: {name, file, path, url}，其中 file 是 video_id
+      const videoId = v.file || v.video_id || v.id;
+      if (!videoId) {
+        log.warn('API', 'Video missing ID', { video: v });
+        throw new Error(`Video missing ID: ${JSON.stringify(v)}`);
+      }
+      return {
+        name: v.name,
+        video_id: typeof videoId === 'number' ? videoId : parseInt(videoId.toString()),
+        url: `${baseUrl}${v.path}`,
+        video_path: v.path,
+      };
+    });
 
     log.info('API', '查詢成功', { count: videos.length });
     return videos;
@@ -579,13 +588,14 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
   static async addClass(projectId: string, className: string, color: string) {
     const startTime = Date.now();
     const endpoint = '/add_class';
+    let fullUrl = '';
     
     try {
       log.apiCall(endpoint, 'POST', { projectId, className, color });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
+      fullUrl = `${workingUrl}${endpoint}`;
 
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -624,11 +634,11 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
         throw new Error('Invalid response format from server');
       }
       console.log(data.message);
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
+      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
       return data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
+      log.apiError(fullUrl, 'POST', error, duration);
       log.error('API', 'Error adding class', { 
         projectId,
         className,
@@ -654,13 +664,14 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
   static async modifyClass(projectId: string, originalName: string, newName: string) {
     const startTime = Date.now();
     const endpoint = '/modify_class';
+    let fullUrl = '';
     
     try {
       log.apiCall(endpoint, 'POST', { projectId, originalName, newName });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
+      fullUrl = `${workingUrl}${endpoint}`;
 
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -682,11 +693,11 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
       }
 
       const data = await response.json();
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
+      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
       return data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
+      log.apiError(fullUrl, 'POST', error, duration);
       log.error('API', 'Error modifying class, using fallback response', { 
         projectId,
         originalName,
@@ -707,13 +718,14 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
   static async deleteClass(projectId: string, className: string) {
     const startTime = Date.now();
     const endpoint = '/delete_class';
+    let fullUrl = '';
     
     try {
       log.apiCall(endpoint, 'POST', { projectId, className });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
+      fullUrl = `${workingUrl}${endpoint}`;
 
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -751,11 +763,11 @@ static async uploadVideo(project_id: string, file: File): Promise<any> {
         throw new Error('Invalid response format from server');
       }
       console.log(data.message);
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
+      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
       return data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
+      log.apiError(fullUrl, 'POST', error, duration);
       log.error('API', 'Error deleting class', { 
         projectId,
         className,

@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, B
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 # from passlib.context import CryptContext
@@ -1188,29 +1188,55 @@ class Video(Project):
     def get_video_path(self):
         # 首先嘗試將 video_id 轉換為整數（向後兼容）
         try:
+            if not is_db_connection_valid():
+                logger.error("Database connection not available in get_video_path")
+                return None
+                
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             video_id_int = int(self.video_id)
             query = "SELECT video_path FROM video WHERE video_id = %s"
             cursor.execute(query, (video_id_int,))
             result = cursor.fetchone()
-            if result:
-                return result['video_path']
-        except (ValueError, TypeError):
-            pass
+            cursor.close()
+            if result and result.get('video_path'):
+                video_path = result['video_path']
+                # 检查文件是否存在
+                if os.path.exists(video_path):
+                    return video_path
+                else:
+                    logger.warning(f"Video file not found at path: {video_path}")
+                    return None
+            return None
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error in get_video_path: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error in get_video_path: {e}")
+            return None
     
     # Fetch video name (str) from database
     def get_frame_count(self):
         if not self.video_path:
             self.video_path = self.get_video_path()
+        if not self.video_path:
+            raise ValueError(f"Video path not found for video_id {self.video_id}")
         cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {self.video_path}")
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.release()
         return frame_count
     
     def get_fps(self):
         if not self.video_path:
             self.video_path = self.get_video_path()
+        if not self.video_path:
+            raise ValueError(f"Video path not found for video_id {self.video_id}")
         cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {self.video_path}")
         fps = cap.get(cv2.CAP_PROP_FPS)
+        cap.release()
         return fps
     
     def get_resolution(self):
@@ -1302,23 +1328,29 @@ class Video(Project):
             return None, None
     
     def get_frame(self, frame_num: int):
+        if not self.video_path:
+            self.video_path = self.get_video_path()
+        if not self.video_path:
+            raise ValueError(f"Video path not found for video_id {self.video_id}")
         self.frame_count = self.get_frame_count()
         if self.frame_count <= 0:
             raise ValueError("Video file is invalid or has no frames")
         if frame_num < 0 or frame_num >= self.frame_count:
-            raise ValueError("Frame number out of range")
-        if not self.video_path:
-            self.video_path = self.get_video_path()
+            raise ValueError(f"Frame number {frame_num} out of range (0-{self.frame_count-1})")
         cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {self.video_path}")
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         ret, frame = cap.read()
         if ret:
             _, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
             frame_encoded = base64.b64encode(frame_bytes).decode('utf-8')
+            cap.release()
+            return frame_encoded
         else:
-            raise ValueError("Could not read frame")
-        return frame_encoded
+            cap.release()
+            raise ValueError(f"Could not read frame {frame_num} from video")
     
     def annotate(self, frame_num: int, bbox: list):
         try:
@@ -2308,7 +2340,16 @@ async def delete_class(request: DeleteClassRequest):
     
 class VideoRequest(BaseModel):
     project_id: int
-    video_id: int
+    video_id: int  # Can be int or string, will be converted
+    
+    @validator('video_id', pre=True)
+    def convert_video_id(cls, v):
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"video_id must be a valid integer, got: {v}")
+        return int(v)
 
 # Get next frame to annotate
 @app.post("/get_next_frame_to_annotate")
@@ -2340,21 +2381,23 @@ async def get_next_frame_to_annotate(request: VideoRequest):
             content={"error": str(e)}
         )
 
-# # Check annotation status of a video
-# @app.post("/check_annotation_status")
-# async def check_annotation_status(request: VideoRequest):  
-#     try:
-#         video = Video(project_id = request.project_id, video_id = request.video_id)
-#         return {
-#             "annotation status": video.annotation_status,
-#             "last annotated frame": video.last_annotated_frame
-#         }
+# Check annotation status of a video
+@app.post("/check_annotation_status")
+async def check_annotation_status(request: VideoRequest):  
+    try:
+        video = Video(project_id = request.project_id, video_id = request.video_id)
+        return {
+            "annotation status": video.annotation_status,
+            "last annotated frame": video.last_annotated_frame
+        }
 
-#     except Exception as e:
-#         return JSONResponse(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             content={"error": str(e)}
-#         )
+    except Exception as e:
+        logger.error(f"Check annotation status error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e)}
+        )
     
 # Save annotation for a frame
 @app.post("/annotate")

@@ -1,1830 +1,1010 @@
-// API service for connecting frontend to backend
-import { log, logger } from '@/lib/logger';
+"use client";
 
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { ApiService } from "@/lib/api";
+import { log } from "@/lib/logger";
+import dynamic from "next/dynamic";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Square,
+  MousePointer,
+  Trash2,
+  Save,
+} from "lucide-react";
 
-
-// Utility function to validate and fix image data
-function validateAndFixImageData(imageData: string): string {
-  if (!imageData || typeof imageData !== 'string') {
-    console.warn('⚠️ [API] Invalid image data: not a string or empty');
-    return '';
-  }
-  
-  // 檢查是否已經是正確的 data URL 格式
-  if (imageData.startsWith('data:image/')) {
-    // 驗證 data URL 格式是否完整
-    if (imageData.includes('base64,') && imageData.length > 50) {
-      return imageData; // 已經是正確格式，直接返回
-    } else {
-      console.warn('⚠️ [API] Incomplete data URL detected, attempting to fix');
-    }
-  }
-  
-  // 檢查是否為 PNG 格式的 base64 (優先檢查 PNG，因為它更特定)
-  if (imageData.startsWith('iVBORw0KGgo')) {
-    console.log('🔧 [API] Detected PNG base64 data, fixing format');
-    return `data:image/png;base64,${imageData}`;
-  }
-  
-  // 檢查是否為 JPEG 格式的 base64
-  if (imageData.startsWith('/9j/') || imageData.startsWith('9j/')) {
-    console.log('🔧 [API] Detected JPEG base64 data, fixing format');
-    return `data:image/jpeg;base64,${imageData}`;
-  }
-  
-  // 如果沒有 data: 前綴，假設為 JPEG 格式
-  if (!imageData.startsWith('data:')) {
-    console.log('🔧 [API] Raw base64 data detected, adding data URL prefix');
-    return `data:image/jpeg;base64,${imageData}`;
-  }
-  
-  // 如果數據太短，可能是無效的
-  if (imageData.length < 20) {
-    console.warn('⚠️ [API] Image data too short, likely invalid');
-    return '';
-  }
-  
-  return imageData;
+interface Annotation {
+  id: string;
+  class: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888';
-
-// Fallback URLs to try if the primary URL fails
-const FALLBACK_URLS = [
-  'http://localhost:8888',
-  'http://host.docker.internal:8888',
-  'http://backend:8888'
-];
-
-// Function to find a working backend URL
-export async function findWorkingBackendUrl(): Promise<string> {
-  // First try the environment variable URL
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl) {
-    log.info('CONNECTION', 'Testing environment variable URL first', { url: envUrl });
-    const startTime = Date.now();
-    try {
-      const response = await fetch(`${envUrl}/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const duration = Date.now() - startTime;
-      
-      if (response.ok) {
-        log.connectionTest(envUrl, true, duration);
-        return envUrl;
-      } else {
-        log.connectionTest(envUrl, false, duration);
-        log.warn('CONNECTION', `Environment URL at ${envUrl} returned status: ${response.status}`);
-      }
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.connectionTest(envUrl, false, duration);
-      log.error('CONNECTION', `Environment URL at ${envUrl} failed`, { error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-  
-  log.info('CONNECTION', 'Environment URL failed, trying fallback URLs', { urls: FALLBACK_URLS });
-  
-  for (const url of FALLBACK_URLS) {
-    const startTime = Date.now();
-    try {
-      log.debug('CONNECTION', `Testing backend URL: ${url}`);
-      const response = await fetch(`${url}/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const duration = Date.now() - startTime;
-      
-      if (response.ok) {
-        log.connectionTest(url, true, duration);
-        return url;
-      } else {
-        log.connectionTest(url, false, duration);
-        log.warn('CONNECTION', `Backend at ${url} returned status: ${response.status}`);
-      }
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.connectionTest(url, false, duration);
-      log.error('CONNECTION', `Backend at ${url} failed`, { error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-  
-  log.error('CONNECTION', 'All backend URLs failed - no working backend found');
-  throw new Error('無法連接到任何後端服務');
-}
-
-export interface ProjectInfo {
-  id: number;
-  name: string;
-  videoCount: number;
-  status?: string;
-  isOwned?: boolean;
-}
-
-export interface CreateProjectRequest {
-  userID: string;
-  project_name: string;
-  project_type: string;
-}
-
-export interface UserRequest {
-  userID: string;
-}
-
-export interface ProjectRequest {
-  project_id: string;
-}
-
-export interface VideoRequest {
-  project_id: string;
-  video_id: string;
-}
-export type uploadedVid = {
-  name: string;
-  video_id: number;
-  url: string;
-  video_path?: string;
-};
-
-export interface AnnotationRequest {
-  project_id: string;
-  video_id: string;
-  frame_num: number;
-  bboxes: Array<{
-    class_name: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }>;
-}
-
-export interface ClassInfo {
+interface Class {
   id: string;
   name: string;
   color: string;
 }
 
-// API functions
-export class ApiService {
-  // Static method to find working backend URL
-  static async findWorkingBackendUrl(): Promise<string> {
-    return findWorkingBackendUrl();
-  }
+function AnnotatePageContent() {
+  const { id } = useParams();
+  const [currentFrameImage, setCurrentFrameImage] = useState<string>("");
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [currentImage, setCurrentImage] = useState(1);
+  const [totalImages, setTotalImages] = useState(150); // 動態總幀數
+  const [currentVideo, setCurrentVideo] = useState(1);
+  const [totalVideos] = useState(10);
+  const [selectedTool, setSelectedTool] = useState<"select" | "box">("box");
+  const [selectedClass, setSelectedClass] = useState("stop_sign");
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
+  const [currentBox, setCurrentBox] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [zoom, setZoom] = useState(100);
+  const [imageScale, setImageScale] = useState(1);
+  const [classes, setClasses] = useState<Class[]>([
+    { id: "give_way_sign", name: "give_way_sign", color: "#fbbf24" },
+    { id: "pedestrian_child", name: "pedestrian_child", color: "#3b82f6" },
+    { id: "zebra_crossing_sign", name: "zebra_crossing_sign", color: "#8b5cf6" },
+    { id: "traffic_light_red", name: "traffic_light_red", color: "#10b981" },
+    { id: "stop_sign", name: "stop_sign", color: "#ef4444" },
+  ]);
+  const [newClassName, setNewClassName] = useState("");
+  const [classPage, setClassPage] = useState(1);
+  const CLASSES_PER_PAGE = 5;
+  const [currentVideoId, setCurrentVideoId] = useState("");
+  const [annotationStatus, setAnnotationStatus] = useState("not yet started");
+  const [lastAnnotatedFrame, setLastAnnotatedFrame] = useState(0);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const projectId = Array.isArray(id) ? id[0] : id;
+  const safeProjectId = projectId || "";
 
-  // Helper method for consistent API logging
-  private static async makeApiCall(
-    endpoint: string, 
-    method: string, 
-    body?: any, 
-    useWorkingUrl: boolean = false
-  ): Promise<Response> {
-    const startTime = Date.now();
-    const baseUrl = useWorkingUrl ? await findWorkingBackendUrl() : API_BASE_URL;
-    const fullUrl = `${baseUrl}${endpoint}`;
-    
-    log.apiCall(endpoint, method, body);
-    
-    try {
-      const response = await fetch(fullUrl, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (response.ok) {
-        log.apiSuccess(fullUrl, method, response.status, duration);
-      } else {
-        log.apiError(fullUrl, method, new Error(`HTTP ${response.status}`), duration);
-      }
-
-      return response;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, method, error, duration);
-      throw error;
+  const getClientTimestamp = () => {
+    if (typeof window === 'undefined') {
+      return "2024-01-01T00:00:00.000Z";
     }
-  }
-
-// 正確的 Fallback 方法（取代現有的兩個錯誤版本）
-private static getFallbackModelPath() {
-  return {
-    success: false,
-    "model path": {
-      onnx_path: undefined,
-      pytorch_path: undefined,
-      config_path: undefined,
-      weights_path: undefined
-    },
-    error: "後端無法取得模型路徑",
-    fallback: true
+    return new Date().toISOString();
   };
-}
 
-private static getFallbackModelPerformance() {
-  return {
-    success: false,                    // 讓 UI 知道是假資料
-    "model performance": {              // ← 這裡是關鍵！不是 "model path"
-      mAP: 0,                          // 設為 0 而不是假高分，讓使用者知道有問題
-      precision: 0,
-      recall: 0,
-      f1_score: 0,
-      accuracy: 0,
-      status: "後端不可用 (fallback mode)"    // 明確標示
-    },
-    error: "後端無法取得模型性能數據",
-    fallback: true
-  };
-}
-  // Get all projects for a user
-  static async getProjectsInfo(userId: number): Promise<ProjectInfo[]> {
-    const startTime = Date.now();
-    const endpoint = '/get_projects_info';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { userId });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userID: userId.toString() }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `API returned ${response.status}, using fallback data`);
-        return this.getFallbackProjects();
-      }
-
-      const data = await response.json();
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, { 
-        ownedProjects: data['owned projects']?.length || 0,
-        sharedProjects: data['shared projects']?.length || 0 
-      });
-      
-      // Check if we got valid data
-      if (!data || (!data['owned projects'] && !data['shared projects'])) {
-        log.warn('API', 'Invalid API response format, using fallback data', data);
-        return this.getFallbackProjects();
-      }
-      
-      // Transform the response to match our ProjectInfo interface
-      const ownedProjects = data['owned projects'] || [];
-      const sharedProjects = data['shared projects'] || [];
-      
-      // If no projects found, return fallback
-      if (ownedProjects.length === 0 && sharedProjects.length === 0) {
-        log.info('API', 'No projects found in response, using fallback data');
-        return this.getFallbackProjects();
-      }
-      
-      // Convert project details to ProjectInfo format
-      const allProjects = [...ownedProjects, ...sharedProjects];
-      const projectDetails = allProjects.map((project: any) => ({
-        id: project.project_id || project.id,
-        name: project.project_name || 'Unknown Project',
-        videoCount: project.video_count || 0,
-        status: project.status || 'Unknown',
-        isOwned: project.is_owned || false,
-      }));
-
-      log.info('API', `Successfully processed ${projectDetails.length} projects`, { 
-        owned: ownedProjects.length, 
-        shared: sharedProjects.length 
-      });
-
-      return projectDetails;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error fetching projects info, using fallback data', { error: error instanceof Error ? error.message : String(error) });
-      return this.getFallbackProjects();
-    }
-  }
-
-  // Fallback data when API fails
-  private static getFallbackProjects(): ProjectInfo[] {
-    return [
-      {
-        id: 1,
-        name: "Sample Project 1",
-        videoCount: 0,
-        status: "Not started",
-      },
-      {
-        id: 2,
-        name: "Sample Project 2", 
-        videoCount: 0,
-        status: "Not started",
-      }
-    ];
-  }
-
-  // Get project details
-  static async getProjectDetails(projectId: number) {
-    const startTime = Date.now();
-    const endpoint = '/get_project_details';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId.toString() }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error fetching project details', { projectId, error: error instanceof Error ? error.message : String(error) });
-      throw error;
-    }
-  }
-
-  // Create new project
-// === 正確的 changeProjectName（直接貼上取代原版）===
-static async changeProjectName(projectId: number, newName: string): Promise<any> {
-  const startTime = Date.now();
-  const endpoint = '/change_project_name';
-
-  try {
-    log.apiCall(endpoint, 'POST', { projectId, newName });
-
-    // 關鍵：先找可用的後端 URL
-    const workingUrl = await findWorkingBackendUrl();
-    const fullUrl = `${workingUrl}${endpoint}`;
-
-    const response = await fetch(fullUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        project_id: projectId.toString(),
-        new_name: newName.trim(),
-      }),
-    });
-
-    const duration = Date.now() - startTime;
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}: ${errorText}`), duration);
-      throw new Error(`修改專案名稱失敗: HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    log.apiSuccess(fullUrl, 'POST', response.status, duration, { newName });
-    return data;
-
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    log.apiError(endpoint, 'POST', error, duration);
-    log.error('API', 'Failed to change project name', {
-      projectId,
-      newName,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    throw error; // 讓上層能 catch
-  }
-}
-  // ========== Upload API Methods ==========
-static async uploadVideo(project_id: string, file: File): Promise<any> {
-    const baseUrl = await this.findWorkingBackendUrl();
-    const url = `${baseUrl}/upload?project_id=${project_id}`;
-    const formData = new FormData();
-    formData.append("file", file);
-
-   log.info('API', '開始上傳影片', {
-    project_id,
-    fileName: file.name,
-    fileSize: file.size,
-    url,
-    method: 'POST',
-    timestamp: new Date().toISOString(),
-  });
-
-    const response = await fetch(url, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Upload failed" }));
-      log.error('API', '上傳失敗', { status: response.status, error });
-      throw new Error(error.detail || `HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    log.info('API', '上傳成功', {
-      filename: data.filename,
-      path: data.path,
-      size_bytes: data.size_bytes
-    });
-    return data;
-  }
-
-  // === 2. 取得專案影片（推薦 GET）===
-  static async getProjectVideos(project_id: number): Promise<uploadedVid[]> {
-    const baseUrl = await this.findWorkingBackendUrl();
-    const url = `${baseUrl}/get_project_videos/${project_id}`;
-
-    log.info('API', '查詢專案影片', { project_id });
-
-    const response = await fetch(url, { method: "GET" });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Failed to load" }));
-      log.error('API', '查詢失敗', { status: response.status, error });
-      throw new Error(error.error || `HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    const videos: uploadedVid[] = (result.videos || []).map((v: any) => ({
-      name: v.name,
-      video_id: v.video_id || Date.now(),
-      url: `${baseUrl}${v.path}`,
-      video_path: v.path,
-    }));
-
-    log.info('API', '查詢成功', { count: videos.length });
-    return videos;
-  }
-
-  // === 3. （備用）用 POST 查詢 ===
-  static async getUploadedVidsAsync(project_id: number): Promise<uploadedVid[]> {
-    const baseUrl = await this.findWorkingBackendUrl();
-    const response = await fetch(`${baseUrl}/get_uploaded_videos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id }),
-    });
-
-    if (!response.ok) throw new Error("Failed to load videos");
-    const videos = await response.json();
-    return (videos || []).map((v: any) => ({
-      name: v.name,
-      video_id: v.video_id || Date.now(),
-      url: `${baseUrl}${v.path}`,
-      video_path: v.path,
-    }
-  ));
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
-  // ========== Annotation API Methods ==========
-
-  // Get classes for a project
-  static async getClasses(projectId: string): Promise<ClassInfo[]> {
-    const startTime = Date.now();
-    const endpoint = '/get_classes';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `API returned ${response.status}, using fallback classes`);
-        return this.getFallbackClasses();
-      }
-
-      const data = await response.json();
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, { classCount: data.classes ? Object.keys(data.classes).length : 0 });
-      
-      // 將後端返回的對象格式轉換為前端期望的數組格式
-      if (data.classes && typeof data.classes === 'object') {
-        const classesArray = Object.entries(data.classes).map(([name, color]) => ({
-          id: name,
-          name: name,
-          color: color as string
-        }));
-        return classesArray;
-      }
-      
-      return this.getFallbackClasses();
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error fetching classes, using fallback data', { 
-        projectId,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      return this.getFallbackClasses();
-    }
-  }
-
-  // Add a new class
-  static async addClass(projectId: string, className: string, color: string) {
-    const startTime = Date.now();
-    const endpoint = '/add_class';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, className, color });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數 - 注意後端期望 'colour' 而不是 'color'
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('class_name', className);
-      url.searchParams.append('colour', color); // 後端期望 'colour' 參數
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-        }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
-        
-        // 嘗試解析錯誤響應
-        try {
-          const errorData = await response.json();
-          if (errorData.message) {
-            throw new Error(`HTTP ${response.status}: ${errorData.message}`);
-          }
-        } catch (parseError) {
-          // 如果無法解析錯誤響應，使用默認錯誤
-        }
-        
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      // 驗證響應數據格式
-      if (!data || typeof data !== 'object') {
-        throw new Error('Invalid response format from server');
-      }
-      console.log(data.message);
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error adding class', { 
-        projectId,
-        className,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      
-      // 提供更詳細的錯誤信息
-      if (error instanceof Error) {
-        if (error.message.includes('HTTP 422')) {
-          throw new Error(`類別名稱可能已存在或格式不正確: ${error.message}`);
-        } else if (error.message.includes('HTTP 500')) {
-          throw new Error(`服務器內部錯誤，請稍後再試: ${error.message}`);
-        } else if (error.message.includes('fetch')) {
-          throw new Error(`網絡連接錯誤，請檢查網絡連接: ${error.message}`);
-        }
-      }
-      
-      throw error;
-    }
-  }
-
-  // Modify a class
-  static async modifyClass(projectId: string, originalName: string, newName: string) {
-    const startTime = Date.now();
-    const endpoint = '/modify_class';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, originalName, newName });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數 - 注意後端期望的參數名稱
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('original_class_name', originalName);
-      url.searchParams.append('new_class_name', newName);
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-        }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error modifying class, using fallback response', { 
-        projectId,
-        originalName,
-        newName,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      
-      // 返回模擬成功響應
-      return {
-        success: true,
-        message: `Class '${originalName}' modified to '${newName}' successfully (frontend fallback).`,
-        classes: this.getFallbackClasses()
-      };
-    }
-  }
-
-  // Delete a class
-  static async deleteClass(projectId: string, className: string) {
-    const startTime = Date.now();
-    const endpoint = '/delete_class';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, className });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('class_name', className);
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          class_name: className,
-        }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
-        
-        // 嘗試解析錯誤響應
-        try {
-          const errorData = await response.json();
-          if (errorData.message) {
-            throw new Error(`HTTP ${response.status}: ${errorData.message}`);
-          }
-        } catch (parseError) {
-          // 如果無法解析錯誤響應，使用默認錯誤
-        }
-        
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      // 驗證響應數據格式
-      if (!data || typeof data !== 'object') {
-        throw new Error('Invalid response format from server');
-      }
-      console.log(data.message);
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error deleting class', { 
-        projectId,
-        className,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      
-      // 提供更詳細的錯誤信息
-      if (error instanceof Error) {
-        if (error.message.includes('HTTP 404')) {
-          throw new Error(`類別 '${className}' 不存在: ${error.message}`);
-        } else if (error.message.includes('HTTP 500')) {
-          throw new Error(`服務器內部錯誤，請稍後再試: ${error.message}`);
-        } else if (error.message.includes('fetch')) {
-          throw new Error(`網絡連接錯誤，請檢查網絡連接: ${error.message}`);
-        }
-      }
-      
-      throw error;
-    }
-  }
-
-  // Get next frame to annotate
-  static async getNextFrameToAnnotate(projectId: string, videoId: string, currentFrame: number = 0) {
-    const startTime = Date.now();
-    const endpoint = '/get_next_frame_to_annotate';
-    
-    try {
-      // 驗證和清理輸入參數
-      const cleanProjectId = projectId.toString().replace(/\D/g, '');
-      
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const videoId = urlParams.get('video_id');
+    if (videoId) {
       // 直接使用傳入的視頻 ID（應該是資料庫中的唯一 ID）
-      const cleanVideoId = videoId.toString();
-      
-      if (!cleanProjectId || !cleanVideoId || cleanVideoId === "undefined" || cleanVideoId === "") {
-        throw new Error(`Invalid parameters: projectId=${projectId}, videoId=${videoId}`);
-      }
-      
-      const projectIdInt = parseInt(cleanProjectId);
-      
-      if (isNaN(projectIdInt)) {
-        throw new Error(`Invalid project ID: ${projectIdInt}`);
-      }
-      
-      log.apiCall(endpoint, 'POST', { projectId: projectIdInt, videoId: cleanVideoId, currentFrame });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectIdInt,
-          video_id: cleanVideoId,  // 保持為字符串
-        }),
-      });
+      setCurrentVideoId(videoId);
+      console.log('🆔 [ANNOTATE] Video ID from params:', videoId);
+    } else {
+      console.warn('⚠️ [ANNOTATE] No video_id parameter found, getting first available video');
+      getFirstAvailableVideoId();
+    }
+  }, [projectId]);
 
-      const duration = Date.now() - startTime;
+  const getFirstAvailableVideoId = async () => {
+    try {
+      if (safeProjectId) {
+        const videos = await ApiService.getProjectVideos(parseInt(safeProjectId));
+        if (videos && videos.length > 0) {
+          const firstVideo = videos[0];
+          // 後端返回的數據結構：{name, video_id, path, url}
+          const videoId = firstVideo.video_id;
+          if (videoId !== undefined && videoId !== null && videoId !== 0) { 
+            setCurrentVideoId(videoId.toString());
+            console.log('🆔 [ANNOTATE] Using first available video ID:', videoId);
+          } else {
+            console.warn('⚠️ [ANNOTATE] No valid video ID found in video data:', firstVideo);
+            const defaultVideoId = `1`;
+            setCurrentVideoId(defaultVideoId);
+            console.log('🆔 [ANNOTATE] Using fallback video ID:', defaultVideoId);
+          }
+        } else {
+          const defaultVideoId = `1`; // 使用數字 ID 而不是字符串
+          setCurrentVideoId(defaultVideoId);
+          console.log('🆔 [ANNOTATE] No videos found, using default video ID:', defaultVideoId);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting first available video ID:', error);
+      const defaultVideoId = `1`; // 使用數字 ID 而不是字符串
+      setCurrentVideoId(defaultVideoId);
+      console.log('🆔 [ANNOTATE] Error occurred, using default video ID:', defaultVideoId);
+    }
+  };
 
-      if (!response.ok) {
-        // 特別處理431錯誤
-        if (response.status === 431) {
-          log.warn('API', `431 Request Header Fields Too Large - clearing storage and retrying`);
-          // 清除可能過大的本地存儲
-          try {
-            localStorage.removeItem('large_session_data');
-            sessionStorage.clear();
-            // 清除所有可能的過大數據
-            Object.keys(localStorage).forEach(key => {
-              if (localStorage.getItem(key) && localStorage.getItem(key)!.length > 10000) {
-                localStorage.removeItem(key);
-              }
-            });
-          } catch (storageError) {
-            log.warn('API', 'Could not clear storage:', storageError);
+  useEffect(() => {
+    const loadClasses = async () => {
+      try {
+        if (safeProjectId) {
+          const classesData = await ApiService.getClasses(safeProjectId);
+          // 確保 classesData 是一個數組
+          if (Array.isArray(classesData)) {
+            setClasses(classesData);
+            log.info('ANNOTATE', 'Classes loaded successfully', { projectId: safeProjectId, classCount: classesData.length });
+          } else {
+            console.warn('Classes data is not an array:', classesData);
+            setClasses([
+              { id: "give_way_sign", name: "give_way_sign", color: "#fbbf24" },
+              { id: "pedestrian_child", name: "pedestrian_child", color: "#3b82f6" },
+              { id: "zebra_crossing_sign", name: "zebra_crossing_sign", color: "#8b5cf6" },
+              { id: "traffic_light_red", name: "traffic_light_red", color: "#10b981" },
+              { id: "stop_sign", name: "stop_sign", color: "#ef4444" },
+            ]);
           }
         }
-        
-        // 特殊處理 500 錯誤
-        if (response.status === 500) {
-          log.error('API', 'Server internal error (500) - possible causes: video file missing, OpenCV issues, or database problems');
-          try {
-            const errorData = await response.json();
-            if (errorData.error) {
-              log.error('API', 'Server error details:', errorData.error);
+      } catch (error) {
+        console.error('Error loading classes:', error);
+        setClasses([
+          { id: "give_way_sign", name: "give_way_sign", color: "#fbbf24" },
+          { id: "pedestrian_child", name: "pedestrian_child", color: "#3b82f6" },
+          { id: "zebra_crossing_sign", name: "zebra_crossing_sign", color: "#8b5cf6" },
+          { id: "traffic_light_red", name: "traffic_light_red", color: "#10b981" },
+          { id: "stop_sign", name: "stop_sign", color: "#ef4444" },
+        ]);
+      }
+    };
+    loadClasses();
+  }, [safeProjectId]);
+
+  useEffect(() => {
+    if (safeProjectId && currentVideoId) {
+      const timer = setTimeout(async () => {
+        await checkAnnotationStatus();
+        await loadCurrentFrame();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [safeProjectId, currentVideoId]);
+
+  const checkAnnotationStatus = async () => {
+    try {
+      if (safeProjectId && currentVideoId) {
+        const statusData = await ApiService.checkAnnotationStatus(safeProjectId, currentVideoId);
+        if (statusData && typeof statusData === 'object') {
+          setAnnotationStatus(statusData["annotation status"] || "not yet started");
+          setLastAnnotatedFrame(statusData["last annotated frame"] || 0);
+          console.log('Annotation status:', statusData);
+        } else {
+          setAnnotationStatus("not yet started");
+          setLastAnnotatedFrame(0);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking annotation status:', error);
+      setAnnotationStatus("not yet started");
+      setLastAnnotatedFrame(0);
+    }
+  };
+
+  const getNextFrameToAnnotate = async () => {
+    try {
+      if (!safeProjectId || !currentVideoId || currentVideoId === "" || currentVideoId === "undefined") {
+        console.warn('Invalid projectId or videoId', { projectId: safeProjectId, videoId: currentVideoId });
+        return;
+      }
+      
+      const frameData = await ApiService.getNextFrameToAnnotate(safeProjectId, currentVideoId, currentFrame);
+      console.log('🔍 [FRONTEND] Frame data received:', frameData);
+      
+      if (frameData && frameData.success) {
+        if (frameData.image) {
+          // Validate and format the image data properly
+          let imageData = frameData.image;
+          
+          // Check if it's already a data URL
+          if (!imageData.startsWith('data:')) {
+            // If it's raw base64, add the proper data URL prefix
+            if (imageData.startsWith('9j/') || imageData.startsWith('iVBORw0KGgo')) {
+              // This looks like base64 data without proper data URL format
+              console.warn('⚠️ [FRONTEND] Received malformed base64 data, attempting to fix');
+              imageData = `data:image/jpeg;base64,${imageData}`;
+            } else {
+              // Assume it's base64 and add JPEG data URL prefix
+              imageData = `data:image/jpeg;base64,${imageData}`;
             }
-          } catch (parseError) {
-            log.warn('API', 'Could not parse server error response');
           }
-        }
-        
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `API returned ${response.status}, using fallback data`);
-        return this.getFallbackFrameData(projectId, videoId);
-      }
-
-      const data = await response.json();
-      console.log(data.message);
-      // 驗證響應數據結構
-      if (!data || typeof data !== 'object') {
-        throw new Error('Invalid response format from server');
-      }
-      
-      // 處理不同的後端響應格式
-      let processedData = { ...data };
-      
-      // 如果後端返回的是元組格式 (next_frame, frame_num)
-      if (Array.isArray(data)) {
-        const [nextFrame, frameNum] = data;
-        processedData = {
-          success: true,
-          message: "Next frame fetched successfully.",
-          image: nextFrame,
-          frame_id: frameNum,
-          frame_num: frameNum,
-          total_frames: 150 // 默認值
-        };
-      }
-      
-      // 處理後端返回 None 的情況
-      if (processedData.image === null || processedData.image === undefined) {
-        processedData = {
-          success: false,
-          message: "No more frames to annotate",
-          image: null,
-          frame_id: null,
-          frame_num: null,
-          total_frames: processedData.total_frames || 150
-        };
-      }
-      
-      // Validate and fix image data if needed
-      if (processedData.image && typeof processedData.image === 'string') {
-        processedData.image = validateAndFixImageData(processedData.image);
-      }
-      
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, { 
-        hasImage: !!processedData.image,
-        success: processedData.success,
-        frameId: processedData.frame_id 
-      });
-      return processedData;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error fetching next frame, using fallback data', { 
-        projectId,
-        videoId,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      return this.getFallbackFrameData(projectId, videoId);
-    }
-  }
-
-  // Fallback frame data when API fails
-  static getFallbackFrameData(projectId: string, videoId: string) {
-    log.warn('API', 'Using fallback frame data due to API failure', { projectId, videoId });
-    
-    return {
-      success: false,
-      message: "Unable to fetch frame from server. Please check your connection and try again.",
-      image: null,
-      frame_id: null,
-      frame_num: null,
-      total_frames: 150,
-      error: "API_ERROR"
-    };
-  }
-
-  // Get specific frame by frame number
-  static async getFrame(projectId: string, videoId: string, frameNum: number) {
-    const startTime = Date.now();
-    const endpoint = '/get_frame';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, videoId, frameNum });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}?frame_num=${frameNum}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          video_id: videoId,
-        }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `API returned ${response.status}, using fallback data`);
-        return this.getFallbackFrameData(projectId, videoId);
-      }
-
-      const data = await response.json();
-      
-      // Validate and fix image data if needed
-      if (data.image && typeof data.image === 'string') {
-        data.image = validateAndFixImageData(data.image);
-      }
-      
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, { hasImage: !!data.image });
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error fetching frame, using fallback data', { 
-        projectId,
-        videoId,
-        frameNum,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      return this.getFallbackFrameData(projectId, videoId);
-    }
-  }
-
-
-  // Check annotation status with retry logic
-  static async checkAnnotationStatus(projectId: string, videoId: string, retryCount = 0): Promise<{
-    "annotation status": string;
-    "last annotated frame": number;
-  }> {
-    const startTime = Date.now();
-    const endpoint = '/check_annotation_status';
-    
-    // 檢查是否有已知的API問題，直接返回fallback數據 (only in browser)
-    const hasKnownApiIssues = typeof window !== 'undefined' && window.localStorage && 
-      localStorage.getItem('api_500_error') === 'true';
-    if (hasKnownApiIssues && retryCount === 0) {
-      log.info('API', 'Known API issues detected, using fallback data immediately');
-      return this.getFallbackAnnotationStatus();
-    }
-
-    const maxRetries = 1; // 減少重試次數
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, videoId, retryCount });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          video_id: videoId,
-        }),
-        // 添加超時設置
-        signal: AbortSignal.timeout(3000) // 減少到3秒超時
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `API returned ${response.status}, using fallback data`);
-        
-        // 對於500錯誤，記錄並立即返回fallback數據
-        if (response.status === 500) {
-          log.warn('API', 'Server error detected, marking API as problematic');
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem('api_500_error', 'true');
+          
+          // Validate the data URL format
+          if (!imageData.startsWith('data:image/')) {
+            console.error('❌ [FRONTEND] Invalid image data format:', imageData.substring(0, 100) + '...');
+            setCurrentFrameImage("");
+            return;
           }
-          return this.getFallbackAnnotationStatus();
+          
+          setCurrentFrameImage(imageData);
+          setTotalImages(frameData.total_frames || 150); // 動態更新總幀數
+          
+          // 優先使用 frame_id，如果沒有則使用 frame_num，最後才手動遞增
+          if (frameData.frame_id !== undefined) {
+            setCurrentFrame(frameData.frame_id);
+            setCurrentImage(frameData.frame_id + 1);
+            console.log(`✅ [FRONTEND] Key frame loaded: frame ${frameData.frame_id} (total: ${frameData.total_frames})`);
+          } else if (frameData.frame_num !== undefined) {
+            setCurrentFrame(frameData.frame_num);
+            setCurrentImage(frameData.frame_num + 1);
+            console.log(`✅ [FRONTEND] Key frame loaded using frame_num: frame ${frameData.frame_num} (total: ${frameData.total_frames})`);
+          } else {
+            console.warn('⚠️ [FRONTEND] No frame ID provided, using manual increment');
+            setCurrentFrame((prev) => prev + 1);
+            setCurrentImage((prev) => prev + 1);
+          }
+        } else {
+          console.log('❌ [FRONTEND] No image returned, possible end of video');
+          setCurrentFrameImage("");
+          setAnnotationStatus("completed");
         }
-        return this.getFallbackAnnotationStatus();
+      } else {
+        console.log('❌ [FRONTEND] API returned success=false:', frameData?.message);
+        setCurrentFrameImage("");
       }
-
-      // 清除API問題標記
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.removeItem('api_500_error');
-      }
-
-      const data = await response.json();
+    } catch (error) {
+      console.error('Error getting next frame:', error);
       
-      // 驗證返回的數據格式
-      if (!data || typeof data !== 'object') {
-        log.warn('API', 'Invalid API response format, using fallback data');
-        return this.getFallbackAnnotationStatus();
+      // 檢查是否為431錯誤或其他網路錯誤
+      if (error instanceof Error && error.message && error.message.includes('431')) {
+        console.warn('⚠️ [FRONTEND] 431 Request Header Fields Too Large - using fallback mechanism');
+        // 清除可能過大的本地存儲
+        try {
+          localStorage.removeItem('large_session_data');
+          sessionStorage.clear();
+        } catch (storageError) {
+          console.warn('Could not clear storage:', storageError);
+        }
       }
+      
+      // 使用fallback機制 - 手動遞增幀數
+      console.log('🔄 [FRONTEND] Using fallback: manual frame increment');
+      setCurrentFrame((prev) => prev + 1);
+      setCurrentImage((prev) => prev + 1);
+      setCurrentFrameImage(""); // 清空圖片，讓用戶知道需要重新載入
+    }
+  };
 
-      // 確保必要的字段存在
-      const result = {
-        "annotation status": data["annotation status"] || "not yet started",
-        "last annotated frame": data["last annotated frame"] || 0
+  const loadCurrentFrame = async () => {
+    await getNextFrameToAnnotate();
+  };
+
+  // 添加重試機制
+  const retryGetNextFrame = async (retryCount = 0, maxRetries = 3) => {
+    try {
+      await getNextFrameToAnnotate();
+    } catch (error) {
+      if (retryCount < maxRetries) {
+        console.log(`🔄 [FRONTEND] Retrying frame request (${retryCount + 1}/${maxRetries})`);
+        setTimeout(() => {
+          retryGetNextFrame(retryCount + 1, maxRetries);
+        }, 1000 * (retryCount + 1)); // 遞增延遲
+      } else {
+        console.error('❌ [FRONTEND] Max retries reached, using fallback');
+        // 最終fallback：手動遞增幀數
+        setCurrentFrame((prev) => prev + 1);
+        setCurrentImage((prev) => prev + 1);
+      }
+    }
+  };
+
+  const getNextVideo = async () => {
+    try {
+      if (safeProjectId && currentVideo < totalVideos) {
+        const videoData = await ApiService.getNextVideo(safeProjectId, currentVideoId);
+        if (videoData && videoData.success && videoData.next_video_id) {
+          setCurrentVideoId(videoData.next_video_id);
+          setCurrentVideo((prev) => prev + 1);
+          setCurrentImage(1);
+          setCurrentFrame(0);
+          setAnnotations([]);
+          setCurrentFrameImage("");
+          setTimeout(async () => {
+            await checkAnnotationStatus();
+            await loadCurrentFrame();
+          }, 100);
+          console.log('Next video loaded:', videoData);
+        } else {
+          console.log('No next video available');
+        }
+      }
+    } catch (error) {
+      console.error('Error getting next video:', error);
+    }
+  };
+
+  const redrawAnnotations = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    annotations.forEach((annotation) => {
+      const classInfo = classes.find((c) => c.id === annotation.class);
+      if (!classInfo) return;
+      ctx.strokeStyle = classInfo.color;
+      ctx.fillStyle = classInfo.color + "20";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(annotation.x, annotation.y, annotation.width, annotation.height);
+      ctx.fillRect(annotation.x, annotation.y, annotation.width, annotation.height);
+    });
+    if (currentBox) {
+      const currentClass = classes.find((c) => c.id === selectedClass) || classes[0] || {
+        id: "default",
+        name: "default",
+        color: "#3b82f6"
       };
-
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, result);
-      return result;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', `Error checking annotation status (attempt ${retryCount + 1})`, { 
-        projectId,
-        videoId,
-        retryCount,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      
-      // 記錄API問題
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('api_500_error', 'true');
+      ctx.strokeStyle = currentClass.color;
+      ctx.fillStyle = currentClass.color + "20";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 4]);
+      ctx.strokeRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
+      ctx.fillRect(currentBox.x, currentBox.y, currentBox.width, currentBox.height);
+      if (currentBox.width > 50 && currentBox.height > 20) {
+        ctx.fillStyle = currentClass.color;
+        ctx.font = "bold 12px Arial";
+        ctx.fillText(currentClass.name, currentBox.x + 5, currentBox.y + 15);
       }
-      
-      // 如果是網絡錯誤且還有重試次數，則重試
-      if (retryCount < maxRetries && (error instanceof Error && (error.name === 'TypeError' || error.name === 'AbortError'))) {
-        log.info('API', `Retrying API call... (${retryCount + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, 500)); // 減少等待時間
-        return this.checkAnnotationStatus(projectId, videoId, retryCount + 1);
-      }
-      
-      // 返回模擬數據
-      return this.getFallbackAnnotationStatus();
+      ctx.setLineDash([]);
     }
-  }
+  }, [annotations, currentBox, selectedClass, classes]);
 
-  // Fallback annotation status when API fails
-  private static getFallbackAnnotationStatus() {
-    return {
-      "annotation status": "not yet started",
-      "last annotated frame": 0
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const updateCanvasSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+        redrawAnnotations();
+      }
     };
+    updateCanvasSize();
+    window.addEventListener("resize", updateCanvasSize);
+    return () => window.removeEventListener("resize", updateCanvasSize);
+  }, [redrawAnnotations]);
+
+  useEffect(() => {
+    redrawAnnotations();
+  }, [redrawAnnotations, currentFrameImage]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(classes.length / CLASSES_PER_PAGE));
+    if (classPage > totalPages) {
+      setClassPage(totalPages);
+    }
+  }, [classes, classPage]);
+
+  if (!currentVideoId) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">No Video Selected</h2>
+          <p className="text-gray-600 mb-4">Please select a video to annotate from the upload page.</p>
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+            <p className="text-sm">
+              <strong>Debug Info:</strong><br/>
+              Project ID: {safeProjectId}<br/>
+              Current Video ID: {currentVideoId}<br/>
+              URL: {typeof window !== 'undefined' ? window.location.href : 'N/A'}
+            </p>
+          </div>
+          <div className="space-x-4">
+            <Link href={`/project/${safeProjectId}/upload`} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+              Go to Upload Page
+            </Link>
+            <button onClick={() => window.location.reload()} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  // Save annotation with improved error handling and retry logic
-  static async saveAnnotation(annotationData: AnnotationRequest, retryCount = 0): Promise<{
-    success: boolean;
-    message: string;
-    savedAt?: string;
-  }> {
-    const startTime = Date.now();
-    const endpoint = '/annotate';
-    const maxRetries = 3;
-    
-    try {
-        console.log('🚀 即將傳給 Backend 的原始資料 (annotationData)', 'color: #ff6b6b; font-size: 14px; font-weight: bold;', 
-                JSON.parse(JSON.stringify(annotationData)));
+  const currentClass = classes.find((c) => c.id === selectedClass) || classes[0] || {
+    id: "default",
+    name: "default",
+    color: "#3b82f6"
+  };
 
-      
-      log.apiCall(endpoint, 'POST', { 
-        projectId: annotationData.project_id,
-        videoId: annotationData.video_id,
-        frameNum: annotationData.frame_num,
-        bboxCount: annotationData.bboxes.length,
-        retryCount
-      });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      // 確保資料結構正確並修復數據類型問題
-      const normalizedData = {
-        project_id: parseInt(annotationData.project_id.toString()),
-        video_id: annotationData.video_id.toString(), // 確保是字符串
-        frame_num: Math.floor(Number(annotationData.frame_num)), // 轉換為整數
-        bboxes: annotationData.bboxes.map(bbox => ({
-          class_name: bbox.class_name || (bbox as any).class,
-          x: Math.max(0, Number(bbox.x)), // 確保非負數
-          y: Math.max(0, Number(bbox.y)), // 確保非負數
-          width: Math.max(1, Number(bbox.width)), // 確保大於0
-          height: Math.max(1, Number(bbox.height)) // 確保大於0
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (selectedTool !== "box") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / imageScale;
+    const y = (e.clientY - rect.top) / imageScale;
+    setIsDrawing(true);
+    setDrawStart({ x, y });
+    setCurrentBox({ x, y, width: 0, height: 0 });
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDrawing || selectedTool !== "box") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / imageScale;
+    const y = (e.clientY - rect.top) / imageScale;
+    const width = x - drawStart.x;
+    const height = y - drawStart.y;
+    setCurrentBox({
+      x: Math.min(drawStart.x, x),
+      y: Math.min(drawStart.y, y),
+      width: Math.abs(width),
+      height: Math.abs(height),
+    });
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (!isDrawing || !currentBox || selectedTool !== "box") return;
+    if (currentBox.width > 10 && currentBox.height > 10) {
+      const newAnnotation: Annotation = {
+        id: `annotation_${annotations.length + 1}_${getClientTimestamp().replace(/[^0-9]/g, '')}`,
+        class: selectedClass,
+        x: currentBox.x,
+        y: currentBox.y,
+        width: currentBox.width,
+        height: currentBox.height,
+        color: currentClass.color,
+      };
+      setAnnotations((prev) => [...prev, newAnnotation]);
+    }
+    setIsDrawing(false);
+    setCurrentBox(null);
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleZoom = (newZoom: number) => {
+    setZoom(newZoom);
+    setImageScale(newZoom / 100);
+  };
+
+  const handleNextImage = async () => {
+    if (currentFrame < totalImages - 1) { // 使用 currentFrame 和 totalImages
+      await handleAutoSave();
+      setAnnotations([]);
+      await getNextFrameToAnnotate();
+      setCurrentImage((prev) => prev + 1);
+      console.log(`🔄 [FRONTEND] Key frame updated: ${currentFrame + 1}/${totalImages}`);
+    } else {
+      console.log('Already at the last frame, switching to next video');
+      await getNextVideo();
+    }
+  };
+
+  const handlePrevImage = () => {
+    console.log('Previous frame navigation is disabled');
+  };
+
+  const handleAutoSave = async () => {
+    if (annotations.length === 0) {
+      console.log('No annotations to save, skipping auto-save');
+      return;
+    }
+    setIsAutoSaving(true);
+    setSaveStatus('saving');
+    try {
+      const annotationData = {
+        project_id: safeProjectId,
+        video_id: currentVideoId,
+        frame_num: currentFrame,
+        bboxes: annotations.map(ann => ({
+          class_name: ann.class,
+          x: Number(ann.x),
+          y: Number(ann.y),
+          width: Number(ann.width),
+          height: Number(ann.height)
         }))
       };
-      
-      console.log('✅ 真正發送給 Backend 的 JSON (normalizedData)', 'color: #51cf66; font-size: 14px; font-weight: bold;background: #333;padding: 4px 8px;border-radius: 4px;', 
-                JSON.parse(JSON.stringify(normalizedData)));
-    
-      console.log('📤 完整 Request URL', 'color: #339af0; font-weight: bold;', 
-                `${await findWorkingBackendUrl()}${endpoint}`);
-      // 驗證數據
-      if (isNaN(normalizedData.project_id) || normalizedData.project_id <= 0) {
-        throw new Error('Invalid project_id: must be a positive integer');
+      const result = await ApiService.saveAnnotation(annotationData);
+      if (result.success) {
+        setLastSavedTime(result.savedAt || getClientTimestamp());
+        setSaveStatus('saved');
+        console.log('Annotations auto-saved successfully', { savedAt: result.savedAt, bboxCount: annotations.length });
+      } else {
+        setSaveStatus('error');
+        saveToLocalStorage(annotationData);
       }
-      
-      if (!normalizedData.video_id || normalizedData.video_id === 'undefined') {
-        throw new Error('Invalid video_id: must be a valid string');
-      }
-      
-      if (isNaN(normalizedData.frame_num) || normalizedData.frame_num < 0) {
-        throw new Error('Invalid frame_num: must be a non-negative integer');
-      }
-      
-      if (!Array.isArray(normalizedData.bboxes) || normalizedData.bboxes.length === 0) {
-        throw new Error('Invalid bboxes: must be a non-empty array');
-      }
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(normalizedData),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        // 嘗試解析錯誤響應以獲取更詳細的信息
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.message) {
-            errorMessage = `${errorData.message} (HTTP ${response.status})`;
-          }
-        } catch (parseError) {
-          // 如果無法解析錯誤響應，使用默認錯誤
-        }
-        
-        // 特殊處理 422 錯誤
-        if (response.status === 422) {
-          log.warn('API', `422 Unprocessable Entity: ${errorMessage}`);
-          throw new Error(`數據格式錯誤: ${errorMessage}`);
-        }
-        
-        // 如果是 500 錯誤且還有重試次數，則重試
-        if (response.status >= 500 && retryCount < maxRetries) {
-          log.warn('API', `Server error ${response.status}, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // 指數退避
-          return this.saveAnnotation(annotationData, retryCount + 1);
-        }
-        
-        log.apiError(fullUrl, 'POST', new Error(errorMessage), duration);
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
-      
-      return {
-        success: data.success || true,
-        message: data.message || 'Annotation saved successfully',
-        savedAt: new Date().toISOString()
+    } catch (error) {
+      console.error('Error auto-saving annotations:', error);
+      setSaveStatus('error');
+      const annotationData = {
+        project_id: safeProjectId,
+        video_id: currentVideoId,
+        frame_num: currentFrame,
+        bboxes: annotations.map(ann => ({
+          class_name: ann.class,
+          x: Number(ann.x),
+          y: Number(ann.y),
+          width: Number(ann.width),
+          height: Number(ann.height)
+        }))
       };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      
-      // 如果是網路錯誤且還有重試次數，則重試
-      if (retryCount < maxRetries && (error instanceof TypeError || (error instanceof Error && error.message.includes('fetch')))) {
-        log.warn('API', `Network error, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-        return this.saveAnnotation(annotationData, retryCount + 1);
-      }
-      
-      log.error('API', 'Error saving annotation via API, using frontend fallback', { 
-        projectId: annotationData.project_id,
-        videoId: annotationData.video_id,
-        frameNum: annotationData.frame_num,
-        bboxCount: annotationData.bboxes.length,
-        retryCount,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      
-      // 返回模擬成功響應
-      return {
-        success: true,
-        message: `Annotation saved successfully (frontend fallback). ${annotationData.bboxes.length} bounding boxes processed.`,
-        savedAt: new Date().toISOString()
-      };
+      saveToLocalStorage(annotationData);
+    } finally {
+      setIsAutoSaving(false);
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }
-
-  // Get next video
-  static async getNextVideo(projectId: string, currentVideoId: string) {
-    const startTime = Date.now();
-    const endpoint = '/next_video';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, currentVideoId });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          current_video_id: currentVideoId,
-        }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `API returned ${response.status}, using fallback data`);
-        return this.getFallbackVideoData(currentVideoId);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, { nextVideoId: data.next_video_id });
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error getting next video, using fallback data', { 
-        projectId,
-        currentVideoId,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      return this.getFallbackVideoData(currentVideoId);
-    }
-  }
-
-  // Fallback video data when API fails
-  private static getFallbackVideoData(currentVideoId: string) {
-    // 簡單的循環邏輯：如果當前是video_1，返回video_2，否則返回video_1
-    const nextVideoId = currentVideoId === "video_1" ? "video_2" : "video_1";
-    return {
-      success: true,
-      message: "Next video fetched successfully (fallback mode).",
-      next_video_id: nextVideoId
-    };
-  }
-
-  // Fallback classes when API fails
-  private static getFallbackClasses(): ClassInfo[] {
-    return [
-      { id: "give_way_sign", name: "give_way_sign", color: "#fbbf24" },
-      { id: "pedestrian_child", name: "pedestrian_child", color: "#3b82f6" },
-      { id: "zebra_crossing_sign", name: "zebra_crossing_sign", color: "#8b5cf6" },
-      { id: "traffic_light_red", name: "traffic_light_red", color: "#10b981" },
-      { id: "stop_sign", name: "stop_sign", color: "#ef4444" },
-    ];
-  }
-
-  // ========== Training API Methods ==========
-// ========== Training API Methods (修正版) ==========
-
-static async createDataset(projectId: number) {
-  const response = await this.makeApiCall(
-    '/create_dataset',
-    'POST',
-    { project_id: projectId },
-    true // useWorkingUrl = true → 強制用 findWorkingBackendUrl()
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`建立資料集失敗: HTTP ${response.status} - ${errorText}`);
-  }
-
-  return response.json();
-}
-
-static async getAutoAnnotationProgress(projectId: string) {
-  const response = await this.makeApiCall(
-    '/get_auto_annotation_progress',
-    'POST',
-    { project_id: projectId },
-    true
-  );
-
-  if (!response.ok) {
-    log.warn('API', 'Failed to get auto annotation progress', { status: response.status });
-    return { progress: 0 }; // fallback
-  }
-
-  return response.json();
-}
-
-static async startTraining(projectId: string) {
-  const response = await this.makeApiCall(
-    '/train',
-    'POST',
-    { project_id: projectId },
-    true
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`啟動訓練失敗: HTTP ${response.status} - ${errorText}`);
-  }
-
-  return response.json();
-}
-
-static async getTrainingProgress(projectId: string) {
-  const response = await this.makeApiCall(
-    '/get_training_progress',
-    'POST',
-    { project_id: projectId },
-    true
-  );
-
-  if (!response.ok) {
-    log.warn('API', 'Failed to get training progress', { status: response.status });
-    return { progress: 0 }; // fallback
-  }
-
-  return response.json();
-}
-
-  // ========== Deployment API Methods ==========
-
-  // Get model performance metrics
-  static async getModelPerformance(projectId: string): Promise<{
-    success: boolean;
-    "model performance": {
-      mAP?: number;
-      precision?: number;
-      recall?: number;
-      f1_score?: number;
-      accuracy?: number;
-      status?: string;
-    };
-  }> {
-    const startTime = Date.now();
-    const endpoint = '/get_model_performance';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
-        log.warn('API', `Backend returned ${response.status}, using fallback data`);
-        return this.getFallbackModelPerformance();
-      }
-
-      const data = await response.json();
-      
-      // Validate the response structure
-      if (!data || !data["model performance"]) {
-        log.warn('API', 'Invalid response structure from backend, using fallback data');
-        return this.getFallbackModelPerformance();
-      }
-
-      log.apiSuccess(fullUrl, 'POST', response.status, duration, { 
-        performance: data["model performance"] 
-      });
-      
-      return data;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error fetching model performance from backend, using fallback data', { 
-        projectId,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      return this.getFallbackModelPerformance();
-    }
-  }
-
-  // Get model file paths
-static async getModelPath(projectId: string): Promise<{
-  success: boolean;
-  "model path": {
-    onnx_path?: string;
-    pytorch_path?: string;
-    config_path?: string;
-    weights_path?: string;
   };
-  downloadedFile?: Blob;           // 新增：下載的檔案
-  fileName?: string;               // 新增：檔案名稱
-}> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/get_model`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ project_id: projectId }),
-    });
 
-    // 步驟1：先檢查 HTTP status
-    // 原因：StreamingResponse 若檔案不存在會回 500，必須先判斷
-    if (!response.ok) {
-      console.warn(`API returned ${response.status}, using fallback data`);
-      return this.getFallbackModelPath();
+  const saveToLocalStorage = (annotationData: any) => {
+    try {
+      const key = `annotation_backup_${annotationData.project_id}_${annotationData.video_id}_${annotationData.frame_num}`;
+      localStorage.setItem(key, JSON.stringify({
+        ...annotationData,
+        savedAt: getClientTimestamp(),
+        isBackup: true
+      }));
+      console.log('Annotation saved to local storage as backup');
+    } catch (error) {
+      console.error('Failed to save to local storage:', error);
     }
+  };
 
-    // 步驟2：從 headers 取得檔案名稱與大小（可選）
-    // 原因：後端有提供 Content-Disposition，讓我們知道檔名
-    const contentDisposition = response.headers.get('Content-Disposition');
-    let fileName = 'best.pt';
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?([^"]+)"?/);
-      if (match) fileName = match[1];
+  const handleManualSave = async () => {
+    if (!safeProjectId || !currentVideoId) {
+      console.warn('Cannot save annotations: missing projectId or videoId');
+      alert('Cannot save: Missing project or video information');
+      return;
     }
+    try {
+      const annotationData = {
+        project_id: safeProjectId,
+        video_id: currentVideoId,
+        frame_num: currentFrame,
+        bboxes: annotations.map(ann => ({
+          class_name: ann.class,
+          x: Number(ann.x),
+          y: Number(ann.y),
+          width: Number(ann.width),
+          height: Number(ann.height)
+        }))
+      };
+      const result = await ApiService.saveAnnotation(annotationData);
+      if (result.success) {
+        console.log('Annotations saved successfully', { savedAt: result.savedAt, bboxCount: annotations.length });
+        alert(`Annotations saved successfully! (${annotations.length} bounding boxes)`);
+      } else {
+        saveToLocalStorage(annotationData);
+        alert(`Failed to save annotations: ${result.message || 'Unknown error'}. Data backed up locally.`);
+      }
+    } catch (error) {
+      console.error('Error saving annotations:', error);
+      const annotationData = {
+        project_id: safeProjectId,
+        video_id: currentVideoId,
+        frame_num: currentFrame,
+        bboxes: annotations.map(ann => ({
+          class_name: ann.class,
+          x: Number(ann.x),
+          y: Number(ann.y),
+          width: Number(ann.width),
+          height: Number(ann.height)
+        }))
+      };
+      saveToLocalStorage(annotationData);
+      alert(`Error saving annotations: ${error instanceof Error ? error.message : 'Unknown error'}. Data backed up locally.`);
+    }
+  };
 
-    // 步驟3：使用 response.blob() 取得二進位檔案
-    // 原因：這是檔案流，不能用 .json()，必須轉成 Blob 才能後續載入模型
-    const blob = await response.blob();
+  const isValidHex = (color: string) => /^#([0-9a-fA-F]{3}){1,2}$/.test(color);
 
-    // 步驟4：回傳成功 + Blob（供後續 new URL.createObjectURL 使用）
-    // 原因：前端若要用 ort.InferenceSession 載入 ONNX / PT，就需要 Blob URL
-    return {
-      success: true,
-      "model path": {
-        // 這裡保留舊格式給舊程式相容，也可直接留空
-        pytorch_path: URL.createObjectURL(blob),   // 直接給 Blob URL
-      },
-      downloadedFile: blob,
-      fileName,
-    };
+  const generateUniqueColor = (used: Set<string>) => {
+    const palette = [
+      "#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6",
+      "#ec4899", "#14b8a6", "#f97316", "#84cc16", "#06b6d4"
+    ];
+    for (const c of palette) {
+      if (!used.has(c.toLowerCase())) return c;
+    }
+    const hash = used.size;
+    const hue = (hash * 137.508) % 360;
+    return `hsl(${Math.floor(hue)}, 70%, 50%)`;
+  };
 
-  } catch (error) {
-    console.error('Error downloading model:', error);
-    return this.getFallbackModelPath();
-  }
+  const handleAddClass = async () => {
+    const input = newClassName.trim();
+    if (!input) return;
+    const entries = input.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const entry of entries) {
+      const [namePartRaw, colorPartRaw] = entry.split(":").map((s) => s.trim());
+      const namePart = namePartRaw || "";
+      if (!namePart) continue;
+      let chosenColor = "#3b82f6";
+      if (colorPartRaw && isValidHex(colorPartRaw)) {
+        chosenColor = colorPartRaw.toLowerCase();
+      }
+      const generatedId = namePart.toLowerCase().replace(/\s+/g, "_");
+      if (classes.some((c) => c.id === generatedId)) {
+        console.log(`Class '${namePart}' already exists`);
+        continue;
+      }
+      try {
+        const result = await ApiService.addClass(safeProjectId, namePart, chosenColor);
+        if (result && result.success) {
+          const classesData = await ApiService.getClasses(safeProjectId);
+          setClasses(classesData);
+          setSelectedClass(generatedId);
+          console.log('✅ [ANNOTATE] Class added via API');
+        } else {
+          alert(`Failed to add class: ${result?.message || 'Unknown error'}`);
+        }
+      } catch (error) {
+        alert(`Error adding class: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    setNewClassName("");
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    const classToDelete = classes.find(c => c.id === classId);
+    if (!classToDelete) return;
+    try {
+      const result = await ApiService.deleteClass(safeProjectId, classToDelete.name);
+      if (result && result.success) {
+        const classesData = await ApiService.getClasses(safeProjectId);
+        setClasses(classesData);
+        if (selectedClass === classId) {
+          const remaining = classesData.filter((c) => c.id !== classId);
+          setSelectedClass(remaining[0]?.id || "");
+        }
+        console.log('✅ Class deleted successfully via API');
+      } else {
+        alert(`無法刪除類別: ${result?.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      alert(`刪除類別時發生錯誤: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleDeleteAnnotation = async (annotationId: string) => {
+    try {
+      setAnnotations((prev) => prev.filter((ann) => ann.id !== annotationId));
+      await handleAutoSave();
+      console.log(`✅ [FRONTEND] Annotation ${annotationId} deleted successfully`);
+    } catch (error) {
+      console.error('❌ [FRONTEND] Error deleting annotation:', error);
+    }
+  };
+
+  const isLastImage = currentFrame >= totalImages - 1;
+  const isLastVideo = currentVideo >= totalVideos;
+
+  return (
+    <div className="flex h-screen bg-gray-100">
+      <div className="flex-1 flex flex-col">
+        <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3">
+              <div className="flex flex-col space-y-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevImage}
+                  disabled={true}
+                  className="flex items-center opacity-50 cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Prev image
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextImage}
+                  disabled={isLastImage || isAutoSaving}
+                  className="flex items-center"
+                >
+                  {isAutoSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-1"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Next key frame
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </>
+                  )}
+                </Button>
+              </div>
+              <span className="font-semibold text-gray-700">
+                Frame {currentImage} of {totalImages}
+              </span>
+              <div className="text-xs text-gray-500 ml-2">
+                Debug: currentFrame={currentFrame}, videoId={currentVideoId}
+              </div>
+            </div>
+            <div className="w-px h-6 bg-gray-200" />
+            <div className="flex items-center space-x-3">
+              <span className="font-semibold text-gray-700">
+                Video {currentVideo} of {totalVideos}
+              </span>
+              <div className="flex flex-col space-y-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (currentVideo > 1) {
+                      setCurrentVideo((prev) => prev - 1);
+                      setCurrentImage(1);
+                      setCurrentFrame(0);
+                      setAnnotations([]);
+                      setCurrentFrameImage("");
+                      setTimeout(async () => {
+                        await checkAnnotationStatus();
+                        await loadCurrentFrame();
+                      }, 100);
+                    }
+                  }}
+                  disabled={currentVideo <= 1}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Prev video
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={getNextVideo}
+                  disabled={isLastVideo}
+                  className="flex items-center bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Next video
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button
+              onClick={handleManualSave}
+              variant="outline"
+              size="sm"
+              className="text-gray-600 border-gray-300 hover:bg-gray-50"
+              title="Emergency manual save (auto-save is enabled)"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Manual Save
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col">
+          <div className="bg-gray-50 border-b border-gray-200 p-3 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="font-semibold text-gray-700">Tools</span>
+              <div className="flex items-center space-x-2 text-sm">
+                <span className="text-gray-600">狀態:</span>
+                <span className={`px-2 py-1 rounded text-xs ${
+                  annotationStatus === "not yet started" ? "bg-gray-200 text-gray-700" :
+                  annotationStatus === "in progress" ? "bg-yellow-200 text-yellow-700" :
+                  annotationStatus === "completed" ? "bg-green-200 text-green-700" :
+                  "bg-blue-200 text-blue-700"
+                }`}>
+                  {annotationStatus}
+                </span>
+                <span className="text-gray-600">最後註釋幀: {lastAnnotatedFrame}</span>
+                {saveStatus === 'saving' ? (
+                  <span className="text-blue-600 text-xs flex items-center">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                    自動保存中...
+                  </span>
+                ) : saveStatus === 'saved' ? (
+                  <span className="text-green-600 text-xs flex items-center">
+                    <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+                    已保存 {lastSavedTime ? new Date(lastSavedTime).toLocaleTimeString() : ''}
+                  </span>
+                ) : saveStatus === 'error' ? (
+                  <span className="text-red-600 text-xs flex items-center">
+                    <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
+                    保存失敗 (已備份到本地)
+                  </span>
+                ) : (
+                  <span className="text-green-600 text-xs">✓ 自動保存已啟用</span>
+                )}
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  variant={selectedTool === "select" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedTool("select")}
+                  className="flex items-center"
+                >
+                  <MousePointer className="w-4 h-4 mr-1" />
+                  Select
+                </Button>
+                <Button
+                  variant={selectedTool === "box" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedTool("box")}
+                  className="flex items-center"
+                >
+                  <Square className="w-4 h-4 mr-1" />
+                  Box
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">Zoom</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleZoom(Math.max(25, zoom - 25))}
+              >
+                <ZoomOut className="w-4 h-4" />
+              </Button>
+              <span className="text-sm font-medium min-w-[3rem] text-center">{zoom}%</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleZoom(Math.min(400, zoom + 25))}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          <div ref={containerRef} className="flex-1 relative bg-white overflow-hidden flex items-center justify-center">
+            {currentFrameImage ? (
+              <img
+                src={currentFrameImage}
+                alt={`Frame ${currentImage}`}
+                className="max-w-full max-h-full object-contain pointer-events-none"
+                style={{ transform: `scale(${imageScale})` }}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-600">Loading key frame...</p>
+                </div>
+              </div>
+            )}
+            <canvas
+              ref={canvasRef}
+              className="absolute top-0 left-0 pointer-events-auto"
+              style={{ transform: `scale(${imageScale})`, cursor: selectedTool === "box" ? "crosshair" : "default" }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onContextMenu={(e) => e.preventDefault()}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+          <h3 className="font-semibold text-gray-800 mb-4">Classes</h3>
+          <div className="flex items-center space-x-2 mb-3">
+            <Input
+              placeholder="New class name"
+              value={newClassName}
+              onChange={(e) => setNewClassName(e.target.value)}
+            />
+            <Button onClick={handleAddClass} className="bg-blue-600 hover:bg-blue-700 text-white">
+              Add
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(classes.length / CLASSES_PER_PAGE));
+              const startIdx = (classPage - 1) * CLASSES_PER_PAGE;
+              const pageItems = classes.slice(startIdx, startIdx + CLASSES_PER_PAGE);
+              return pageItems;
+            })().map((cls) => (
+              <div
+                key={cls.id}
+                className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                  selectedClass === cls.id ? "bg-gray-100 border border-gray-300" : "hover:bg-gray-50"
+                }`}
+              >
+                <div onClick={() => setSelectedClass(cls.id)} className="flex items-center cursor-pointer">
+                  <div className="w-3 h-3 rounded-full mr-3" style={{ backgroundColor: cls.color }} />
+                  <span className={`text-sm ${selectedClass === cls.id ? "font-semibold" : ""}`}>
+                    {cls.name}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeleteClass(cls.id)}
+                  className="text-red-600 border-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          {classes.length > CLASSES_PER_PAGE && (
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs text-gray-600">
+                Page {classPage} of {Math.max(1, Math.ceil(classes.length / CLASSES_PER_PAGE))}
+              </span>
+              <div className="space-x-2">
+                <Button
+                  size="sm"
+                  onClick={() => setClassPage((p) => Math.max(1, p - 1))}
+                  disabled={classPage <= 1}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Prev
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setClassPage((p) => Math.min(Math.max(1, Math.ceil(classes.length / CLASSES_PER_PAGE)), p + 1))}
+                  disabled={classPage >= Math.max(1, Math.ceil(classes.length / CLASSES_PER_PAGE))}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 p-4">
+          <h3 className="font-semibold text-gray-800 mb-4">Current Annotations</h3>
+          <div className="space-y-2">
+            {annotations.map((annotation) => {
+              const classInfo = classes.find((c) => c.id === annotation.class);
+              return (
+                <div key={annotation.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: classInfo?.color }} />
+                    <span className="text-sm">{annotation.class}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteAnnotation(annotation.id)}
+                    className="text-red-600 border-red-600 hover:bg-red-50 p-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              );
+            })}
+            {annotations.length === 0 && (
+              <p className="text-gray-500 text-sm text-center py-4">
+                No annotations yet. Select the Box tool and draw on the image.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-  // ========== Debug API Methods ==========
+const AnnotatePage = dynamic(() => Promise.resolve(AnnotatePageContent), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading annotation tool...</p>
+      </div>
+    </div>
+  )
+});
 
-  // Get all available routes
-  // static async getAvailableRoutes(): Promise<{
-  //   available_routes: Array<{
-  //     path: string;
-  //     methods: string[];
-  //   }>;
-  // }> {
-  //   try {
-  //     const workingUrl = await findWorkingBackendUrl();
-  //     const response = await fetch(`${workingUrl}/debug/routes`, {
-  //       method: 'GET',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //     });
-
-  //     if (!response.ok) {
-  //       throw new Error(`HTTP error! status: ${response.status}`);
-  //     }
-
-  //     return await response.json();
-  //   } catch (error) {
-  //     console.error('Error fetching available routes:', error);
-  //     return {
-  //       available_routes: []
-  //     };
-  //   }
-  // }
-
-  // Get project debug information
-  static async getProjectDebugInfo(projectId: string): Promise<{
-    project_id: string;
-    opencv_available: boolean;
-    current_working_dir: string;
-    project_paths: Array<{
-      path: string;
-      exists: boolean;
-      is_dir: boolean;
-      videos_dir?: string;
-      videos_dir_exists?: boolean;
-      video_files: string[];
-    }>;
-    video_files: string[];
-    total_videos: number;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/debug/project/${projectId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching project debug info:', error);
-      return {
-        project_id: projectId,
-        opencv_available: false,
-        current_working_dir: '',
-        project_paths: [],
-        video_files: [],
-        total_videos: 0
-      };
-    }
-  }
-
-  // Get frame debug information
-  static async getFrameDebugInfo(projectId: string): Promise<{
-    project_id: string;
-    opencv_available: boolean;
-    found_videos: Array<{
-      path: string;
-      name: string;
-      size: number;
-      total_frames: number;
-      fps: number;
-      width: number;
-      height: number;
-      first_frame_readable: boolean;
-      readable: boolean;
-    }>;
-    frame_info: Array<{
-      video: string;
-      frame_id: number;
-      total_frames: number;
-      readable: boolean;
-    }>;
-    total_videos: number;
-    current_working_dir: string;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/debug/frames/${projectId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching frame debug info:', error);
-      return {
-        project_id: projectId,
-        opencv_available: false,
-        found_videos: [],
-        frame_info: [],
-        total_videos: 0,
-        current_working_dir: ''
-      };
-    }
-  }
-
-  // Get video debug information
-  static async getVideoDebugInfo(projectId: string): Promise<{
-    project_id: string;
-    found_videos: Array<{
-      path: string;
-      name: string;
-      size: number;
-      readable: boolean;
-    }>;
-    total_count: number;
-    path_status: Array<{
-      path: string;
-      exists: boolean;
-      is_dir: boolean;
-      videos: Array<{
-        path: string;
-        name: string;
-        size: number;
-        readable: boolean;
-      }>;
-    }>;
-    opencv_available: boolean;
-    current_working_dir: string;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/debug/videos/${projectId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching video debug info:', error);
-      return {
-        project_id: projectId,
-        found_videos: [],
-        total_count: 0,
-        path_status: [],
-        opencv_available: false,
-        current_working_dir: ''
-      };
-    }
-  }
-
-  // ========== Enhanced Training API Methods ==========
-
-  // Get training status with enhanced error handling
-  static async getTrainingStatus(projectId: string): Promise<{
-    success: boolean;
-    status: string;
-    progress: number;
-    message?: string;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/get_training_progress`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
-
-      if (!response.ok) {
-        console.warn(`API returned ${response.status}, using fallback data`);
-        return this.getFallbackTrainingStatus();
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching training status:', error);
-      return this.getFallbackTrainingStatus();
-    }
-  }
-
-  // Fallback training status when API fails
-  private static getFallbackTrainingStatus() {
-    return {
-      success: true,
-      status: "Not started",
-      progress: 0,
-      message: "Training status unavailable (fallback mode)"
-    };
-  }
-
-  // ========== Model Download API Methods ==========
-
-  // Download model file with proper error handling
-  static async downloadModelFile(projectId: string, modelType: 'pytorch'): Promise<{
-    success: boolean;
-    downloadUrl?: string;
-    error?: string;
-    suggestedFileName?: string;
-  }> {
-    try {
-      // First get the model paths
-      const pathData = await this.getModelPath(projectId);
-      const originalFileName = pathData.fileName
-      if (!pathData.success) {
-        return {
-          success: false,
-          error: 'Failed to get model paths'
-        };
-      }
-
-      const modelPaths = pathData["model path"];
-      let downloadPath: string | undefined;
-
-      switch (modelType) {
-        case 'pytorch':
-          downloadPath = modelPaths.pytorch_path;
-          break;
-      }
-
-      if (!downloadPath) {
-        return {
-          success: false,
-          error: `${modelType} model not available`
-        };
-      }
-
-      return {
-        success: true,
-        downloadUrl: downloadPath,
-        suggestedFileName: originalFileName
-      };
-    } catch (error) {
-      console.error('Error downloading model file:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  // ========== Health Check API Methods ==========
-
-  // Check backend health
-  static async checkBackendHealth(): Promise<{
-    status: string;
-    message: string;
-    timestamp?: string;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error checking backend health:', error);
-      return {
-        status: 'unhealthy',
-        message: 'Backend health check failed'
-      };
-    }
-  }
-
-  // Test backend connection
-  static async testBackendConnection(): Promise<{
-    message: string;
-    timestamp: string;
-  }> {
-    try {
-      const workingUrl = await findWorkingBackendUrl();
-      const response = await fetch(`${workingUrl}/test`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error testing backend connection:', error);
-      return {
-        message: 'Backend connection test failed',
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-}
+export default AnnotatePage;
