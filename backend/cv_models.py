@@ -11,139 +11,139 @@ import numpy as np
 from scipy.interpolate import interp1d, PchipInterpolator
 from server import Video
 
-@staticmethod
-def calculate_iou(bbox1, bbox2):
-        # Unpack the boxes
-        x1, y1, w1, h1 = bbox1
-        x2, y2, w2, h2 = bbox2
+# @staticmethod
+# def calculate_iou(bbox1, bbox2):
+#         # Unpack the boxes
+#         x1, y1, w1, h1 = bbox1
+#         x2, y2, w2, h2 = bbox2
 
-        # Calculate the coordinates of the corners of the boxes
-        bbox1_x2 = x1 + w1
-        bbox1_y2 = y1 + h1
-        bbox2_x2 = x2 + w2
-        bbox2_y2 = y2 + h2
+#         # Calculate the coordinates of the corners of the boxes
+#         bbox1_x2 = x1 + w1
+#         bbox1_y2 = y1 + h1
+#         bbox2_x2 = x2 + w2
+#         bbox2_y2 = y2 + h2
 
-        # Calculate the coordinates of the intersection rectangle
-        inter_x1 = max(x1, x2)
-        inter_y1 = max(y1, y2)
-        inter_x2 = min(bbox1_x2, bbox2_x2)
-        inter_y2 = min(bbox1_y2, bbox2_y2)
+#         # Calculate the coordinates of the intersection rectangle
+#         inter_x1 = max(x1, x2)
+#         inter_y1 = max(y1, y2)
+#         inter_x2 = min(bbox1_x2, bbox2_x2)
+#         inter_y2 = min(bbox1_y2, bbox2_y2)
 
-        # Calculate the area of the intersection rectangle
-        inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
+#         # Calculate the area of the intersection rectangle
+#         inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
 
-        # Calculate the area of both bounding boxes
-        box1_area = w1 * h1
-        box2_area = w2 * h2
+#         # Calculate the area of both bounding boxes
+#         box1_area = w1 * h1
+#         box2_area = w2 * h2
 
-        # Calculate the IoU
-        iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
-        return iou
+#         # Calculate the IoU
+#         iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
+#         return iou
 
-class AutoAnnotator:
-    def __init__(self, video_path: str, manual_annotations: dict):
-        self.video_path = video_path
-        self.manual_annotations = manual_annotations
-        self.translate_annotations()
-        self.classes = self.manual_annotations[0]['class_name'] if self.manual_annotations else 'unnamed_object' # Assume one class only
+# class AutoAnnotator:
+#     def __init__(self, video_path: str, manual_annotations: dict):
+#         self.video_path = video_path
+#         self.manual_annotations = manual_annotations
+#         self.translate_annotations()
+#         self.classes = self.manual_annotations[0]['class_name'] if self.manual_annotations else 'unnamed_object' # Assume one class only
 
-    @staticmethod
-    def translate_annotations(self):
-        self.translated_annotations = {}
-        # Translate annotations to (center_x, center_y, width, height) format
-        for annotation in self.bbox_data:
-            bbox = annotation['coordinates']
-            frame_num = annotation['frame_num']
-            x, y, w, h = tuple(eval(var) for var in bbox.split())
-            center_x = x + w / 2
-            center_y = y + h / 2
-            self.translated_annotations[frame_num] = (center_x, center_y, w, h)
+#     @staticmethod
+#     def translate_annotations(self):
+#         self.translated_annotations = {}
+#         # Translate annotations to (center_x, center_y, width, height) format
+#         for annotation in self.bbox_data:
+#             bbox = annotation['coordinates']
+#             frame_num = annotation['frame_num']
+#             x, y, w, h = tuple(eval(var) for var in bbox.split())
+#             center_x = x + w / 2
+#             center_y = y + h / 2
+#             self.translated_annotations[frame_num] = (center_x, center_y, w, h)
 
-    def annotate(self, video_id):
-        # Perform object tracking to locate the object in the video
-        tracker = ObjectTracker(video_path=self.video_path)
-        tracked_annotations = tracker.tracking(manual_annotations=self.translated_annotations)
+#     def annotate(self, video_id):
+#         # Perform object tracking to locate the object in the video
+#         tracker = ObjectTracker(video_path=self.video_path)
+#         tracked_annotations = tracker.tracking(manual_annotations=self.translated_annotations)
 
-        # Identify objects in each frame using distilled SAM
-        identifier = ObjectIdentifier(image=None)
-        identified_objects = identifier.segment(tracked_annotations=tracked_annotations, video_id=video_id)
+#         # Identify objects in each frame using distilled SAM
+#         identifier = ObjectIdentifier(image=None)
+#         identified_objects = identifier.segment(tracked_annotations=tracked_annotations, video_id=video_id)
 
-        # Combine tracking and identification results
-        combined_annotations = []
-        for frame_num, tracked_bbox in tracked_annotations.items():
-            best_iou = -1
-            best_bbox = None
-            identified_bboxes = identified_objects[frame_num]
-            for identified_bbox in identified_bboxes:
-                iou = calculate_iou(tracked_bbox, identified_bbox)
-                if iou > best_iou:
-                    best_iou = iou
-                    best_bbox = identified_bbox
-            if best_bbox:
-                x, y, w, h = best_bbox
-                best_bbox_str = f"{x} {y} {w} {h}"
-                combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
+#         # Combine tracking and identification results
+#         combined_annotations = []
+#         for frame_num, tracked_bbox in tracked_annotations.items():
+#             best_iou = -1
+#             best_bbox = None
+#             identified_bboxes = identified_objects[frame_num]
+#             for identified_bbox in identified_bboxes:
+#                 iou = calculate_iou(tracked_bbox, identified_bbox)
+#                 if iou > best_iou:
+#                     best_iou = iou
+#                     best_bbox = identified_bbox
+#             if best_bbox:
+#                 x, y, w, h = best_bbox
+#                 best_bbox_str = f"{x} {y} {w} {h}"
+#                 combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
 
-        return combined_annotations
+#         return combined_annotations
     
-################################################################################################################################
+# ################################################################################################################################
 
-# Track object in a video given manual annotations
-class ObjectTracker:
-    def __init__(self, video_path):
-        self.video_path = video_path
+# # Track object in a video given manual annotations
+# class ObjectTracker:
+#     def __init__(self, video_path):
+#         self.video_path = video_path
 
-    def tracking(self, manual_annotations):
-        # Use PCHIP interpolation and linear interpolation for object tracking
-        tracker = InterpolatedObjectTracker(self.video_path)
-        predicted_annotations = tracker.predict_frame(manual_annotations)
+#     def tracking(self, manual_annotations):
+#         # Use PCHIP interpolation and linear interpolation for object tracking
+#         tracker = InterpolatedObjectTracker(self.video_path)
+#         predicted_annotations = tracker.predict_frame(manual_annotations)
 
-        # Use KCF for object tracking
-        # annotated_frames = list({d["frame_num"] for d in manual_annotations if "frame_num" in d})
-        # predicted_annotations = {}
-        # for i in range(len(annotated_frames) - 1):
-        #     starting_frame_num = annotated_frames[i]
-        #     ending_frame_num = annotated_frames[i + 1]
-        #     print(f"Performing KCF from frame {starting_frame_num} to frame {ending_frame_num}...")
+#         # Use KCF for object tracking
+#         # annotated_frames = list({d["frame_num"] for d in manual_annotations if "frame_num" in d})
+#         # predicted_annotations = {}
+#         # for i in range(len(annotated_frames) - 1):
+#         #     starting_frame_num = annotated_frames[i]
+#         #     ending_frame_num = annotated_frames[i + 1]
+#         #     print(f"Performing KCF from frame {starting_frame_num} to frame {ending_frame_num}...")
             
-        #     # Perform KCF tracking to locate the estimated location of the object
-        #     starting_frame_bbox = self.translated_annotations[starting_frame_num]
-        #     kcf_tracker = KCF(video_path=self.video_path)
-        #     tracking_results = kcf_tracker.predict_frames(starting_frame_bbox=starting_frame_bbox, starting_frame_num=starting_frame_num, ending_frame_num=ending_frame_num)
-        #     predicted_annotations.update(tracking_results)
+#         #     # Perform KCF tracking to locate the estimated location of the object
+#         #     starting_frame_bbox = self.translated_annotations[starting_frame_num]
+#         #     kcf_tracker = KCF(video_path=self.video_path)
+#         #     tracking_results = kcf_tracker.predict_frames(starting_frame_bbox=starting_frame_bbox, starting_frame_num=starting_frame_num, ending_frame_num=ending_frame_num)
+#         #     predicted_annotations.update(tracking_results)
 
-        return predicted_annotations
+#         return predicted_annotations
 
 # Identify all objects in an image
-class ObjectIdentifier:
-    def __init__(self, image):
-        self.image = image
+# class ObjectIdentifier:
+#     def __init__(self, image):
+#         self.image = image
 
-    # Use Distilled SAM for object identification
-    def segment(self, tracked_annotations, video_id):
+#     # Use Distilled SAM for object identification
+#     def segment(self, tracked_annotations, video_id):
         
-        cap = cv2.VideoCapture(self.video_path)
-        identified_objects = {}
+#         cap = cv2.VideoCapture(self.video_path)
+#         identified_objects = {}
         
-        for frame_num, bbox in tracked_annotations.items():
-            print(f"Processing frame {frame_num+1}...")
-            ret, frame = cap.read()
-            if not ret:
-                print(f"无法读取第 {frame_num} 帧，视频可能结束")
-                break
+#         for frame_num, bbox in tracked_annotations.items():
+#             print(f"Processing frame {frame_num+1}...")
+#             ret, frame = cap.read()
+#             if not ret:
+#                 print(f"无法读取第 {frame_num} 帧，视频可能结束")
+#                 break
 
-            # Use Distilled SAM for object identification
-            segmenter = MobileSAM(image=frame)
-            bboxes = segmenter.segment()
-            identified_objects[frame_num] = bboxes
+#             # Use Distilled SAM for object identification
+#             segmenter = MobileSAM(image=frame)
+#             bboxes = segmenter.segment()
+#             identified_objects[frame_num] = bboxes
 
-            # Update last annotated frame in database
-            video = Video(video_id)
-            video.last_annotated_frame = frame_num
-            video.save_last_annotated_frame()
+#             # Update last annotated frame in database
+#             video = Video(video_id)
+#             video.last_annotated_frame = frame_num
+#             video.save_last_annotated_frame()
 
-        cap.release()
-        return identified_objects
+#         cap.release()
+#         return identified_objects
     
 ###############################################################################################################################
 

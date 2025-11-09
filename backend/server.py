@@ -13,7 +13,7 @@ import uuid
 import cv2
 import pandas as pd
 import os
-from cv_models import AutoAnnotator
+from cv_models import InterpolatedObjectTracker, MobileSAM
 import numpy as np
 import base64
 import aiofiles
@@ -1346,7 +1346,123 @@ class Video(Project):
         success = bool(cursor.rowcount)
         cursor.close()
         return success
+@staticmethod
+def calculate_iou(bbox1, bbox2):
+        # Unpack the boxes
+        x1, y1, w1, h1 = bbox1
+        x2, y2, w2, h2 = bbox2
 
+        # Calculate the coordinates of the corners of the boxes
+        bbox1_x2 = x1 + w1
+        bbox1_y2 = y1 + h1
+        bbox2_x2 = x2 + w2
+        bbox2_y2 = y2 + h2
+
+        # Calculate the coordinates of the intersection rectangle
+        inter_x1 = max(x1, x2)
+        inter_y1 = max(y1, y2)
+        inter_x2 = min(bbox1_x2, bbox2_x2)
+        inter_y2 = min(bbox1_y2, bbox2_y2)
+
+        # Calculate the area of the intersection rectangle
+        inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
+
+        # Calculate the area of both bounding boxes
+        box1_area = w1 * h1
+        box2_area = w2 * h2
+
+        # Calculate the IoU
+        iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
+        return iou
+
+class AutoAnnotator:
+    def __init__(self, video_path: str, manual_annotations: dict):
+        self.video_path = video_path
+        self.manual_annotations = manual_annotations
+        self.translate_annotations()
+        self.classes = self.manual_annotations[0]['class_name'] if self.manual_annotations else 'unnamed_object' # Assume one class only
+
+    @staticmethod
+    def translate_annotations(self):
+        self.translated_annotations = {}
+        # Translate annotations to (center_x, center_y, width, height) format
+        for annotation in self.bbox_data:
+            bbox = annotation['coordinates']
+            frame_num = annotation['frame_num']
+            x, y, w, h = tuple(eval(var) for var in bbox.split())
+            center_x = x + w / 2
+            center_y = y + h / 2
+            self.translated_annotations[frame_num] = (center_x, center_y, w, h)
+
+    def annotate(self, video_id):
+        # Perform object tracking to locate the object in the video
+        tracker = ObjectTracker(video_path=self.video_path)
+        tracked_annotations = tracker.tracking(manual_annotations=self.translated_annotations)
+
+        # Identify objects in each frame using distilled SAM
+        identifier = ObjectIdentifier(image=None)
+        identified_objects = identifier.segment(tracked_annotations=tracked_annotations, video_id=video_id)
+
+        # Combine tracking and identification results
+        combined_annotations = []
+        for frame_num, tracked_bbox in tracked_annotations.items():
+            best_iou = -1
+            best_bbox = None
+            identified_bboxes = identified_objects[frame_num]
+            for identified_bbox in identified_bboxes:
+                iou = calculate_iou(tracked_bbox, identified_bbox)
+                if iou > best_iou:
+                    best_iou = iou
+                    best_bbox = identified_bbox
+            if best_bbox:
+                x, y, w, h = best_bbox
+                best_bbox_str = f"{x} {y} {w} {h}"
+                combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
+
+        return combined_annotations
+    
+# Track object in a video given manual annotations
+class ObjectTracker:
+    def __init__(self, video_path):
+        self.video_path = video_path
+
+    def tracking(self, manual_annotations):
+        # Use PCHIP interpolation and linear interpolation for object tracking
+        tracker = InterpolatedObjectTracker(self.video_path)
+        predicted_annotations = tracker.predict_frame(manual_annotations)
+
+        return predicted_annotations
+    
+class ObjectIdentifier():
+    def __init__(self, image):
+        self.image = image
+
+    # Use Distilled SAM for object identification
+    def segment(self, tracked_annotations, video_id):
+        
+        cap = cv2.VideoCapture(self.video_path)
+        identified_objects = {}
+        
+        for frame_num, bbox in tracked_annotations.items():
+            print(f"Processing frame {frame_num+1}...")
+            ret, frame = cap.read()
+            if not ret:
+                print(f"无法读取第 {frame_num} 帧，视频可能结束")
+                break
+
+            # Use Distilled SAM for object identification
+            segmenter = MobileSAM(image=frame)
+            bboxes = segmenter.segment()
+            identified_objects[frame_num] = bboxes
+
+            # Update last annotated frame in database
+            video = Video(video_id)
+            video.last_annotated_frame = frame_num
+            video.save_last_annotated_frame()
+
+        cap.release()
+        return identified_objects
+    
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     body = request._body.decode() if hasattr(request, "_body") else ""
@@ -1881,7 +1997,7 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             "video/x-msvideo",  # .avi
         }
 
-        # 1. Validate filename
+        # Validate filename
         filename = file.filename
         if not filename:
             raise HTTPException(status_code=400, detail="No file name")
@@ -1891,7 +2007,7 @@ async def upload(project_id: int, file: UploadFile = File(...)):
         if safe_filename != filename:
             raise HTTPException(status_code=400, detail="Invalid filename")
 
-        # 2. Validate content type
+        # Validate content type
         content_type = file.content_type
         if content_type not in ALLOWED_MIME_TYPES:
             raise HTTPException(
@@ -1899,7 +2015,7 @@ async def upload(project_id: int, file: UploadFile = File(...)):
                 detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
             )
 
-        # 3. Define destination
+        # Define destination
         project = Project(project_id=project_id)
         project_dir = Path(project.get_project_path())
         project_dir.mkdir(parents=True, exist_ok=True)   # 自動建立 project_1/
@@ -1920,7 +2036,7 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             if file_path.exists():
                 file_path.unlink()  # cleanup partial
             raise HTTPException(status_code=500, detail="Upload failed")
-        
+
         return JSONResponse({
             "message": "Upload successful",
             "filename": safe_filename,
@@ -1944,7 +2060,7 @@ def get_uploaded_videos(request: ProjectRequest):
         project = Project(project_id = request.project_id)
         videos_info = project.get_uploaded_videos()
         return videos_info
-    
+
     except Exception as e:
         logger.error(f"Get uploaded videos error: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -1952,7 +2068,7 @@ def get_uploaded_videos(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
 # ??? (Why need this?)
 # Get project videos by project ID (RESTful endpoint)
 # Output: ?
