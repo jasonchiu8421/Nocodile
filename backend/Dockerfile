@@ -101,7 +101,7 @@ RUN mkdir -p /app/projects /app/safe_projects /app/temp && \
 COPY requirements.txt .
 
 # Install dependencies using cache.
-RUN python -m pip install -r requirements.txt
+RUN python -m pip install --timeout=300 -r requirements.txt
 
 # Copy source code.
 COPY . .
