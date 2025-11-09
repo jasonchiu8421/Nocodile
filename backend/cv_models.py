@@ -1,5 +1,5 @@
 import cv2
-from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
 import os
 from PIL import Image
 from skimage import io, filters
@@ -85,6 +85,8 @@ class AutoAnnotator:
                 combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
 
         return combined_annotations
+    
+################################################################################################################################
 
 # Track object in a video given manual annotations
 class ObjectTracker:
@@ -131,7 +133,7 @@ class ObjectIdentifier:
                 break
 
             # Use Distilled SAM for object identification
-            segmenter = DistilledSAM(image=frame)
+            segmenter = MobileSAM(image=frame)
             bboxes = segmenter.segment()
             identified_objects[frame_num] = bboxes
 
@@ -142,6 +144,8 @@ class ObjectIdentifier:
 
         cap.release()
         return identified_objects
+    
+###############################################################################################################################
 
 # Users shall create an instance of KCF class for each video, multiple predictions can be made on the same video instance
 # starting_frame_bbox is in (x, y, width, height) format
@@ -285,144 +289,8 @@ class InterpolatedObjectTracker:
         
         return result
 
-class DistilledSAM:
-    def __init__(self, image):
-        self.sam = sam_model_registry["vit_t"](checkpoint="sam_vit_t_01ec64.pth")
-        self.image = image
-        
-    def segment(self):
-        # self.bboxes = []
-        return self.bboxes
-    
-    def visualize_segmentation_result(self):
-        return 0
-
-class KCF:
-    # Define video path when initializing
-    def __init__(self, video_path):
-        self.cap = cv2.VideoCapture(video_path)
-        if not self.cap.isOpened():
-            print(f"无法打开视频文件 {video_path}")
-            return None
-
-    def release(self):
-        self.cap.release()
-
-    def predict_frames(self, starting_frame_bbox, starting_frame_num=0, ending_frame_num=60):
-        """
-        预测多帧中目标的位置
-        """
-
-        # reset cap before reading frames
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame_num)
-
-        ret, starting_frame = self.cap.read()
-        if not ret:
-            print(f"无法读取第 {starting_frame} 帧，视频可能结束")
-            self.release()
-            return None
-
-        print("成功读取起始帧。")
-
-        height, width = starting_frame.shape[:2]
-        fps = self.cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        print(f"视频尺寸: {width}x{height}")
-        print(f"视频帧率: {fps:.2f} FPS")
-        print(f"总帧数: {total_frames-starting_frame_num}")
-        print(f"原始边界框: {starting_frame_bbox}")
-        print("准备创建跟踪器...")
-
-        # 使用TrackerMIL跟踪器
-        try:
-            tracker = cv2.TrackerMIL_create()
-            print("成功创建跟踪器")
-        except Exception as e:
-            print(f"创建跟踪器失败: {e}")
-            self.release()
-            return None
-
-        # 将边界框转换为OpenCV格式 (x, y, width, height)
-        adjusted_bbox = tuple(starting_frame_bbox)
-
-        print(f"尝试初始化跟踪器，边界框: {adjusted_bbox}")
-        try:
-            success = tracker.init(starting_frame, adjusted_bbox)
-            print(f"跟踪器初始化结果: {success}")
-
-            # 处理返回None的情况
-            if success is None:
-                print("跟踪器初始化返回None，尝试继续执行")
-                success = True  # 假设初始化成功
-            elif not success:
-                print("跟踪器初始化明确失败")
-                self.release()
-                return None
-        except Exception as e:
-            print(f"跟踪器初始化异常: {e}")
-            self.release()
-            return None
-
-        # 跟踪多帧
-        tracking_results = {}
-
-        print(f"开始根据 {starting_frame_num} 帧跟踪 {ending_frame_num} 帧...")
-
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame_num)
-        for frame_num in range(starting_frame_num, ending_frame_num + 1):
-            ret, frame = self.cap.read()
-            if not ret:
-                print(f"无法读取第 {frame_num + 1} 帧，视频可能结束")
-                break
-
-            # 更新跟踪器
-            success, bbox = tracker.update(frame)
-
-            if success:
-                # 将浮点数转换为整数
-                bbox = tuple(map(int, bbox))
-                tracking_results[frame_num] = bbox
-                print(f"第 {frame_num + 1} 帧跟踪成功: {bbox}")
-            else:
-                print(f"第 {frame_num + 1} 帧跟踪失败")
-                tracking_results[frame_num] = None
-
-        return tracking_results
-
-class SAM:
-    def __init__(self, image):
-        self.sam = sam_model_registry["vit_b"](checkpoint="sam_vit_b_01ec64.pth")
-        self.image = image
-        
-    def segment(self):
-        mask_generator = SamAutomaticMaskGenerator(self.sam)
-        masks = mask_generator.generate(self.image)
-        self.bboxes = []
-        for mask in masks:
-            bbox = mask['bbox']
-            self.bboxes.append(bbox)
-        return self.bboxes
-
-    def visualize_segmentation_result(self):
-        for bbox in self.bboxes:
-            x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])  # Convert to integers
-            # Draw the rectangle on the image
-            cv2.rectangle(self.image, (x, y), (x + w, y + h), (255, 0, 0), 2)  # Blue color with thickness 2
-
-        # Save the image
-        base, ext = os.path.splitext(self.image_path)
-        output_path = f"{base}_segmented{ext}"
-
-        cv2.imwrite(output_path, self.image)
-        # # Display the image
-        # cv2.imshow('Segmented Image', image)
-
-        return output_path
-###########################################################################################################################
-
 class MobileSAM:
-    def __init__(self, image_path, checkpoint="mobile_sam.pt"):
+    def __init__(self, image, checkpoint="mobile_sam.pt"):
         """
         Initialize MobileSAM - lightweight SAM for CPU/mobile devices
         
@@ -430,14 +298,8 @@ class MobileSAM:
             image_path: Path to input image
             checkpoint: Path to mobile_sam.pt checkpoint
         """
-        from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
         
-        self.image_path = image_path
-        
-        # Load and convert image to RGB numpy array
-        image = cv2.imread(image_path)
-        if image is None:
-            raise ValueError(f"Could not load image: {image_path}")
+        self.image = image
         
         self.image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         self.cv_image = image
@@ -451,7 +313,7 @@ class MobileSAM:
         
         self.bboxes = []
         self.masks = []
-        
+
     def segment(self):
         """
         Perform automatic mask generation on the entire image
@@ -614,6 +476,129 @@ class MobileSAM:
         
         return output_path
 
+
+class KCF:
+    # Define video path when initializing
+    def __init__(self, video_path):
+        self.cap = cv2.VideoCapture(video_path)
+        if not self.cap.isOpened():
+            print(f"无法打开视频文件 {video_path}")
+            return None
+
+    def release(self):
+        self.cap.release()
+
+    def predict_frames(self, starting_frame_bbox, starting_frame_num=0, ending_frame_num=60):
+        """
+        预测多帧中目标的位置
+        """
+
+        # reset cap before reading frames
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame_num)
+
+        ret, starting_frame = self.cap.read()
+        if not ret:
+            print(f"无法读取第 {starting_frame} 帧，视频可能结束")
+            self.release()
+            return None
+
+        print("成功读取起始帧。")
+
+        height, width = starting_frame.shape[:2]
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        print(f"视频尺寸: {width}x{height}")
+        print(f"视频帧率: {fps:.2f} FPS")
+        print(f"总帧数: {total_frames-starting_frame_num}")
+        print(f"原始边界框: {starting_frame_bbox}")
+        print("准备创建跟踪器...")
+
+        # 使用TrackerMIL跟踪器
+        try:
+            tracker = cv2.TrackerMIL_create()
+            print("成功创建跟踪器")
+        except Exception as e:
+            print(f"创建跟踪器失败: {e}")
+            self.release()
+            return None
+
+        # 将边界框转换为OpenCV格式 (x, y, width, height)
+        adjusted_bbox = tuple(starting_frame_bbox)
+
+        print(f"尝试初始化跟踪器，边界框: {adjusted_bbox}")
+        try:
+            success = tracker.init(starting_frame, adjusted_bbox)
+            print(f"跟踪器初始化结果: {success}")
+
+            # 处理返回None的情况
+            if success is None:
+                print("跟踪器初始化返回None，尝试继续执行")
+                success = True  # 假设初始化成功
+            elif not success:
+                print("跟踪器初始化明确失败")
+                self.release()
+                return None
+        except Exception as e:
+            print(f"跟踪器初始化异常: {e}")
+            self.release()
+            return None
+
+        # 跟踪多帧
+        tracking_results = {}
+
+        print(f"开始根据 {starting_frame_num} 帧跟踪 {ending_frame_num} 帧...")
+
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame_num)
+        for frame_num in range(starting_frame_num, ending_frame_num + 1):
+            ret, frame = self.cap.read()
+            if not ret:
+                print(f"无法读取第 {frame_num + 1} 帧，视频可能结束")
+                break
+
+            # 更新跟踪器
+            success, bbox = tracker.update(frame)
+
+            if success:
+                # 将浮点数转换为整数
+                bbox = tuple(map(int, bbox))
+                tracking_results[frame_num] = bbox
+                print(f"第 {frame_num + 1} 帧跟踪成功: {bbox}")
+            else:
+                print(f"第 {frame_num + 1} 帧跟踪失败")
+                tracking_results[frame_num] = None
+
+        return tracking_results
+
+class SAM:
+    def __init__(self, image):
+        self.sam = sam_model_registry["vit_b"](checkpoint="sam_vit_b_01ec64.pth")
+        self.image = image
+        
+    def segment(self):
+        mask_generator = SamAutomaticMaskGenerator(self.sam)
+        masks = mask_generator.generate(self.image)
+        self.bboxes = []
+        for mask in masks:
+            bbox = mask['bbox']
+            self.bboxes.append(bbox)
+        return self.bboxes
+
+    def visualize_segmentation_result(self):
+        for bbox in self.bboxes:
+            x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])  # Convert to integers
+            # Draw the rectangle on the image
+            cv2.rectangle(self.image, (x, y), (x + w, y + h), (255, 0, 0), 2)  # Blue color with thickness 2
+
+        # Save the image
+        base, ext = os.path.splitext(self.image_path)
+        output_path = f"{base}_segmented{ext}"
+
+        cv2.imwrite(output_path, self.image)
+        # # Display the image
+        # cv2.imshow('Segmented Image', image)
+
+        return output_path
 
 ###########################################################################################################################
 class RMBG():
