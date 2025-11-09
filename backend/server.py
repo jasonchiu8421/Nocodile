@@ -13,7 +13,7 @@ import uuid
 import cv2
 import pandas as pd
 import os
-from cv_models import KCF, SAM
+from cv_models import AutoAnnotator
 import numpy as np
 import base64
 import aiofiles
@@ -1031,12 +1031,12 @@ class Video(Project):
         self.video_id = video_id
         if not initialize:
             self.video_path = self.get_video_path()
-            self.cap = cv2.VideoCapture(self.video_path)
+            # self.cap = cv2.VideoCapture(self.video_path)
             # 从数据库获取标注状态
             self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
             # 获取视频信息
-            self.frame_count = self.get_frame_count()
-            self.fps = self.get_fps()
+            # self.frame_count = self.get_frame_count()
+            # self.fps = self.get_fps()
 
     # Initialize when a video is uploaded, includes inserting data to the database
     # Output: video_id, video_path
@@ -1235,6 +1235,7 @@ class Video(Project):
             return None, None
     
     def get_frame(self, frame_num: int):
+        self.frame_count = self.get_frame_count()
         if self.frame_count <= 0:
             raise ValueError("Video file is invalid or has no frames")
         if frame_num < 0 or frame_num >= self.frame_count:
@@ -1243,7 +1244,7 @@ class Video(Project):
             self.video_path = self.get_video_path()
         cap = cv2.VideoCapture(self.video_path)
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-        ret, frame = self.cap.read()
+        ret, frame = cap.read()
         if ret:
             _, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
@@ -1255,7 +1256,7 @@ class Video(Project):
     def annotate(self, frame_num: int, bbox: list):
         try:
             self.annotation_status = "manual annotation in progress"
-            if frame_num < 0 or frame_num >= self.frame_count:
+            if frame_num < 0 or frame_num >= self.get_frame_count():
                 raise ValueError("Frame number out of range")
             class_name, x, y, w, h = bbox
             # width, height = self.get_resolution()
@@ -1274,96 +1275,23 @@ class Video(Project):
             logger.error(f"Error in annotate: {str(e)}")
             return f"Error in annotate: {str(e)}"
 
-    @staticmethod
-    def _calculate_iou(bbox1, bbox2):
-        # Unpack the boxes
-        x1, y1, w1, h1 = bbox1
-        x2, y2, w2, h2 = bbox2
-
-        # Calculate the coordinates of the corners of the boxes
-        bbox1_x2 = x1 + w1
-        bbox1_y2 = y1 + h1
-        bbox2_x2 = x2 + w2
-        bbox2_y2 = y2 + h2
-
-        # Calculate the coordinates of the intersection rectangle
-        inter_x1 = max(x1, x2)
-        inter_y1 = max(y1, y2)
-        inter_x2 = min(bbox1_x2, bbox2_x2)
-        inter_y2 = min(bbox1_y2, bbox2_y2)
-
-        # Calculate the area of the intersection rectangle
-        inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
-
-        # Calculate the area of both bounding boxes
-        box1_area = w1 * h1
-        box2_area = w2 * h2
-
-        # Calculate the IoU
-        iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
-        return iou
-
     def auto_annotate(self):
+        # Set status to in progress
         self.annotation_status = "auto annotation in progress"
+        self.save_annotation_status()
         
+        # Get all manually annotated bbox data
         bbox_data = self.get_bbox_data()
+        bbox_data = sorted(bbox_data, key=lambda x: x['frame_num'])
 
-        # Find all annotated frames
-        annotated_frames = list({d["frame_num"] for d in bbox_data if "frame_num" in d})
+        # Perform auto-annotation
+        auto_annotator = AutoAnnotator(self.video_path, bbox_data)
+        annotations = auto_annotator.annotate(self.video_id)
 
-        # Loop through each segment between annotated frames
-        for i in range(len(annotated_frames) - 1):
-            starting_frame_num = annotated_frames[i]
-            ending_frame_num = annotated_frames[i + 1]
-            print(f"Auto-annotating frames from {starting_frame_num} to {ending_frame_num}...")
-
-            # Convert the bbox string to a tuple of integers
-            frame_bbox = self.get_bbox_data(starting_frame_num)
-            for bbox in frame_bbox:
-                starting_frame_bbox = tuple(bbox['coordinates'].split())
-
-            # Perform KCF tracking to locate the estimated location of the object
-            if not self.video_path:
-                self.video_path = self.get_video_path()
-            kcf_tracker = KCF(video_path=self.video_path)
-            tracking_results = kcf_tracker.predict_frames(starting_frame_bbox=starting_frame_bbox, starting_frame_num=starting_frame_num, ending_frame_num=ending_frame_num)
-
-            # Find the correct segment for each unbounded frame
-            cap = cv2.VideoCapture(self.video_path)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame_num+1)
-            for index in range(starting_frame_num+1, ending_frame_num):
-                print(f"Processing frame {index+1}...")
-                ret, frame = cap.read()
-                if not ret:
-                    print(f"无法读取第 {index+1} 帧，视频可能结束")
-                    break
-                sam_segmenter = SAM(image=frame)
-                bboxes = sam_segmenter.segment()
-                    
-                # Find the best matching SAM box by comparing IoU of the kcf-predicted box
-                max_iou = -1
-                best_bbox = None
-                target_bbox = tracking_results[index - starting_frame_num]
-
-                for bbox in bboxes:
-                    iou = self._calculate_iou(target_bbox, bbox)
-                    if iou > max_iou:
-                        max_iou = iou
-                        best_bbox = bbox
-
-                x, y, w, h = best_bbox
-                best_bbox = f"{x} {y} {w} {h}"
-                self.bbox_data.append({"frame_num": index, "class_name": starting_frame_bbox['class_name'],"coordinates": best_bbox})
-                print(f"Best matching bbox for frame {index+1}: {best_bbox}")
-
-                # Save bbox result in database
-                self.save_bbox_data(index, starting_frame_bbox['class_name'], best_bbox)
-
-                # Save the number of frame in progress
-                self.last_annotated_frame = index
-                self.save_last_annotated_frame()
-
-        cap.release()
+        # Save all auto-annotations to database
+        for ann in annotations:
+            if ann not in bbox_data:
+                self.save_bbox_data(ann["frame_num"], ann["class_name"], ann["coordinates"])
 
         self.annotation_status = "completed"
         self.save_annotation_status()
