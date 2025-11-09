@@ -606,8 +606,9 @@ class Project():
     # Output: {class_name (str): color (str), ...}
     def get_classes(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT class_name, color FROM class WHERE project_id = %s"
-        cursor.execute(query,(self.project_id,))
+        query = "SELECT class_name, color FROM class WHERE project_id = %d"
+        print(type(self.project_id))
+        cursor.execute(query, (self.project_id))
         rows = cursor.fetchall()
         classes = {item["class_name"]: item["color"] for item in rows}
         return classes
@@ -668,7 +669,8 @@ class Project():
             if not os.path.exists(project_path):
                 os.makedirs(project_path, exist_ok=True)
                 logger.info(f"Created project directory: {project_path}")
-            return project_path + os.sep  # 返回帶分隔符的路徑
+            
+            return project_path  # 返回帶分隔符的路徑
         except Exception as e:
             logger.error(f"Error creating project directory {project_path}: {str(e)}")
             # 如果創建失敗，返回一個安全的默認路徑
@@ -748,8 +750,9 @@ class Project():
         except Exception as e:
             logger.error(f"Error creating dataset directories: {str(e)}")
             raise
-
+        print(3)
         # Create the class_ID, class_name dictionary
+        print(type(self.project_id))
         self.classes = self.get_classes()
         class_list = [key for key in self.classes]
         class_list.sort()
@@ -761,10 +764,10 @@ class Project():
             id += 1
         print("Class id defined as: "+str(class_id_dict))
         self.save_class_ids(class_id_dict)
-
+        print(4)
         self.videos = self.get_videos()
         logger.info(f"📦 [DATASET] Starting dataset creation for {len(self.videos)} video(s)")
-        
+        print(5)
         if not self.videos:
             logger.warning("⚠️ [DATASET] No videos found in project")
             raise ValueError("No videos found in project. Please upload videos first.")
@@ -773,7 +776,7 @@ class Project():
             try:
                 video = Video(self.project_id, video_id)
                 logger.info(f"📹 [DATASET] Processing video {video_id}")
-
+                print(6)
                 # 获取视频路径
                 video_path = video.get_video_path()
                 if not video_path:
@@ -783,7 +786,7 @@ class Project():
                 if not os.path.exists(video_path):
                     logger.error(f"❌ [DATASET] Video file does not exist: {video_path}")
                     raise ValueError(f"Video file does not exist: {video_path}")
-
+                print(7)
                 # Write labels in txt files
                 bbox_data = video.get_bbox_data()
                 logger.info(f"📝 [DATASET] Found {len(bbox_data)} bbox annotations for video {video_id}")
@@ -811,7 +814,7 @@ class Project():
                             file.write(f"{class_id_dict[class_name]} {coordinates}\n")
                     
                     logger.info(f"✅ [DATASET] Created {len(bbox_data)} label files for video {video_id}")
-
+                print(8)
                 # Decompose videos into jpg images
                 logger.info(f"🎬 [DATASET] Extracting frames from video {video_id}: {video_path}")
                 cap = cv2.VideoCapture(str(video_path))
@@ -820,7 +823,7 @@ class Project():
                     logger.error(f"❌ [DATASET] Could not open video file: {video_path}")
                     cap.release()
                     raise ValueError(f"Could not open video file: {video_path}")
-                
+                print(9)
                 frame_idx = 0
                 extracted_count = 0
                 while cap.isOpened():
@@ -834,7 +837,7 @@ class Project():
                     else:
                         logger.warning(f"⚠️ [DATASET] Failed to save frame {frame_idx} for video {video_id}")
                     frame_idx += 1
-                
+                print(0)
                 cap.release()
                 logger.info(f"✅ [DATASET] Extracted {extracted_count} frames from video {video_id}")
                 
@@ -1080,7 +1083,7 @@ class Project():
         self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
 
         # Define class list
-        classes = [key for key in self.get_classes()]
+        classes = self.get_classes().keys()
         classes.sort()
 
         # Create result.yaml for dataset with full COCO classes
@@ -1111,7 +1114,7 @@ class Project():
                     epochs=1,
                     imgsz=640,
                     batch=4,
-                    #device="cpu",
+                    device=0,
                     save=True,
                     exist_ok=True
                 )
@@ -1170,25 +1173,44 @@ class Project():
     # Get model path
     def get_model_path(self):
         model_path = Path(self.get_project_path()) / "output" / "best.pt"
-        return model_path.resolve()
+        return model_path
 
     # Get model performance
     def get_model_performance(self):
         model_path = self.get_model_path()
         if not model_path.exists():
             raise FileNotFoundError("Model file 'best.pt' not found. Please train the model first.")
-
-        dataset_dir = Path(self.get_project_path()) / "dataset"
-        yaml_path = dataset_dir / "data.yaml"
-        if not yaml_path.exists():
-            raise FileNotFoundError("Dataset configuration file 'data.yaml' not found.")
-
+        print(1)
+        # dataset_dir = Path(self.get_project_path()) / "dataset"
+        # yaml_path = dataset_dir / "data.yaml"
+        # if not yaml_path.exists():
+        #     raise FileNotFoundError("Dataset configuration file 'data.yaml' not found.")
+        print(2)
         # Load the trained model
         model = YOLO(model_path)
-
+        print(3)
         # Run validation on the validation set
-        metrics = model.val(result=str(yaml_path.resolve()))
-
+        dataset_path = self.get_dataset_path()
+        print(3.1)
+        print(dataset_path)
+        if dataset_path and Path(dataset_path).exists():
+            dataset_dir = Path(dataset_path)
+        print(dataset_dir)
+        train_img_dir = dataset_dir / "train" / "images"
+        val_img_dir = dataset_dir / "val" / "images"
+        # classes = self.get_classes().keys()
+        print(3.2)
+        classes = ['zebra line', 'nocodile']
+        print(3.9)
+        data_yaml = {
+            "train": str(train_img_dir.resolve()),
+            "val": str(val_img_dir.resolve()),
+            "nc": len(classes),
+            "names": classes
+        }
+        print(4)
+        metrics = model.val(data=data_yaml)
+        print(metrics)
         # Extract the key performance metrics from the results object.
         # For object detection, we use mAP as the primary "accuracy" metric.
         # The other metrics are averaged over all classes.
@@ -1199,7 +1221,7 @@ class Project():
             if math.isnan(value) or math.isinf(value):
                 return 0.0
             return float(value)
-        
+        print(5)
         performance = {
             "accuracy": safe_float(metrics.box.map50),  # Using mAP50 as the main accuracy indicator
             "precision": safe_float(metrics.box.p.mean()), # Mean Precision over all classes
@@ -2807,7 +2829,7 @@ async def next_video(request: NextVideoRequest):
 # Create dataset for training
 @app.post("/create_dataset")
 async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTasks):
-    # background_tasks.add_task(_create_dataset, request.project_id)
+    background_tasks.add_task(_create_dataset, request.project_id)
     return {
         "success": True,
         "message": "Training started in the background."
@@ -2817,7 +2839,7 @@ async def _create_dataset(project_id: int):
     try:
         logger.info(f"🚀 [DATASET] Starting dataset creation for project {project_id}")
         project = Project(project_id = project_id)
-
+        print(1)
         # 检查所有视频是否都已完成标注
         videos = project.get_videos()
         logger.info(f"📹 [DATASET] Found {len(videos)} video(s) in project {project_id}")
@@ -2829,7 +2851,7 @@ async def _create_dataset(project_id: int):
                 "success": False,
                 "message": error_msg
             }
-        
+        print(2)
         for video_id in videos:
             video = Video(project_id = project_id, video_id = video_id)
             # 重新从数据库获取最新状态
@@ -2838,7 +2860,7 @@ async def _create_dataset(project_id: int):
             video.last_annotated_frame = last_annotated_frame
             
             logger.info(f"🔍 [DATASET] Checking video {video_id}, status: {annotation_status}, last_frame: {last_annotated_frame}")
-            
+            print(2)
             # 如果状态是 "manual annotation in progress"，检查是否真的完成了
             if annotation_status == "manual annotation in progress":
                 # 检查是否所有关键帧都已标注
@@ -2875,6 +2897,7 @@ async def _create_dataset(project_id: int):
                             else:
                                 error_msg = f"Video {video_id} is not completed. Last annotated frame: {last_annotated_frame} (key frame {last_key_frame}/{total_key_frames}), total frames: {frame_count}, fps: {fps}. Please complete annotation first."
                                 logger.error(f"❌ [DATASET] {error_msg}")
+                                
                                 return {
                                     "success": False,
                                     "message": error_msg
@@ -2882,10 +2905,12 @@ async def _create_dataset(project_id: int):
                     else:
                         error_msg = f"Video {video_id} has invalid last_annotated_frame: {last_annotated_frame}. Please complete annotation first."
                         logger.error(f"❌ [DATASET] {error_msg}")
+                        
                         return {
                             "success": False,
                             "message": error_msg
                         }
+                    
                 except Exception as e:
                     logger.error(f"❌ [DATASET] Error checking video {video_id} completion: {e}")
                     logger.error(f"Traceback: {traceback.format_exc()}")
@@ -3009,7 +3034,7 @@ async def get_training_progress(request: ProjectRequest):
 async def get_model_performance(request: ProjectRequest):
     try:
         project = Project(project_id = request.project_id)
-
+        print(0)
         # Get model performance
         performance = project.get_model_performance()
 
@@ -3029,11 +3054,11 @@ async def get_model(request: ProjectRequest):
     try:
         project_id = request.project_id
         project = Project(project_id)
-        
-        # Define model path based on project ID
-        model_path = Path(project.get_model_path())
 
-        if not model_path.is_file():
+        # Define model path based on project ID
+        model_path = project.get_model_path()
+
+        if not model_path.exists():
             raise RuntimeError(f"Model file not found: {model_path}")
 
         # stream the file in chunks
@@ -3045,7 +3070,7 @@ async def get_model(request: ProjectRequest):
                     if not chunk:
                         break
                     yield chunk
-
+        print(1)
         # Build safe headers
         file_name = model_path.name  # "best.pt"
         file_size = model_path.stat().st_size
@@ -3056,7 +3081,7 @@ async def get_model(request: ProjectRequest):
             # Optional: allow resumable downloads
             "Accept-Ranges": "bytes",
         }
-
+        print(2)
         return StreamingResponse(
             file_iterator(model_path),
             media_type="application/octet-stream",
