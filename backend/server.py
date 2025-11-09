@@ -1871,9 +1871,6 @@ async def save_upload_file(upload_file: UploadFile, destination: Path):
 @app.post("/upload")
 async def upload(project_id: int, file: UploadFile = File(...)):
     try:
-        project = Project(project_id=project_id)
-        project_dir = Path(project.get_project_path())
-
         # Allowed video MIME types
         ALLOWED_MIME_TYPES = {
             "video/mp4",
@@ -1903,11 +1900,17 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             )
 
         # 3. Define destination
+        project = Project(project_id=project_id)
+        project_dir = Path(project.get_project_path())
+        project_dir.mkdir(parents=True, exist_ok=True)   # 自動建立 project_1/
         file_path = project_dir / safe_filename
 
-        # Optional: Prevent overwrite (or allow with unique names)
-        if file_path.exists():
-            raise HTTPException(status_code=409, detail="File already exists")
+        # Prevent overwrite by renaming with (2), ...
+        count = 2
+        stem, ext = safe_filename.split(".")
+        while file_path.exists:
+            file_path = project_dir / f"{stem}({count}).{ext}"
+            count += 1
 
         # 4. Stream to disk
         try:
@@ -2201,7 +2204,7 @@ async def annotate(request: AnnotationRequest):
 #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 #             content={"error": str(e)}
 #         )
-    
+
 #=================================== Page 5 - Model Training ==========================================
 
 # Create dataset for training
