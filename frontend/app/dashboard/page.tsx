@@ -124,13 +124,21 @@ export default function Dashboard() {
 
   // === 獲取用戶資訊 ===
   useEffect(() => {
-    const getUserInfo = async () => {
-      if (typeof window !== 'undefined' && window.cookieStore) {
+    const getUserInfo = () => {
+      if (typeof window !== 'undefined') {
         try {
-          const userIdCookie = await window.cookieStore.get("userId");
-          const usernameCookie = await window.cookieStore.get("username");
-          if (userIdCookie?.value) setUserId(parseInt(userIdCookie.value));
-          if (usernameCookie?.value) setUsername(usernameCookie.value);
+          const cookies = document.cookie.split('; ');
+          const userIdCookie = cookies.find(row => row.startsWith('userId='));
+          const usernameCookie = cookies.find(row => row.startsWith('username='));
+
+          if (userIdCookie) {
+            const userIdValue = userIdCookie.split('=')[1];
+            setUserId(parseInt(userIdValue));
+          }
+          if (usernameCookie) {
+            const usernameValue = usernameCookie.split('=')[1];
+            setUsername(decodeURIComponent(usernameValue));
+          }
         } catch (error) {
           log.error('DASHBOARD', 'Error getting user info from cookies', { error });
         }
@@ -188,9 +196,10 @@ export default function Dashboard() {
     } catch (error) {
       log.error('DASHBOARD', 'Error during logout', { error });
     }
-    if (typeof window !== 'undefined' && window.cookieStore) {
-      await window.cookieStore.delete("userId");
-      await window.cookieStore.delete("username");
+    // Clear cookies by setting an expired date
+    if (typeof window !== 'undefined') {
+      document.cookie = "userId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     }
     router.push("/");
   };
