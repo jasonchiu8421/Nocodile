@@ -11,22 +11,22 @@ def test_connection():
     """測試資料庫連接"""
     print("🔍 測試資料庫連接...")
     
-    # 從環境變數或使用預設值
+    # 從環境變數或使用預設值 (defaults match .env)
     configs = [
         {
-            'host': os.getenv('MYSQL_HOST', 'localhost'),
-            'port': int(os.getenv('MYSQL_PORT', '3306')),
+            'host': os.getenv('MYSQL_HOST', 'database'),
+            'port': int(os.getenv('MYSQL_PORT', '3307')),
             'user': os.getenv('MYSQL_USER', 'root'),
-            'password': os.getenv('MYSQL_PASSWORD', '12345678'),
-            'database': os.getenv('MYSQL_DATABASE', 'Nocodile'),
+            'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+            'database': os.getenv('MYSQL_DATABASE', 'Nocodiel'),
             'charset': 'utf8mb4'
         },
         {
             'host': 'localhost',
-            'port': 3307,
-            'user': 'root',
-            'password': '12345678',
-            'database': 'Nocodile',
+            'port': int(os.getenv('MYSQL_PORT', '3307')),
+            'user': os.getenv('MYSQL_USER', 'root'),
+            'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+            'database': os.getenv('MYSQL_DATABASE', 'Nocodiel'),
             'charset': 'utf8mb4'
         }
     ]

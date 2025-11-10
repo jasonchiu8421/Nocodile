@@ -12,10 +12,10 @@ class DatabaseConfig:
     def __init__(self):
         # 從環境變數讀取配置，提供預設值
         self.host = os.getenv('MYSQL_HOST', 'localhost')
-        self.port = int(os.getenv('MYSQL_PORT', '3307'))  # 預設使用 3307 端口（Docker 映射）
+        self.port = int(os.getenv('MYSQL_PORT', '3307'))  # 預設使用 3307 端口
         self.user = os.getenv('MYSQL_USER', 'root')
-        self.password = os.getenv('MYSQL_PASSWORD', 'A933192abc@.@')
-        self.database = os.getenv('MYSQL_DATABASE', 'Nocodile')
+        self.password = os.getenv('MYSQL_PASSWORD', 'rootpassword')
+        self.database = os.getenv('MYSQL_DATABASE', 'Nocodiel')
         self.charset = 'utf8mb4'
         self.autocommit = True
     
