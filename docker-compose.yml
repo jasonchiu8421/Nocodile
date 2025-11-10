@@ -69,7 +69,7 @@ services:
       - "${FRONTEND_PORT:-3001}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - NEXT_PUBLIC_API_URL=http://nocodile-backend-1:8888
+      - NEXT_PUBLIC_API_URL=http://172.18.0.3:8888
       #- NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8888}
       - WATCHPACK_POLLING=true
     volumes:
