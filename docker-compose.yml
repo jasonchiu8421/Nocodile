@@ -63,7 +63,7 @@ services:
 
   frontend:
     build:
-      context: ./Nocodile
+      context: ./frontend
       dockerfile: Dockerfile.frontend
     ports:
       - "${FRONTEND_PORT:-3001}:3000"
@@ -72,7 +72,7 @@ services:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8888}
       - WATCHPACK_POLLING=true
     volumes:
-      - ./Nocodile/nocodile:/app
+      #- ./Nocodile/nocodile:/app
       - frontend-node-modules:/app/node_modules
       - frontend-next-cache:/app/.next
     networks:

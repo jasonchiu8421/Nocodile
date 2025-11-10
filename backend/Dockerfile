@@ -98,10 +98,10 @@ RUN adduser \
 RUN mkdir -p /app/projects /app/safe_projects /app/temp && \
     chown -R appuser:appuser /app
 
+COPY requirements.txt .
+
 # Install dependencies using cache.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
+RUN python -m pip install --timeout=600 -r requirements.txt
 
 # Copy source code.
 COPY . .
