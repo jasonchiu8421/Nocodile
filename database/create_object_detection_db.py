@@ -53,8 +53,8 @@ class ObjectDetectionDB:
             'host': host or os.getenv('MYSQL_HOST', 'localhost'),
             'port': int(os.getenv('MYSQL_PORT', '3307')),  # 預設使用 3307 端口
             'user': user or os.getenv('MYSQL_USER', 'root'),
-            'password': password or os.getenv('MYSQL_PASSWORD', 'A933192abc@.@'),
-            'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
+            'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+            'database': database or os.getenv('MYSQL_DATABASE', 'Nocodiel'),
             'charset': 'utf8mb4'
         }
 
@@ -71,20 +71,18 @@ class ObjectDetectionDB:
         except Exception as e:
             print(f"数据库连接失败: {e}")
             # 如果默认配置失败，尝试其他常见配置
-            # 優先嘗試 3307 端口（Docker 映射端口）
+            # 使用當前主機名稱（Docker 環境用 'database'，本地用 'localhost'）
+            current_host = self.config.get('host', 'localhost')
             passwords_to_try = [
-                self.config.get('password', 'A933192abc@.@'),  # 預設密碼
                 'rootpassword',  # Docker 容器常見密碼
+                self.config.get('password', 'rootpassword'),  # 當前密碼
                 '',  # 空密碼（本地開發）
             ]
             
             configs_to_try = []
-            # 優先嘗試 3307 端口
+            # 嘗試當前主機的不同密碼
             for pwd in passwords_to_try:
-                configs_to_try.append({**self.config, 'host': 'localhost', 'port': 3307, 'password': pwd})
-            # 然後嘗試 3306 端口
-            for pwd in passwords_to_try:
-                configs_to_try.append({**self.config, 'host': 'localhost', 'port': 3306, 'password': pwd})
+                configs_to_try.append({**self.config, 'host': current_host, 'password': pwd})
             
             for i, config in enumerate(configs_to_try, 1):
                 try:
@@ -106,20 +104,18 @@ class ObjectDetectionDB:
         del temp_config['database']
         
         # 尝试多个配置连接
-        # 優先嘗試 3307 端口（Docker 映射端口）
+        # 使用當前主機名稱（Docker 環境用 'database'，本地用 'localhost'）
+        current_host = temp_config.get('host', 'localhost')
         passwords_to_try = [
-            temp_config.get('password', 'A933192abc@.@'),  # 預設密碼
             'rootpassword',  # Docker 容器常見密碼
+            temp_config.get('password', 'rootpassword'),  # 當前密碼
             '',  # 空密碼（本地開發）
         ]
         
         configs_to_try = []
-        # 優先嘗試 3307 端口
+        # 嘗試當前主機的不同密碼
         for pwd in passwords_to_try:
-            configs_to_try.append({**temp_config, 'host': 'localhost', 'port': 3307, 'password': pwd})
-        # 然後嘗試 3306 端口
-        for pwd in passwords_to_try:
-            configs_to_try.append({**temp_config, 'host': 'localhost', 'port': 3306, 'password': pwd})
+            configs_to_try.append({**temp_config, 'host': current_host, 'password': pwd})
         
         for i, config in enumerate(configs_to_try, 1):
             try:
@@ -353,17 +349,30 @@ def main():
     print("=" * 50)
     
     # 檢查是否在 Docker 環境中
-    if os.getenv('MYSQL_HOST') == 'mysql':
+    # Docker 環境的標誌：MYSQL_HOST 為 'mysql' 或 'database'，且存在 /.dockerenv 文件
+    mysql_host_env = os.getenv('MYSQL_HOST', 'localhost')
+    is_docker = (
+        mysql_host_env in ['mysql', 'database'] or
+        os.path.exists('/.dockerenv')
+    )
+    
+    if is_docker:
         print("檢測到 Docker 環境")
+        # 在 Docker 中使用環境變量指定的主機名
+        host = mysql_host_env
     else:
         print("檢測到本地環境")
+        # 在本地環境中強制使用 localhost，忽略可能不正確的環境變量
+        host = 'localhost'
+        if mysql_host_env not in ['localhost', '127.0.0.1']:
+            print(f"⚠️  警告: MYSQL_HOST={mysql_host_env} 在本地環境中無效，已自動改用 localhost")
     
     # 使用您的数据库配置（从环境变量或使用默认值）
     db = ObjectDetectionDB(
-        host=os.getenv('MYSQL_HOST', 'localhost'),
+        host=host,
         user=os.getenv('MYSQL_USER', 'root'),
-        password=os.getenv('MYSQL_PASSWORD', 'A933192abc@.@'),
-        database=os.getenv('MYSQL_DATABASE', 'Nocodile')
+        password=os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+        database=os.getenv('MYSQL_DATABASE', 'Nocodiel')
     )
     
     try:

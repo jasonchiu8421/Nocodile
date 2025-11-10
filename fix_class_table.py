@@ -3,14 +3,16 @@
 快速修复脚本：为 class 表添加 class_num 字段
 """
 
+import os
 import pymysql
 
-# 数据库配置
+# 数据库配置 (using env vars with .env defaults)
 config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '12345678',
-    'database': 'Nocodile',
+    'host': os.getenv('MYSQL_HOST', 'database'),
+    'port': int(os.getenv('MYSQL_PORT', '3307')),
+    'user': os.getenv('MYSQL_USER', 'root'),
+    'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+    'database': os.getenv('MYSQL_DATABASE', 'Nocodiel'),
     'charset': 'utf8mb4'
 }
 

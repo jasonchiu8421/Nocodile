@@ -13,22 +13,22 @@ def create_database():
     """Create database and tables"""
     print("Starting Nocodile database setup...")
     
-    # Database configurations to try
+    # Database configurations to try (using env vars with .env defaults)
     configs = [
         {
-            'host': 'localhost',
-            'port': 3307,
-            'user': 'root',
-            'password': 'rootpassword',
-            'database': 'object_detection',
+            'host': os.getenv('MYSQL_HOST', 'database'),
+            'port': int(os.getenv('MYSQL_PORT', '3307')),
+            'user': os.getenv('MYSQL_USER', 'root'),
+            'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+            'database': os.getenv('MYSQL_DATABASE', 'Nocodiel'),
             'charset': 'utf8mb4'
         },
         {
             'host': 'localhost',
-            'port': 3306,
-            'user': 'root',
-            'password': 'rootpassword',
-            'database': 'object_detection',
+            'port': int(os.getenv('MYSQL_PORT', '3307')),
+            'user': os.getenv('MYSQL_USER', 'root'),
+            'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
+            'database': os.getenv('MYSQL_DATABASE', 'Nocodiel'),
             'charset': 'utf8mb4'
         }
     ]
@@ -54,9 +54,10 @@ def create_database():
         cursor = connection.cursor()
         
         # Create database if not exists
-        print("Creating database...")
-        cursor.execute("CREATE DATABASE IF NOT EXISTS object_detection CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-        cursor.execute("USE object_detection")
+        db_name = os.getenv('MYSQL_DATABASE', 'Nocodiel')
+        print(f"Creating database {db_name}...")
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+        cursor.execute(f"USE {db_name}")
         
         # Create users table
         print("Creating users table...")

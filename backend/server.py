@@ -92,18 +92,28 @@ async def health_check():
     """健康檢查端點"""
     try:
         # 檢查資料庫連接（使用线程安全的方法）
+        logger.debug("[HEALTH] Starting health check")
         if is_db_connection_valid():
             try:
-                # 嘗試執行簡單查詢來驗證連接
-                cursor = connection.cursor()
-                cursor.execute("SELECT 1")
-                cursor.close()
-                return {"status": "healthy", "database": "connected", "config": config}
-            except Exception:
-                return {"status": "unhealthy", "database": "disconnected", "config": config}
+                # 使用安全的 get_db_cursor() 方法獲取游標
+                logger.debug("[HEALTH] Connection valid, creating cursor via get_db_cursor()")
+                cursor = get_db_cursor()
+                try:
+                    cursor.execute("SELECT 1")
+                    result = cursor.fetchone()
+                    logger.debug(f"[HEALTH] Query successful, result: {result}")
+                    return {"status": "healthy", "database": "connected", "config": config}
+                finally:
+                    cursor.close()
+                    logger.debug("[HEALTH] Cursor closed successfully")
+            except Exception as e:
+                logger.error(f"[HEALTH] Query failed: {e}")
+                return {"status": "unhealthy", "database": "disconnected", "error": str(e), "config": config}
         else:
+            logger.warning("[HEALTH] Connection validation failed")
             return {"status": "unhealthy", "database": "disconnected", "config": config}
     except Exception as e:
+        logger.error(f"[HEALTH] Unexpected error: {e}")
         return {"status": "unhealthy", "error": str(e), "config": config}
 
 @app.get("/test")
@@ -251,18 +261,23 @@ def is_db_connection_valid():
     global connection
     with _db_lock:
         if not connection:
-            logger.warning("数据库连接不存在，尝试重新连接...")
+            logger.warning("[DB-CHECK] 数据库连接不存在，尝试重新连接...")
             return reconnect_database()
         
         try:
+            # 记录连接状态
+            logger.debug(f"[DB-CHECK] Checking connection, open={getattr(connection, 'open', None)}")
             # 使用 ping() 方法检查连接，这比执行查询更轻量
             connection.ping(reconnect=False)
+            logger.debug("[DB-CHECK] Ping successful, connection is valid")
             return True
         except (pymysql.err.InterfaceError, pymysql.err.OperationalError, AttributeError) as e:
-            logger.warning(f"数据库连接已断开，尝试重新连接: {e}")
+            logger.warning(f"[DB-CHECK] 数据库连接已断开 ({type(e).__name__}): {e}")
             return reconnect_database()
         except Exception as e:
-            logger.error(f"数据库连接检查失败: {e}")
+            logger.error(f"[DB-CHECK] 数据库连接检查失败 ({type(e).__name__}): {e}")
+            import traceback
+            logger.error(f"[DB-CHECK] Traceback: {traceback.format_exc()}")
             # 如果 ping 失败，尝试重连
             try:
                 return reconnect_database()
@@ -276,27 +291,33 @@ def get_db_cursor(cursor_type=pymysql.cursors.DictCursor):
     with _db_lock:
         # 在锁内检查连接（避免死锁，因为 is_db_connection_valid 也使用锁）
         if not connection:
-            logger.warning("数据库连接不存在，尝试重新连接...")
+            logger.warning("[CURSOR] 数据库连接不存在，尝试重新连接...")
             if not reconnect_database():
                 raise Exception("无法建立数据库连接")
         
         # 检查连接是否有效（使用 ping，不获取锁）
         try:
+            logger.debug(f"[CURSOR] Checking connection before creating cursor, open={getattr(connection, 'open', None)}")
             connection.ping(reconnect=False)
+            logger.debug("[CURSOR] Connection ping successful")
         except (pymysql.err.InterfaceError, pymysql.err.OperationalError, AttributeError, OSError) as e:
-            logger.warning(f"连接检查失败，尝试重连: {e}")
+            logger.warning(f"[CURSOR] 连接检查失败 ({type(e).__name__}): {e}")
             if not reconnect_database():
                 raise Exception("无法重新连接数据库")
         
         try:
-            return connection.cursor(cursor_type)
+            cursor = connection.cursor(cursor_type)
+            logger.debug(f"[CURSOR] Created cursor successfully: {type(cursor).__name__}")
+            return cursor
         except (pymysql.err.InterfaceError, pymysql.err.OperationalError, OSError) as e:
-            logger.warning(f"获取游标时连接错误，尝试重连: {e}")
+            logger.warning(f"[CURSOR] 获取游标时连接错误 ({type(e).__name__}): {e}")
             if reconnect_database():
                 try:
-                    return connection.cursor(cursor_type)
+                    cursor = connection.cursor(cursor_type)
+                    logger.debug(f"[CURSOR] Created cursor after reconnect: {type(cursor).__name__}")
+                    return cursor
                 except Exception as e2:
-                    logger.error(f"重连后仍无法获取游标: {e2}")
+                    logger.error(f"[CURSOR] 重连后仍无法获取游标: {e2}")
                     raise Exception(f"无法获取数据库游标: {e2}")
             else:
                 raise Exception("无法重新连接数据库")

@@ -24,7 +24,7 @@ const Register = () => {
     if (typeof window !== 'undefined' && document.cookie.includes('userId=')) {
       const userId = document.cookie.split('; ').find(row => row.startsWith('userId='))?.split('=')[1];
       if (userId) {
-        router.push("/dashboard");
+        router.push("/login");
       }
     }
   }, [router]);
@@ -96,7 +96,7 @@ const Register = () => {
         }
         
         // 重定向到儀表板
-        router.push("/dashboard");
+        router.push("/login");
       } else {
         const errorMessage = data.message || "Registration failed";
         setErrorMsg(errorMessage);
