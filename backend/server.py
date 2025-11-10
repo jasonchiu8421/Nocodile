@@ -216,7 +216,7 @@ def sanitize_filename(filename):
 config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'noconoconocodile',
+    'password': '12345678',
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }
@@ -544,13 +544,15 @@ class Project():
                 logger.error("Database connection not available in get_videos")
                 return []
                 
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT DISTINCT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
-            cursor.execute(query,(self.project_id,))
-            data = cursor.fetchall()
-            video_ids = [d['video_id'] for d in data if 'video_id' in d]
-            cursor.close()
-            return video_ids
+            cursor = get_db_cursor()
+            try:
+                query = "SELECT DISTINCT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
+                cursor.execute(query,(self.project_id,))
+                data = cursor.fetchall()
+                video_ids = [d['video_id'] for d in data if 'video_id' in d]
+                return video_ids
+            finally:
+                cursor.close()
         except Exception as e:
             logger.error(f"Error in get_videos: {str(e)}")
             return []
@@ -605,13 +607,17 @@ class Project():
     # Fetch all the classes that the model would contain in a project
     # Output: {class_name (str): color (str), ...}
     def get_classes(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "SELECT class_name, color FROM class WHERE project_id = %d"
-        print(type(self.project_id))
-        cursor.execute(query, (int(self.project_id),))
-        rows = cursor.fetchall()
-        classes = {item["class_name"]: item["color"] for item in rows}
-        return classes
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query = "SELECT class_name, color FROM class WHERE project_id = %s"
+            cursor.execute(query, (self.project_id,))
+            rows = cursor.fetchall()
+            classes = {item["class_name"]: item["color"] for item in rows}
+            return classes
+        finally:
+            cursor.close()
     
     # Fetch the status of a project
     # Output: Project status(str)
@@ -693,15 +699,19 @@ class Project():
     # Add class and save to database
     # Output: True
     def add_class(self, class_name: str, colour: str):
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
         self.classes = self.get_classes()
         self.classes[class_name] = colour
         
         # Add new row in class table
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="INSERT INTO class (project_id, class_name, color) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE `color` = VALUES(`color`);"
-        cursor.execute(query,(self.project_id, class_name, colour))
-        connection.commit()
-        cursor.close()
+        cursor = get_db_cursor()
+        try:
+            query="INSERT INTO class (project_id, class_name, color) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE `color` = VALUES(`color`);"
+            cursor.execute(query,(self.project_id, class_name, colour))
+            connection.commit()
+        finally:
+            cursor.close()
 
         return True
     
@@ -750,24 +760,18 @@ class Project():
         except Exception as e:
             logger.error(f"Error creating dataset directories: {str(e)}")
             raise
-        print(3)
         # Create the class_ID, class_name dictionary
-        print(type(self.project_id))
         self.classes = self.get_classes()
         class_list = [key for key in self.classes]
         class_list.sort()
-        print("classes sorted in alphabetical order")
         class_id_dict = {}
         id = 0
         for _class in class_list:
             class_id_dict[_class] = id
             id += 1
-        print("Class id defined as: "+str(class_id_dict))
         self.save_class_ids(class_id_dict)
-        print(4)
         self.videos = self.get_videos()
         logger.info(f"📦 [DATASET] Starting dataset creation for {len(self.videos)} video(s)")
-        print(5)
         if not self.videos:
             logger.warning("⚠️ [DATASET] No videos found in project")
             raise ValueError("No videos found in project. Please upload videos first.")
@@ -776,7 +780,6 @@ class Project():
             try:
                 video = Video(self.project_id, video_id)
                 logger.info(f"📹 [DATASET] Processing video {video_id}")
-                print(6)
                 # 获取视频路径
                 video_path = video.get_video_path()
                 if not video_path:
@@ -786,7 +789,6 @@ class Project():
                 if not os.path.exists(video_path):
                     logger.error(f"❌ [DATASET] Video file does not exist: {video_path}")
                     raise ValueError(f"Video file does not exist: {video_path}")
-                print(7)
                 # Write labels in txt files
                 bbox_data = video.get_bbox_data()
                 logger.info(f"📝 [DATASET] Found {len(bbox_data)} bbox annotations for video {video_id}")
@@ -814,7 +816,6 @@ class Project():
                             file.write(f"{class_id_dict[class_name]} {coordinates}\n")
                     
                     logger.info(f"✅ [DATASET] Created {len(bbox_data)} label files for video {video_id}")
-                print(8)
                 # Decompose videos into jpg images
                 logger.info(f"🎬 [DATASET] Extracting frames from video {video_id}: {video_path}")
                 cap = cv2.VideoCapture(str(video_path))
@@ -823,7 +824,6 @@ class Project():
                     logger.error(f"❌ [DATASET] Could not open video file: {video_path}")
                     cap.release()
                     raise ValueError(f"Could not open video file: {video_path}")
-                print(9)
                 frame_idx = 0
                 extracted_count = 0
                 while cap.isOpened():
@@ -837,7 +837,6 @@ class Project():
                     else:
                         logger.warning(f"⚠️ [DATASET] Failed to save frame {frame_idx} for video {video_id}")
                     frame_idx += 1
-                print(0)
                 cap.release()
                 logger.info(f"✅ [DATASET] Extracted {extracted_count} frames from video {video_id}")
                 
@@ -850,7 +849,8 @@ class Project():
         self.save_project_status()
         
         # 保存数据集路径到数据库
-        dataset_path = f"{self.get_project_path()}"
+        # Save the dataset path (should be project_path/dataset, not just project_path)
+        dataset_path = os.path.join(self.get_project_path(), "dataset")
         self.save_dataset_path(dataset_path)
 
         return True
@@ -858,6 +858,12 @@ class Project():
     # Get auto annotation progress (int) from database
     def get_auto_annotation_progress(self):
         try:
+            # 首先检查项目状态，如果数据集已创建完成，直接返回 100%
+            project_status = self.get_project_status()
+            if project_status == "Data is ready":
+                logger.info(f"✅ [PROGRESS] Project {self.project_id} dataset is ready, returning 100%")
+                return 100.0
+            
             finished_frames = 0
             total_frames = 0
             # 确保 videos 列表已初始化
@@ -1008,28 +1014,48 @@ class Project():
     # Save class ids as used in the model
     ### Not yet validated
     def save_class_ids(self, class_list):
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
         success = True
         for class_name in class_list:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "UPDATE class SET class_num = %s WHERE project_id = %s AND class_name = %s"
-            cursor.execute(query, (class_list[class_name], self.project_id, class_name))
-            connection.commit()
-            success = bool(cursor.rowcount) and success
-            cursor.close()  
+            cursor = get_db_cursor()
+            try:
+                query = "UPDATE class SET class_num = %s WHERE project_id = %s AND class_name = %s"
+                cursor.execute(query, (class_list[class_name], self.project_id, class_name))
+                connection.commit()
+                success = bool(cursor.rowcount) and success
+            finally:
+                cursor.close()
+        return success  
     
     # Used during training
     @staticmethod
     def copy_files(image_list, img_dest, lbl_dest, labels_dir):
+        """Copy image files and their corresponding label files to train/val directories"""
+        copied_count = 0
         for img_path in image_list:
             try:
                 base_name = img_path.stem
                 label_path = labels_dir / (base_name + ".txt")
+                
+                # Copy image file
                 copy2(img_path, img_dest)
+                
+                # Copy label file if it exists
                 if label_path.exists():
                     copy2(label_path, lbl_dest)
+                else:
+                    # Create empty label file if it doesn't exist (for images without annotations)
+                    empty_label = lbl_dest / (base_name + ".txt")
+                    empty_label.touch()
+                
+                copied_count += 1
             except Exception as e:
-                print(f"Warning: Failed to copy {img_path}: {e}")
+                logger.warning(f"Failed to copy {img_path}: {e}")
                 continue
+        
+        logger.info(f"Copied {copied_count}/{len(image_list)} files to {img_dest}")
+        return copied_count
     
     def train(self):
         self.project_status = "Training in progress"
@@ -1037,21 +1063,31 @@ class Project():
 
         # Get dataset path from database, fallback to default if not found
         dataset_path = self.get_dataset_path()
-        if dataset_path and Path(dataset_path).exists():
+        default_dataset_dir = Path(self.get_project_path()) / "dataset"
+        
+        if dataset_path:
             dataset_dir = Path(dataset_path)
+            # Verify the path is correct - it should point to the dataset directory, not project root
+            # If it points to project root (no "dataset" in path), use default
+            if "dataset" not in str(dataset_dir) or not dataset_dir.exists():
+                logger.warning(f"Database dataset_path '{dataset_path}' is invalid, using default: {default_dataset_dir}")
+                dataset_dir = default_dataset_dir
         else:
             # Fallback to default path
-            dataset_dir = Path(self.get_project_path()) / "dataset"
+            dataset_dir = default_dataset_dir
         
         # Check if dataset exists and has images, if not create it automatically
         images_dir = dataset_dir / "images"
         if not images_dir.exists() or not (any(images_dir.glob("*.jpg")) or any(images_dir.glob("*.png"))):
-            print("Dataset not found or empty, creating dataset automatically...")
+            logger.info("Dataset not found or empty, creating dataset automatically...")
             try:
                 self.create_dataset()
-                print("Dataset created successfully!")
+                # After creating dataset, update dataset_dir to the correct path
+                dataset_dir = Path(self.get_project_path()) / "dataset"
+                images_dir = dataset_dir / "images"
+                logger.info("Dataset created successfully!")
             except Exception as e:
-                print(f"Failed to create dataset: {e}")
+                logger.error(f"Failed to create dataset: {e}")
                 self.project_status = "Dataset creation failed"
                 self.save_project_status()
                 return False
@@ -1073,18 +1109,36 @@ class Project():
 
         # Gather all images and shuffle
         all_images = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
+        if not all_images:
+            raise ValueError(f"No images found in dataset/images directory: {images_dir}. Please create dataset first.")
+        
+        logger.info(f"Found {len(all_images)} images in dataset, splitting into train/val...")
         random.shuffle(all_images)
         split_idx = int(0.8 * len(all_images))
 
         train_images = all_images[:split_idx]
         val_images = all_images[split_idx:]
+        
+        logger.info(f"Splitting dataset: {len(train_images)} train, {len(val_images)} val images")
 
-        self.copy_files(train_images, train_img_dir, train_lbl_dir, labels_dir)
-        self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
+        # Copy files and get counts
+        train_copied = self.copy_files(train_images, train_img_dir, train_lbl_dir, labels_dir)
+        val_copied = self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
+        
+        # Verify files were copied
+        train_count = len(list(train_img_dir.glob("*.jpg"))) + len(list(train_img_dir.glob("*.png")))
+        val_count = len(list(val_img_dir.glob("*.jpg"))) + len(list(val_img_dir.glob("*.png")))
+        logger.info(f"Dataset split completed: {train_count} train images ({train_copied} copied), {val_count} val images ({val_copied} copied)")
+        
+        if train_count == 0:
+            logger.error(f"Failed to copy training images. Source: {images_dir}, Destination: {train_img_dir}")
+            # Debug: check if source files exist
+            source_files = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
+            logger.error(f"Source directory has {len(source_files)} files")
+            raise ValueError(f"Failed to copy training images. Copied {train_copied} but found {train_count} in destination.")
 
         # Define class list
-        classes = self.get_classes().keys()
-        classes.sort()
+        classes = sorted(self.get_classes().keys())
 
         # Create result.yaml for dataset with full COCO classes
         data_yaml = {
@@ -1108,23 +1162,111 @@ class Project():
         print("Starting model training...")
         try:
             # Train epoch-by-epoch to track progress
+            # Set project directory to save training outputs in the project folder
+            train_project_dir = output_dir / "runs"
+            # Use absolute path to ensure YOLO saves to the correct location
+            train_project_dir_abs = train_project_dir.resolve()
+            train_project_dir_abs.mkdir(parents=True, exist_ok=True)
+            
+            logger.info(f"Training model with project directory: {train_project_dir_abs}")
+            
+            # Auto-detect device: use CUDA if available, otherwise CPU
+            import torch
+            if torch.cuda.is_available():
+                device = 0
+                logger.info("Using CUDA device for training")
+            else:
+                device = 'cpu'
+                logger.info("CUDA not available, using CPU for training")
+            
+            # Verify train/val directories exist (they should have been created above)
+            train_img_dir = dataset_dir / "train" / "images"
+            val_img_dir = dataset_dir / "val" / "images"
+            
+            if not train_img_dir.exists() or not val_img_dir.exists():
+                logger.error(f"Train/val directories not found. Train: {train_img_dir}, Val: {val_img_dir}")
+                raise FileNotFoundError(f"Training/validation directories not found. Train: {train_img_dir}, Val: {val_img_dir}")
+            
+            train_images = list(train_img_dir.glob("*.jpg")) + list(train_img_dir.glob("*.png"))
+            val_images = list(val_img_dir.glob("*.jpg")) + list(val_img_dir.glob("*.png"))
+            logger.info(f"Training dataset: {len(train_images)} images, Validation: {len(val_images)} images")
+            
+            if len(train_images) == 0:
+                logger.error(f"No training images found in {train_img_dir}")
+                # List what files are actually there
+                all_files = list(train_img_dir.glob("*"))
+                logger.error(f"Files in train directory: {[str(f) for f in all_files[:10]]}")
+                raise ValueError(f"No training images found in {train_img_dir}. Please check dataset split.")
+            
             for epoch in range(total_epochs):
-                model.train(
-                    data=str(yaml_path),
-                    epochs=1,
-                    imgsz=640,
-                    batch=4,
-                    device=0,
-                    save=True,
-                    exist_ok=True
-                )
+                logger.info(f"Starting epoch {epoch + 1}/{total_epochs}")
+                try:
+                    # For subsequent epochs, resume from the last checkpoint
+                    train_kwargs = {
+                        "data": str(yaml_path),
+                        "epochs": 1,
+                        "imgsz": 640,
+                        "batch": 4,
+                        "device": device,
+                        "save": True,
+                        "exist_ok": True,
+                        "project": str(train_project_dir_abs),
+                        "name": "train",
+                        "verbose": True
+                    }
+                    
+                    # If not the first epoch, try to resume from last checkpoint
+                    if epoch > 0:
+                        last_checkpoint = train_project_dir_abs / "train" / "weights" / "last.pt"
+                        if last_checkpoint.exists():
+                            logger.info(f"Resuming training from checkpoint: {last_checkpoint}")
+                            train_kwargs["resume"] = str(last_checkpoint)
+                    
+                    results = model.train(**train_kwargs)
+                    logger.info(f"Epoch {epoch + 1} completed successfully")
+                    # Check if model was saved
+                    expected_model = train_project_dir_abs / "train" / "weights" / "best.pt"
+                    if expected_model.exists():
+                        logger.info(f"Model saved to: {expected_model}")
+                    else:
+                        logger.warning(f"Model file not found at expected location: {expected_model}")
+                except Exception as epoch_error:
+                    logger.error(f"Error in epoch {epoch + 1}: {epoch_error}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    # Don't raise immediately, check if partial training created any files
+                    check_dir = train_project_dir_abs / "train" / "weights"
+                    if check_dir.exists():
+                        files = list(check_dir.glob("*.pt"))
+                        if files:
+                            logger.info(f"Found partial model files: {files}")
+                    raise
                 progress = round((epoch + 1) / total_epochs * 100) # YOUR TRAINING VARIABLE
                 print(f"Training progress: {progress}%")
                 self.save_training_progress(progress)
-            print("Model training completed successfully!")
+            
+            # Final check: verify model file exists
+            final_model = train_project_dir_abs / "train" / "weights" / "best.pt"
+            if final_model.exists():
+                logger.info(f"✓ Training completed successfully! Model saved to: {final_model}")
+                print("Model training completed successfully!")
+            else:
+                logger.error(f"✗ Training completed but model file not found at: {final_model}")
+                # List all files in the runs directory for debugging
+                if train_project_dir_abs.exists():
+                    all_files = list(train_project_dir_abs.rglob("*"))
+                    logger.error(f"Files in runs directory: {[str(f) for f in all_files]}")
+                raise FileNotFoundError(f"Training completed but model file not found: {final_model}")
 
         except Exception as e:
+            logger.error(f"Training error: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             print(f"Training completed with warnings: {e}")
+            # Check if any model files were created despite the error
+            train_weights_dir = train_project_dir_abs / "train" / "weights"
+            if train_weights_dir.exists():
+                model_files = list(train_weights_dir.glob("*.pt"))
+                if model_files:
+                    logger.info(f"Found {len(model_files)} model files despite error: {model_files}")
             # Continue with post-processing even if there are warnings
         
         # Update progress to 100% after training
@@ -1132,14 +1274,99 @@ class Project():
         self.save_training_progress(100)
 
         # Copy best.pt to output folder
-        best_weights_src = Path("runs/detect/train/weights/best.pt")
+        # YOLO saves to project/runs/train/weights/best.pt when project is specified
+        train_project_dir = output_dir / "runs"
+        train_project_dir_abs = train_project_dir.resolve()
+        best_weights_src = train_project_dir_abs / "train" / "weights" / "best.pt"
+        
+        # Get absolute paths for all possible locations
+        # YOLO may save to different locations depending on working directory
+        backend_dir = Path(__file__).parent
+        project_path = Path(self.get_project_path())
+        current_dir = Path.cwd()
+        
+        # Also check other possible locations (use absolute paths)
+        possible_paths = [
+            best_weights_src.resolve(),  # Expected location with project specified (absolute)
+            (train_project_dir / "train" / "weights" / "best.pt").resolve(),  # Absolute path
+            (backend_dir / "runs" / "detect" / "train" / "weights" / "best.pt").resolve(),  # Backend directory
+            (backend_dir / "runs" / "train" / "weights" / "best.pt").resolve(),  # Alternative backend location
+            (current_dir / "runs" / "detect" / "train" / "weights" / "best.pt").resolve(),  # Current working directory
+            (current_dir / "runs" / "train" / "weights" / "best.pt").resolve(),  # Alternative current dir
+            (project_path / "runs" / "train" / "weights" / "best.pt").resolve(),  # Project directory
+            (backend_dir / "best.pt").resolve(),  # Backend root (last resort, may be corrupted)
+        ]
+        
+        # IMPORTANT: Each project should have its own model file
+        # Model files are stored in: projects/{project_id}/output/best.pt
+        # This ensures:
+        # 1. No conflicts between different projects
+        # 2. Easy to manage and backup per-project models
+        # 3. Clear separation of concerns
+        
+        # Note: backend/best.pt is a legacy fallback and should be avoided
+        # It's only checked if no project-specific model is found
+        
+        best_weights_found = None
+        logger.info(f"Searching for model file in {len(possible_paths)} possible locations...")
+        for i, path in enumerate(possible_paths, 1):
+            logger.info(f"Checking location {i}/{len(possible_paths)}: {path}")
+            if path.exists():
+                logger.info(f"Found model file at: {path}")
+                # Verify source file is valid before using it
+                try:
+                    import torch
+                    # Quick check: try to load the file to verify it's not corrupted
+                    # Use weights_only=False for YOLO models (PyTorch 2.6+ default changed)
+                    torch.load(str(path), map_location='cpu', weights_only=False)
+                    best_weights_found = path
+                    logger.info(f"✓ Valid model found at: {best_weights_found}")
+                    break
+                except Exception as verify_error:
+                    logger.warning(f"✗ Model file at {path} is corrupted, skipping: {verify_error}")
+                    continue
+            else:
+                logger.debug(f"  Path does not exist: {path}")
+        
         best_weights_dst = output_dir / "best.pt"
 
-        if best_weights_src.exists():
-            copy2(best_weights_src, best_weights_dst)
-            print(f"Best model weights saved to: {best_weights_dst}")
+        if best_weights_found and best_weights_found.exists():
+            try:
+                # Verify source file is complete before copying
+                src_size = best_weights_found.stat().st_size
+                if src_size < 1024 * 1024:  # Less than 1MB is suspicious
+                    logger.warning(f"Source model file is suspiciously small: {src_size} bytes")
+                    raise ValueError(f"Source model file too small: {src_size} bytes")
+                
+                # Use shutil.copyfile for atomic copy, then verify
+                import shutil
+                shutil.copyfile(best_weights_found, best_weights_dst)
+                
+                # Verify copied file integrity
+                dst_size = best_weights_dst.stat().st_size
+                if dst_size != src_size:
+                    logger.error(f"File copy incomplete! Source: {src_size} bytes, Destination: {dst_size} bytes")
+                    best_weights_dst.unlink()  # Delete incomplete file
+                    raise IOError(f"File copy failed: size mismatch ({src_size} vs {dst_size} bytes)")
+                
+                # Try to verify file is a valid PyTorch file
+                try:
+                    import torch
+                    # Use weights_only=False for YOLO models (PyTorch 2.6+ default changed)
+                    torch.load(str(best_weights_dst), map_location='cpu', weights_only=False)
+                    logger.info(f"Verified model file integrity: {best_weights_dst}")
+                except Exception as verify_error:
+                    logger.error(f"Copied model file is corrupted: {verify_error}")
+                    best_weights_dst.unlink()  # Delete corrupted file
+                    raise IOError(f"Copied model file is corrupted: {verify_error}")
+                
+                print(f"Best model weights saved and verified: {best_weights_dst}")
+            except Exception as e:
+                logger.error(f"Error copying model file: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                print(f"Warning: Failed to copy model file: {e}")
         else:
-            print("Warning: best.pt not found")
+            print("Warning: best.pt not found in any expected location")
 
         print("Training complete.")
 
@@ -1180,37 +1407,115 @@ class Project():
         model_path = self.get_model_path()
         if not model_path.exists():
             raise FileNotFoundError("Model file 'best.pt' not found. Please train the model first.")
-        print(1)
-        # dataset_dir = Path(self.get_project_path()) / "dataset"
-        # yaml_path = dataset_dir / "data.yaml"
-        # if not yaml_path.exists():
-        #     raise FileNotFoundError("Dataset configuration file 'data.yaml' not found.")
-        print(2)
+        
+        # Check if model file is valid and has reasonable size (at least 1MB)
+        file_size = model_path.stat().st_size
+        if file_size < 1024 * 1024:  # Less than 1MB is suspicious
+            logger.warning(f"Model file is suspiciously small: {file_size} bytes")
+        
+        # Try to find model from database path if current path fails
+        db_model_path = self.get_model_path_from_db()
+        if db_model_path and Path(db_model_path).exists() and db_model_path != str(model_path):
+            logger.info(f"Found alternative model path in database: {db_model_path}")
+            # Use database path if it's different and exists
+            alt_path = Path(db_model_path)
+            if alt_path.stat().st_size > file_size:  # Prefer larger file
+                model_path = alt_path
+                logger.info(f"Using model from database path: {model_path}")
+        
         # Load the trained model
-        model = YOLO(model_path)
-        print(3)
-        # Run validation on the validation set
+        try:
+            model = YOLO(str(model_path))
+        except RuntimeError as e:
+            if "failed reading zip archive" in str(e) or "corrupted" in str(e).lower():
+                logger.error(f"Model file is corrupted: {model_path}")
+                # Try to use backup from backend directory
+                backend_model = Path(__file__).parent / "best.pt"
+                if backend_model.exists() and backend_model != model_path:
+                    logger.info(f"Trying backup model from backend directory: {backend_model}")
+                    try:
+                        model = YOLO(str(backend_model))
+                        logger.info("Successfully loaded backup model")
+                    except Exception as e2:
+                        logger.error(f"Backup model also failed: {e2}")
+                        raise RuntimeError(f"Model file is corrupted and backup also failed. Please retrain the model. Original error: {str(e)}")
+                else:
+                    raise RuntimeError(f"Model file is corrupted: {model_path}. Error: {str(e)}. Please retrain the model.")
+            else:
+                raise RuntimeError(f"Failed to load model: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error loading model: {e}")
+            raise RuntimeError(f"Failed to load model: {str(e)}")
+        
+        # Get dataset path
         dataset_path = self.get_dataset_path()
-        print(3.1)
-        print(dataset_path)
-        if dataset_path and Path(dataset_path).exists():
+        if not dataset_path or not Path(dataset_path).exists():
+            # Fallback to default dataset path
+            dataset_dir = Path(self.get_project_path()) / "dataset"
+        else:
             dataset_dir = Path(dataset_path)
-        print(dataset_dir)
+        
+        # Check if train/val directories exist (created during training)
         train_img_dir = dataset_dir / "train" / "images"
         val_img_dir = dataset_dir / "val" / "images"
-        # classes = self.get_classes().keys()
-        print(3.2)
-        classes = ['zebra line', 'nocodile']
-        print(3.9)
+        
+        # If train/val directories don't exist, create them from the dataset
+        if not train_img_dir.exists() or not val_img_dir.exists():
+            logger.warning(f"Train/val directories not found, creating them from dataset...")
+            images_dir = dataset_dir / "images"
+            labels_dir = dataset_dir / "labels"
+            
+            if not images_dir.exists():
+                raise FileNotFoundError(f"Dataset images directory not found: {images_dir}. Please create dataset first.")
+            
+            # Create train/val directories
+            train_lbl_dir = dataset_dir / "train" / "labels"
+            val_lbl_dir = dataset_dir / "val" / "labels"
+            
+            for d in [train_img_dir, train_lbl_dir, val_img_dir, val_lbl_dir]:
+                d.mkdir(parents=True, exist_ok=True)
+            
+            # Split dataset into train/val (80/20)
+            import random
+            all_images = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
+            if not all_images:
+                raise FileNotFoundError(f"No images found in dataset: {images_dir}")
+            
+            random.shuffle(all_images)
+            split_idx = int(0.8 * len(all_images))
+            
+            train_images = all_images[:split_idx]
+            val_images = all_images[split_idx:]
+            
+            # Copy files to train/val directories
+            self.copy_files(train_images, train_img_dir, train_lbl_dir, labels_dir)
+            self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
+            
+            logger.info(f"Created train/val split: {len(train_images)} train, {len(val_images)} val images")
+        
+        # Get classes from database
+        classes_dict = self.get_classes()
+        classes = sorted(classes_dict.keys())
+        
+        if not classes:
+            raise ValueError("No classes found for this project. Please add classes first.")
+        
+        # Create data.yaml configuration
         data_yaml = {
             "train": str(train_img_dir.resolve()),
             "val": str(val_img_dir.resolve()),
             "nc": len(classes),
             "names": classes
         }
-        print(4)
-        metrics = model.val(data=data_yaml)
-        print(metrics)
+        
+        # Run validation
+        try:
+            metrics = model.val(data=data_yaml, verbose=False)
+        except Exception as e:
+            logger.error(f"Error running validation: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise RuntimeError(f"Failed to validate model: {str(e)}")
+        
         # Extract the key performance metrics from the results object.
         # For object detection, we use mAP as the primary "accuracy" metric.
         # The other metrics are averaged over all classes.
@@ -1218,17 +1523,62 @@ class Project():
         import math
         
         def safe_float(value):
-            if math.isnan(value) or math.isinf(value):
+            """Safely convert value to float, handling NaN and Inf"""
+            try:
+                if value is None:
+                    return 0.0
+                if math.isnan(value) or math.isinf(value):
+                    return 0.0
+                return float(value)
+            except (TypeError, ValueError):
                 return 0.0
-            return float(value)
-        print(5)
-        performance = {
-            "accuracy": safe_float(metrics.box.map50),  # Using mAP50 as the main accuracy indicator
-            "precision": safe_float(metrics.box.p.mean()), # Mean Precision over all classes
-            "recall": safe_float(metrics.box.r.mean()),    # Mean Recall over all classes
-            "f1-score": safe_float(metrics.box.f1.mean())  # Mean F1-score over all classes
-        }
-        return performance
+        
+        try:
+            # Try to extract metrics from the results object
+            # YOLO validation returns different structures depending on version
+            if hasattr(metrics, 'box'):
+                # YOLOv8/v11 format
+                map50 = safe_float(metrics.box.map50) if hasattr(metrics.box, 'map50') else 0.0
+                precision = safe_float(metrics.box.p.mean()) if hasattr(metrics.box, 'p') else 0.0
+                recall = safe_float(metrics.box.r.mean()) if hasattr(metrics.box, 'r') else 0.0
+                f1 = safe_float(metrics.box.f1.mean()) if hasattr(metrics.box, 'f1') else 0.0
+            elif hasattr(metrics, 'results_dict'):
+                # Alternative format
+                results = metrics.results_dict
+                map50 = safe_float(results.get('metrics/mAP50(B)', 0.0))
+                precision = safe_float(results.get('metrics/precision(B)', 0.0))
+                recall = safe_float(results.get('metrics/recall(B)', 0.0))
+                f1 = safe_float(results.get('metrics/f1(B)', 0.0))
+            else:
+                # Fallback: try to get metrics from attributes
+                map50 = safe_float(getattr(metrics, 'map50', getattr(metrics, 'map', 0.0)))
+                precision = safe_float(getattr(metrics, 'precision', 0.0))
+                recall = safe_float(getattr(metrics, 'recall', 0.0))
+                f1 = safe_float(getattr(metrics, 'f1', 0.0))
+            
+            performance = {
+                "accuracy": map50,
+                "precision": precision,
+                "recall": recall,
+                "f1-score": f1
+            }
+            
+            logger.info(f"Model performance metrics: {performance}")
+            return performance
+            
+        except Exception as e:
+            logger.error(f"Error extracting metrics: {e}")
+            logger.error(f"Metrics object type: {type(metrics)}")
+            logger.error(f"Metrics object attributes: {dir(metrics)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Return default values if extraction fails
+            return {
+                "accuracy": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "error": f"Failed to extract metrics: {str(e)}"
+            }
     
 class Video(Project):
     def __init__(self, project_id: int, video_id=-1, initialize=False):
@@ -1430,18 +1780,22 @@ class Video(Project):
     
     def get_bbox_data(self, frame_num = None):
         # Output format: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
-        if frame_num:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s AND frame_num = %s"
-            cursor.execute(query,(self.video_id, frame_num))
-            bbox_data = cursor.fetchall()
-        else:
-            # fetch all if frame_num is not specified
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
-            query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s"
-            cursor.execute(query,(self.video_id,))
-            bbox_data = cursor.fetchall()
-        return bbox_data
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            if frame_num:
+                query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s AND frame_num = %s"
+                cursor.execute(query,(self.video_id, frame_num))
+                bbox_data = cursor.fetchall()
+            else:
+                # fetch all if frame_num is not specified
+                query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s"
+                cursor.execute(query,(self.video_id,))
+                bbox_data = cursor.fetchall()
+            return bbox_data
+        finally:
+            cursor.close()
     
     def get_annotation_status(self):
         annotation_status='yet to start'
@@ -2057,12 +2411,30 @@ async def create_project(request: CreateProjectRequest):
             }
 
         # Check database connection
-        if not connection or not connection.open:
+        if not is_db_connection_valid():
             logger.error("Database connection not available")
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={"error": "Database connection not available"}
             )
+        
+        # Verify user exists before creating project
+        cursor = get_db_cursor()
+        try:
+            user_check_query = "SELECT user_id FROM user WHERE user_id = %s"
+            cursor.execute(user_check_query, (userID,))
+            user_exists = cursor.fetchone()
+            if not user_exists:
+                logger.error(f"User with ID {userID} does not exist")
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "success": False,
+                        "error": f"User with ID {userID} does not exist. Please register or login first."
+                    }
+                )
+        finally:
+            cursor.close()
 
         # Create project instance and initialize
         logger.info("Initializing project...")
@@ -2839,7 +3211,6 @@ async def _create_dataset(project_id: int):
     try:
         logger.info(f"🚀 [DATASET] Starting dataset creation for project {project_id}")
         project = Project(project_id = project_id)
-        print(1)
         # 检查所有视频是否都已完成标注
         videos = project.get_videos()
         logger.info(f"📹 [DATASET] Found {len(videos)} video(s) in project {project_id}")
@@ -2851,7 +3222,6 @@ async def _create_dataset(project_id: int):
                 "success": False,
                 "message": error_msg
             }
-        print(2)
         for video_id in videos:
             video = Video(project_id = project_id, video_id = video_id)
             # 重新从数据库获取最新状态
@@ -2860,7 +3230,6 @@ async def _create_dataset(project_id: int):
             video.last_annotated_frame = last_annotated_frame
             
             logger.info(f"🔍 [DATASET] Checking video {video_id}, status: {annotation_status}, last_frame: {last_annotated_frame}")
-            print(2)
             # 如果状态是 "manual annotation in progress"，检查是否真的完成了
             if annotation_status == "manual annotation in progress":
                 # 检查是否所有关键帧都已标注
@@ -3034,7 +3403,8 @@ async def get_training_progress(request: ProjectRequest):
 async def get_model_performance(request: ProjectRequest):
     try:
         project = Project(project_id = request.project_id)
-        print(0)
+        logger.info(f"Getting model performance for project {request.project_id}")
+        
         # Get model performance
         performance = project.get_model_performance()
 
@@ -3044,9 +3414,11 @@ async def get_model_performance(request: ProjectRequest):
         }
 
     except Exception as e:
+        logger.error(f"Error getting model performance: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
+            content={"error": str(e), "traceback": traceback.format_exc()}
         )
 
 @app.post("/get_model")

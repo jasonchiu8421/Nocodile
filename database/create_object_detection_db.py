@@ -44,10 +44,10 @@ class ObjectDetectionDB:
         #     }
 
         self.config = {
-            'host': 'localhost',
-            'user': 'root',
-            'password': 'noconoconocodile',
-            'database': 'Nocodile',
+            'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+            'user': user or os.getenv('MYSQL_USER', 'root'),
+            'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
+            'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
             'charset': 'utf8mb4'
         }
 
@@ -86,23 +86,38 @@ class ObjectDetectionDB:
     
     def create_database(self):
         """创建数据库"""
-        try:
-            # 先连接到MySQL服务器（不指定数据库）
-            temp_config = self.config.copy()
-            del temp_config['database']
-            temp_connection = pymysql.connect(**temp_config)
-            cursor = temp_connection.cursor()
-            
-            # 创建数据库
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.config['database']} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            print(f"数据库 {self.config['database']} 创建成功")
-            
-            cursor.close()
-            temp_connection.close()
-            return True
-        except Exception as e:
-            print(f"创建数据库失败: {e}")
-            return False
+        # 先连接到MySQL服务器（不指定数据库）
+        temp_config = self.config.copy()
+        del temp_config['database']
+        
+        # 尝试多个配置连接
+        configs_to_try = [
+            temp_config,
+            {**temp_config, 'host': 'localhost', 'port': 3307},
+            {**temp_config, 'host': 'localhost', 'port': 3306}
+        ]
+        
+        for i, config in enumerate(configs_to_try, 1):
+            try:
+                temp_connection = pymysql.connect(**config)
+                cursor = temp_connection.cursor()
+                
+                # 创建数据库
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.config['database']} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                print(f"数据库 {self.config['database']} 创建成功")
+                
+                cursor.close()
+                temp_connection.close()
+                return True
+            except Exception as e:
+                if i < len(configs_to_try):
+                    print(f"配置 {i} 连接失败，尝试下一个配置: {e}")
+                    continue
+                else:
+                    print(f"创建数据库失败: {e}")
+                    return False
+        
+        return False
     
     def create_tables(self):
         """创建所有表"""
@@ -113,6 +128,9 @@ class ObjectDetectionDB:
         cursor = self.connection.cursor()
         
         try:
+            # 先禁用外键检查，避免创建表时的顺序问题
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+            print("已禁用外键检查")
 #====================================创建user表====================================
             create_user_table = """
             CREATE TABLE IF NOT EXISTS user (
@@ -132,7 +150,7 @@ class ObjectDetectionDB:
 #====================================创建project表====================================
             create_project_table = """
             CREATE TABLE IF NOT EXISTS project (
-                project_id INT AUTO_CREMENT INPRIMARY KEY,
+                project_id INT AUTO_INCREMENT PRIMARY KEY,
                 project_name VARCHAR(200) NOT NULL,
                 project_type VARCHAR(200) NOT NULL,
                 project_owner_id INT NOT NULL,
@@ -161,6 +179,7 @@ class ObjectDetectionDB:
                 class_id INT AUTO_INCREMENT PRIMARY KEY,
                 class_name VARCHAR(100) NOT NULL,
                 color VARCHAR(10) NOT NULL,
+                class_num INT DEFAULT NULL,
 
                 -- Foreign key
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
@@ -243,6 +262,15 @@ class ObjectDetectionDB:
             cursor.execute(create_shared_users_table)
             print("project_shared_users表创建成功")
 
+            # 检查并添加 class_num 字段（如果不存在）
+            try:
+                cursor.execute("SELECT class_num FROM class LIMIT 1")
+            except Exception:
+                # 字段不存在，添加它
+                print("检测到 class 表缺少 class_num 字段，正在添加...")
+                cursor.execute("ALTER TABLE class ADD COLUMN class_num INT DEFAULT NULL")
+                print("已添加 class_num 字段到 class 表")
+
             # 重新启用外键检查
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
             print("已重新启用外键检查")
@@ -306,12 +334,12 @@ def main():
     else:
         print("檢測到本地環境")
     
-    # 使用您的数据库配置
+    # 使用您的数据库配置（从环境变量或使用默认值）
     db = ObjectDetectionDB(
-        host='localhost',
-        user='root',
-        password='12345678',
-        database='Nocodile'
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        user=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', '12345678'),
+        database=os.getenv('MYSQL_DATABASE', 'Nocodile')
     )
     
     try:

@@ -7,8 +7,8 @@ services:
     environment:
       - MYSQL_HOST=database
       - MYSQL_USER=${MYSQL_USER:-root}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-rootpassword}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-12345678}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-Nocodile}
       - MYSQL_PORT=${MYSQL_PORT:-3306}
     volumes:
       - ./database:/app/database
@@ -34,8 +34,8 @@ services:
       - PYTHONDONTWRITEBYTECODE=${PYTHONDONTWRITEBYTECODE:-1}
       - MYSQL_HOST=${MYSQL_HOST:-database}
       - MYSQL_USER=${MYSQL_USER:-root}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-rootpassword}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-12345678}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-Nocodile}
       - MYSQL_PORT=${MYSQL_PORT:-3306}
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99
@@ -86,8 +86,8 @@ services:
   database:
     image: mysql:8.0
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-object_detection}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-12345678}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-Nocodile}
     ports:
       - "3307:${MYSQL_PORT:-3306}"
     volumes:

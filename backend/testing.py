@@ -4,7 +4,7 @@ import threading
 config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'noconoconocodile',
+    'password': '12345678',
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }
