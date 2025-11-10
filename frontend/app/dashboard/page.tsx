@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, memo, useRef} from "react";
 import { Plus, Image, Video, RefreshCw, LogOut, User } from "lucide-react";
 import "../../css/dashboard.css";
 import Link from "next/link";
+import NextImage from "next/image";
 import { getProjectsInfo, ProjectInfo } from "./get_project_info";
 import { getProjectDetails, type ProjectDetails } from "./get_project_details";
 import NewProjectForm from "./NewProjectForm";
@@ -208,13 +209,34 @@ const resetLoading = useCallback(() => {
   setProjects([]);         // 清空舊資料
   loadProjectsWithThrottle();     // 真正重新載入 API
 }, [loadProjectsWithThrottle]);
+  // === Logo Component ===
+  const Logo = () => {
+    return (
+      <NextImage
+        src="/IconNocodile.png"
+        alt="logo"
+        width={80}
+        height={80}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          zIndex: 10
+        }}
+      />
+    );
+  };
+
   // === 手動刷新按鈕 ===
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container" style={{position:"relative"}}>
+      {/* Logo in left-hand corner */}
+      <Logo />
+      
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-content">
-          <div className="header-flex">
+          <div className="header-flex" style={{ paddingLeft: '50px' }}>
             <div className="flex items-center">
               <h1 className="header-title">My Projects</h1>
             </div>

@@ -28,9 +28,6 @@ const layout = ({ children }: { children: React.ReactNode }) => {
             <Link href={`/dashboard`}>Return to dashboard</Link>
           </li>
           <li>
-            <Link href={`/project/${curProjId}/upload`}>Upload</Link>
-          </li>
-          <li>
             <Link href={`/project/${curProjId}/annotate`}>Annotate</Link>
           </li>
           <li>

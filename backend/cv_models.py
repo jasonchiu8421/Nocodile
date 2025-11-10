@@ -1,6 +1,13 @@
 import cv2
-from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
+import warnings
 import os
+
+# 抑制第三方套件的警告
+warnings.filterwarnings('ignore', category=FutureWarning, module='timm')
+warnings.filterwarnings('ignore', category=UserWarning, module='mobile_sam')
+warnings.filterwarnings('ignore', message='.*Overwriting.*in registry.*')
+
+from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
 from PIL import Image
 from skimage import io, filters
 import torch

@@ -216,14 +216,14 @@ export default function TrainingPage() {
       </section>
 
       {/* Back button */}
-      <div className="mt-8">
+      {/* <div className="mt-8">
         <Link
           href={`/project/${project_id}/upload`}
           className="text-blue-600 hover:underline font-medium"
         >
           ← Back to Upload
         </Link>
-      </div>
+      </div> */}
 
       {/* Force Clear button (for debugging) */}
       <div className="mt-10 text-right">

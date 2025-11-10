@@ -26,6 +26,8 @@ git+https://github.com/ChaoningZhang/MobileSAM.git
 # === 資料庫 ===
 mysql-connector-python
 pymysql
+aiomysql>=0.2.0  # 異步 MySQL 連接池（用於 FastAPI 依賴注入）
+sqlalchemy>=2.0.0  # SQLAlchemy ORM for FastAPI dependency injection
 
 # === 安全 ===
 passlib==1.7.4
@@ -41,4 +43,4 @@ pydantic==2.10.6
 pydantic_core==2.27.2
 annotated-types==0.7.0
 anyio==4.8.0
-scipy==1.10.0
+scipy>=1.11.1        # Updated for Python 3.12 compatibility

@@ -216,7 +216,8 @@ def sanitize_filename(filename):
 config = {
     'host': 'localhost',
     'user': 'root',
-    'password': '12345678',
+    'port': 3307,
+    'password': 'rootpassword',
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }

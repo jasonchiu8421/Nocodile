@@ -18,16 +18,7 @@ export const metadata: Metadata = {
   description: "Object identifier",
 };
 
-const Logo = () => {
-  return (
-    <img
-      //className="fixed"
-      //src="./IconNocodile.png"
-      alt="logo"
-      style={{ opacity: 0.2 }}
-    />
-  );
-};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,7 +30,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased dotted-grid`}
       >
         <ProjectProvider>
-          <Logo />
           <main>{children}</main>
         </ProjectProvider>
       </body>
