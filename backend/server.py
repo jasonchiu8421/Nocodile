@@ -771,12 +771,16 @@ class Project():
             id += 1
         self.save_class_ids(class_id_dict)
         self.videos = self.get_videos()
-        logger.info(f"📦 [DATASET] Starting dataset creation for {len(self.videos)} video(s)")
+        total_videos = len(self.videos)
+        logger.info(f"📦 [DATASET] Starting dataset creation for {total_videos} video(s)")
         if not self.videos:
             logger.warning("⚠️ [DATASET] No videos found in project")
             raise ValueError("No videos found in project. Please upload videos first.")
         
-        for video_id in self.videos:
+        # 初始化进度为0
+        self.save_auto_annotation_progress(0)
+        
+        for video_idx, video_id in enumerate(self.videos):
             try:
                 video = Video(self.project_id, video_id)
                 logger.info(f"📹 [DATASET] Processing video {video_id}")
@@ -796,8 +800,27 @@ class Project():
                 if not bbox_data:
                     logger.warning(f"⚠️ [DATASET] No bbox data found for video {video_id}, skipping label creation")
                 else:
+                    # Get video resolution for coordinate normalization
+                    try:
+                        img_width, img_height = video.get_resolution()
+                        logger.info(f"📐 [DATASET] Video {video_id} resolution: {img_width}x{img_height}")
+                    except Exception as e:
+                        logger.error(f"❌ [DATASET] Failed to get video resolution: {e}")
+                        # Try to get from first frame image
+                        first_frame_path = f"{image_dir}/{video.video_id}_frame_0.jpg"
+                        if os.path.exists(first_frame_path):
+                            img = cv2.imread(first_frame_path)
+                            if img is not None:
+                                img_height, img_width = img.shape[:2]
+                                logger.info(f"📐 [DATASET] Got resolution from first frame: {img_width}x{img_height}")
+                            else:
+                                raise ValueError(f"Cannot determine image resolution for video {video_id}")
+                        else:
+                            raise ValueError(f"Cannot determine image resolution for video {video_id}")
+                    
                     for result in bbox_data:
                         # bbox_data = [{"frame_num": 0, "class_name": "车", "coordinates": "100 100 50 50"}, ...]
+                        # coordinates format: "x y width height" (absolute pixels)
                         frame_num = result['frame_num']
                         class_name = result['class_name']
                         coordinates = result['coordinates']
@@ -810,10 +833,43 @@ class Project():
                             logger.warning(f"⚠️ [DATASET] Class '{class_name}' not found in class list, skipping")
                             continue
                         
+                        # Parse coordinates: "x y width height" (absolute pixels)
+                        try:
+                            coords = list(map(float, coordinates.split()))
+                            if len(coords) != 4:
+                                logger.error(f"❌ [DATASET] Invalid coordinate format for video {video_id}, frame {frame_num}: {coordinates}")
+                                continue
+                            
+                            x, y, w, h = coords
+                            
+                            # Convert to YOLO format: normalized (center_x, center_y, width, height)
+                            # YOLO format: center_x = (x + w/2) / img_width, center_y = (y + h/2) / img_height
+                            #             width = w / img_width, height = h / img_height
+                            center_x = (x + w / 2.0) / img_width
+                            center_y = (y + h / 2.0) / img_height
+                            norm_width = w / img_width
+                            norm_height = h / img_height
+                            
+                            # Validate normalized coordinates (should be between 0 and 1)
+                            if not (0 <= center_x <= 1 and 0 <= center_y <= 1 and 0 <= norm_width <= 1 and 0 <= norm_height <= 1):
+                                logger.warning(f"⚠️ [DATASET] Coordinates out of bounds for video {video_id}, frame {frame_num}: center_x={center_x:.3f}, center_y={center_y:.3f}, w={norm_width:.3f}, h={norm_height:.3f}")
+                                # Clamp to valid range
+                                center_x = max(0, min(1, center_x))
+                                center_y = max(0, min(1, center_y))
+                                norm_width = max(0, min(1, norm_width))
+                                norm_height = max(0, min(1, norm_height))
+                            
+                            # Format YOLO label: class_id center_x center_y width height
+                            yolo_coords = f"{center_x:.6f} {center_y:.6f} {norm_width:.6f} {norm_height:.6f}"
+                            
+                        except Exception as e:
+                            logger.error(f"❌ [DATASET] Error parsing coordinates for video {video_id}, frame {frame_num}: {coordinates}, error: {e}")
+                            continue
+                        
                         filename = f"{label_dir}/{video.video_id}_frame_{frame_num}.txt"
 
                         with open(filename, 'a') as file:
-                            file.write(f"{class_id_dict[class_name]} {coordinates}\n")
+                            file.write(f"{class_id_dict[class_name]} {yolo_coords}\n")
                     
                     logger.info(f"✅ [DATASET] Created {len(bbox_data)} label files for video {video_id}")
                 # Decompose videos into jpg images
@@ -839,6 +895,12 @@ class Project():
                     frame_idx += 1
                 cap.release()
                 logger.info(f"✅ [DATASET] Extracted {extracted_count} frames from video {video_id}")
+                
+                # 更新进度：每个视频完成后更新进度
+                # 进度 = (已处理的视频数 / 总视频数) * 100
+                progress = int((video_idx + 1) / total_videos * 100)
+                self.save_auto_annotation_progress(progress)
+                logger.info(f"📊 [DATASET] Progress updated: {progress}% ({video_idx + 1}/{total_videos} videos processed)")
                 
             except Exception as e:
                 logger.error(f"❌ [DATASET] Error processing video {video_id}: {e}")
@@ -1201,7 +1263,15 @@ class Project():
             for epoch in range(total_epochs):
                 logger.info(f"Starting epoch {epoch + 1}/{total_epochs}")
                 try:
-                    # For subsequent epochs, resume from the last checkpoint
+                    # If not the first epoch, load model from checkpoint
+                    if epoch > 0:
+                        last_checkpoint = train_project_dir_abs / "train" / "weights" / "last.pt"
+                        if last_checkpoint.exists():
+                            logger.info(f"Resuming training from checkpoint: {last_checkpoint}")
+                            # Load model from checkpoint - this automatically resumes training
+                            model = YOLO(str(last_checkpoint))
+                    
+                    # Training parameters
                     train_kwargs = {
                         "data": str(yaml_path),
                         "epochs": 1,
@@ -1215,13 +1285,7 @@ class Project():
                         "verbose": True
                     }
                     
-                    # If not the first epoch, try to resume from last checkpoint
-                    if epoch > 0:
-                        last_checkpoint = train_project_dir_abs / "train" / "weights" / "last.pt"
-                        if last_checkpoint.exists():
-                            logger.info(f"Resuming training from checkpoint: {last_checkpoint}")
-                            train_kwargs["resume"] = str(last_checkpoint)
-                    
+                    # When loading from checkpoint, YOLO automatically resumes, no need for resume parameter
                     results = model.train(**train_kwargs)
                     logger.info(f"Epoch {epoch + 1} completed successfully")
                     # Check if model was saved
@@ -1500,7 +1564,7 @@ class Project():
         if not classes:
             raise ValueError("No classes found for this project. Please add classes first.")
         
-        # Create data.yaml configuration
+        # Create data.yaml configuration file
         data_yaml = {
             "train": str(train_img_dir.resolve()),
             "val": str(val_img_dir.resolve()),
@@ -1508,9 +1572,15 @@ class Project():
             "names": classes
         }
         
-        # Run validation
+        # Save data.yaml to dataset directory
+        yaml_path = dataset_dir / "data.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(data_yaml, f)
+        logger.info(f"Created data.yaml at: {yaml_path}")
+        
+        # Run validation - YOLO expects a YAML file path, not a dict
         try:
-            metrics = model.val(data=data_yaml, verbose=False)
+            metrics = model.val(data=str(yaml_path), verbose=False)
         except Exception as e:
             logger.error(f"Error running validation: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -3296,6 +3366,27 @@ async def _create_dataset(project_id: int):
                     "success": False,
                     "message": error_msg
                 }
+            
+            # 如果视频已完成手动标注，但还没有执行自动标注，先执行 smart annotation
+            # 如果状态是 "completed"，说明已经执行过 smart annotation，跳过
+            if annotation_status == "manual annotation completed":
+                # 检查是否有手动标注的数据
+                bbox_data = video.get_bbox_data()
+                if bbox_data and len(bbox_data) > 0:
+                    logger.info(f"🤖 [DATASET] Video {video_id} has {len(bbox_data)} manual annotations, starting smart annotation to auto-annotate other frames...")
+                    try:
+                        # 执行智能标注：基于手动标注的帧，自动标注其他帧
+                        video.auto_annotate()
+                        logger.info(f"✅ [DATASET] Smart annotation completed for video {video_id}. All frames have been annotated.")
+                    except Exception as e:
+                        logger.error(f"❌ [DATASET] Error during smart annotation for video {video_id}: {e}")
+                        logger.error(f"Traceback: {traceback.format_exc()}")
+                        # 即使自动标注失败，也继续创建数据集（使用已有的手动标注）
+                        logger.warning(f"⚠️ [DATASET] Continuing dataset creation with manual annotations only for video {video_id}")
+                else:
+                    logger.warning(f"⚠️ [DATASET] Video {video_id} has no manual annotations, skipping smart annotation")
+            elif annotation_status == "completed":
+                logger.info(f"✅ [DATASET] Video {video_id} already has smart annotation completed, skipping auto-annotation step")
 
         # 所有视频都已完成标注，创建数据集
         logger.info(f"✅ [DATASET] All videos completed, starting dataset creation...")
@@ -3344,6 +3435,47 @@ async def get_auto_annotation_progress(request: ProjectRequest):
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e), "progress": 0.0}
+        )
+
+# Trigger smart annotation for a video
+@app.post("/auto_annotate")
+async def auto_annotate(request: VideoRequest, background_tasks: BackgroundTasks):
+    """
+    触发智能标注：基于用户手动标注的帧，自动标注视频中的其他帧
+    这个功能会在后台运行，因为可能需要一些时间
+    """
+    try:
+        logger.info(f"🚀 [SMART-ANNOTATE] Starting smart annotation for video {request.video_id} in project {request.project_id}")
+        video = Video(project_id=request.project_id, video_id=request.video_id)
+        
+        # 检查是否有手动标注的数据
+        bbox_data = video.get_bbox_data()
+        if not bbox_data or len(bbox_data) == 0:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "success": False,
+                    "error": "No manual annotations found. Please annotate at least one frame before using smart annotation."
+                }
+            )
+        
+        logger.info(f"📝 [SMART-ANNOTATE] Found {len(bbox_data)} manual annotations, starting auto-annotation...")
+        
+        # 在后台任务中执行自动标注
+        background_tasks.add_task(video.auto_annotate)
+        
+        return {
+            "success": True,
+            "message": "Smart annotation started in the background. Please check the annotation status to see progress.",
+            "manual_annotations_count": len(bbox_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ [SMART-ANNOTATE] Error starting smart annotation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "error": str(e)}
         )
 
 # Train model for a project
