@@ -12,9 +12,9 @@ class DatabaseConfig:
     def __init__(self):
         # 從環境變數讀取配置，提供預設值
         self.host = os.getenv('MYSQL_HOST', 'localhost')
-        self.port = int(os.getenv('MYSQL_PORT', '3306'))
+        self.port = int(os.getenv('MYSQL_PORT', '3307'))  # 預設使用 3307 端口（Docker 映射）
         self.user = os.getenv('MYSQL_USER', 'root')
-        self.password = os.getenv('MYSQL_PASSWORD', '12345678')
+        self.password = os.getenv('MYSQL_PASSWORD', 'A933192abc@.@')
         self.database = os.getenv('MYSQL_DATABASE', 'Nocodile')
         self.charset = 'utf8mb4'
         self.autocommit = True
@@ -38,19 +38,25 @@ class DatabaseConfig:
         # 主要配置（Docker 環境）
         configs.append(self.get_connection_config())
         
-        # 本地 Docker 映射端口配置
+        # 本地 Docker 映射端口配置（優先使用 3307）
         if self.host == 'mysql':
             local_config = self.get_connection_config()
             local_config['host'] = 'localhost'
             local_config['port'] = 3307
             configs.append(local_config)
         
-        # 本地 MySQL 配置（開發環境）
-        local_dev_config = self.get_connection_config()
-        local_dev_config['host'] = 'localhost'
-        local_dev_config['port'] = 3306
-        local_dev_config['password'] = ''
-        configs.append(local_dev_config)
+        # 本地 MySQL 配置（開發環境）- 3307 端口優先
+        local_dev_config_3307 = self.get_connection_config()
+        local_dev_config_3307['host'] = 'localhost'
+        local_dev_config_3307['port'] = 3307
+        configs.append(local_dev_config_3307)
+        
+        # 備用配置：3306 端口
+        local_dev_config_3306 = self.get_connection_config()
+        local_dev_config_3306['host'] = 'localhost'
+        local_dev_config_3306['port'] = 3306
+        local_dev_config_3306['password'] = ''
+        configs.append(local_dev_config_3306)
         
         return configs
 
