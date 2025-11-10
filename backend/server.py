@@ -1755,37 +1755,37 @@ class ObjectTracker:
 
         return predicted_annotations
 
-class ObjectIdentifier():
-    def __init__(self, image, video_path=None):
-        self.image = image
-        self.video_path = video_path
+# class ObjectIdentifier():
+#     def __init__(self, image, video_path=None):
+#         self.image = image
+#         self.video_path = video_path
 
-    # Use Distilled SAM for object identification
-    def segment(self, tracked_annotations, video_id):
-        if not self.video_path:
-            raise ValueError("video_path must be provided to ObjectIdentifier")
-        cap = cv2.VideoCapture(self.video_path)
-        identified_objects = {}
+#     # Use Distilled SAM for object identification
+#     def segment(self, tracked_annotations, video_id):
+#         if not self.video_path:
+#             raise ValueError("video_path must be provided to ObjectIdentifier")
+#         cap = cv2.VideoCapture(self.video_path)
+#         identified_objects = {}
         
-        for frame_num, bbox in tracked_annotations.items():
-            print(f"Processing frame {frame_num+1}...")
-            ret, frame = cap.read()
-            if not ret:
-                print(f"无法读取第 {frame_num} 帧，视频可能结束")
-                break
+#         for frame_num, bbox in tracked_annotations.items():
+#             print(f"Processing frame {frame_num+1}...")
+#             ret, frame = cap.read()
+#             if not ret:
+#                 print(f"无法读取第 {frame_num} 帧，视频可能结束")
+#                 break
 
-            # Use Distilled SAM for object identification
-            segmenter = MobileSAM(image=frame)
-            bboxes = segmenter.segment()
-            identified_objects[frame_num] = bboxes
+#             # Use Distilled SAM for object identification
+#             segmenter = MobileSAM(image=frame)
+#             bboxes = segmenter.segment()
+#             identified_objects[frame_num] = bboxes
 
-            # Update last annotated frame in database
-            video = Video(video_id)
-            video.last_annotated_frame = frame_num
-            video.save_last_annotated_frame()
+#             # Update last annotated frame in database
+#             video = Video(video_id)
+#             video.last_annotated_frame = frame_num
+#             video.save_last_annotated_frame()
 
-        cap.release()
-        return identified_objects
+#         cap.release()
+#         return identified_objects
     
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
