@@ -42,3 +42,5 @@ pydantic_core==2.27.2
 annotated-types==0.7.0
 anyio==4.8.0
 scipy==1.10.0
+
+timm>=1.0.22

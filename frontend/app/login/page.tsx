@@ -81,14 +81,18 @@ const Login = () => {
           projectCount: data.projects?.length || 0,
         });
 
-        // Cookies are now set by the server. The frontend just needs to handle the redirect.
-
-        // 存儲項目信息到緩存
-        if (data.projects && data.projects.length > 0) {
-          await ProjectCache.setProjects(data.projects);
-        } else {
-          // 清除舊的項目緩存
-          await ProjectCache.clearCache();
+        // Explicitly set cookies on client side using document.cookie
+        // This ensures cookies are available before navigation
+        if (typeof window !== 'undefined') {
+          document.cookie = `userId=${data.userID}; path=/; max-age=604800`; // 7 days
+          document.cookie = `username=${encodeURIComponent(formData.username.trim())}; path=/; max-age=604800`;
+          
+          // Store project info in cookie if available
+          if (data.projects && data.projects.length > 0) {
+            await ProjectCache.setProjects(data.projects);
+          } else {
+            await ProjectCache.clearCache();
+          }
         }
 
         // 重定向到儀表板

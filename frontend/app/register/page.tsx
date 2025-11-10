@@ -21,12 +21,11 @@ const Register = () => {
 
   // 檢查是否已登錄
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.cookieStore) {
-      window.cookieStore.get("userId").then((val) => {
-        if (val?.value) {
-          router.push("/dashboard");
-        }
-      });
+    if (typeof window !== 'undefined' && document.cookie.includes('userId=')) {
+      const userId = document.cookie.split('; ').find(row => row.startsWith('userId='))?.split('=')[1];
+      if (userId) {
+        router.push("/dashboard");
+      }
     }
   }, [router]);
 
@@ -85,20 +84,15 @@ const Register = () => {
       const data = await response.json();
       
       if (data.success) {
-        log.info('REGISTER', 'Registration successful', { 
-          userId: data.userID, 
-          projectCount: data.projects?.length || 0 
+        log.info('REGISTER', 'Registration successful', {
+          userId: data.userID,
+          projectCount: data.projects?.length || 0
         });
         
-        // 設置用戶 ID 到 cookie
-        if (typeof window !== 'undefined' && window.cookieStore) {
-          await window.cookieStore.set("userId", String(data.userID));
-          await window.cookieStore.set("username", formData.username.trim());
-          
-          // 存儲項目信息到 cookie（新用戶通常沒有項目）
-          if (data.projects && data.projects.length > 0) {
-            await window.cookieStore.set("userProjects", JSON.stringify(data.projects));
-          }
+        // Set cookies using document.cookie for broader compatibility
+        if (typeof window !== 'undefined') {
+          document.cookie = `userId=${data.userID}; path=/; max-age=604800`; // 7 days
+          document.cookie = `username=${encodeURIComponent(formData.username.trim())}; path=/; max-age=604800`;
         }
         
         // 重定向到儀表板

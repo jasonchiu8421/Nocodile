@@ -28,7 +28,7 @@ import pymysql
 import hashlib
 import hmac
 from starlette.middleware.base import BaseHTTPMiddleware
-# from config import config
+from config import config
 
 # # 導入配置模組
 # try:
@@ -213,16 +213,11 @@ def sanitize_filename(filename):
 #             print("所有連接嘗試都失敗了")
 #             return None
 
-config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '12345678',
-    'database': 'Nocodile',
-    'charset': 'utf8mb4'
-}
+# Use the config from the config module
+db_config = config.database.get_connection_config()
 
 try:
-    connection = pymysql.connect(**config)
+    connection = pymysql.connect(**db_config)
     print("数据库连接成功！")
 except pymysql.Error as e:
     print(f"数据库连接失败: {e}")
@@ -242,7 +237,7 @@ def reconnect_database():
                     connection.close()
                 except:
                     pass
-            connection = pymysql.connect(**config)
+            connection = pymysql.connect(**db_config)
             logger.info("数据库重新连接成功！")
             return True
         except pymysql.Error as e:
