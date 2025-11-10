@@ -16,7 +16,7 @@ const DebugResponse: React.FC<{ data: any; title: string }> = ({ data, title }) 
         className="cursor-pointer select-none font-bold text-green-400"
         onClick={() => setCollapsed(!collapsed)}
       >
-        {title} (點擊展開/收合)
+        {title} (Click to expand/collapse)
       </summary>
       <pre className="mt-2 overflow-x-auto">
         {JSON.stringify(data, null, 2)}
@@ -66,7 +66,7 @@ export default function TrainingPage() {
       // 步驟 1：啟動後端背景任務
       const startResp = await ApiService.createDataset(numId);
       setLastCreateDsResp(startResp);
-      console.log("create_dataset 啟動回傳:", startResp);
+      console.log("create_dataset Start Backhaul:", startResp);
 
       // 步驟 2：真正輪詢自動標註進度（這才是真實進度！）
       let pollCount = 0;
@@ -84,7 +84,7 @@ export default function TrainingPage() {
             clearAllPolling();
             setIsCreatingDs(false);
             if (prog >= 100) {
-              alert("資料集建立完成！");
+              alert("The dataset is complete!");
             }
             return;
           }
@@ -93,17 +93,17 @@ export default function TrainingPage() {
           if (pollCount > 1800) {
             clearAllPolling();
             setIsCreatingDs(false);
-            alert("資料集建立逾時，請至後台檢查日誌");
+            alert("Data set creation timed out. Please check the logs in the backend.");
           }
         } catch (err: any) {
-          console.error("輪詢 auto annotation 失敗", err);
+          console.error("Polling auto annotation failed", err);
           setLastAutoAnnotResp({ error: err.message });
         }
       }, 2000); // 每 2 秒問一次
     } catch (err: any) {
-      console.error("create_dataset 啟動失敗", err);
+      console.error("create_dataset Start Backhaul failed", err);
       setLastCreateDsResp({ error: err.message });
-      alert(err.message || "無法啟動資料集建立");
+      alert(err.message || "Unable to start data set creation");
       setIsCreatingDs(false);
     }
   };
@@ -118,7 +118,7 @@ export default function TrainingPage() {
     try {
       const startResp = await ApiService.startTraining(project_id);
       setLastTrainStartResp(startResp);
-      console.log("train 啟動回傳:", startResp);
+      console.log("train Start Backhaul:", startResp);
 
       let pollCount = 0;
       const maxPolls = 7200; // 最多 2 小時
@@ -139,24 +139,24 @@ export default function TrainingPage() {
             clearAllPolling();
             setIsTraining(false);
             setTrainProgress(100);
-            alert("模型訓練完成！");
+            alert("The model training is complete!");
             return;
           }
 
           if (pollCount > maxPolls) {
             clearAllPolling();
             setIsTraining(false);
-            alert("訓練逾時，請手動檢查狀態");
+            alert("Training timed out. Please check the status manually.");
           }
         } catch (err: any) {
-          console.error("訓練進度輪詢錯誤", err);
+          console.error("Polling training progress failed", err);
           setLastTrainProgressResp({ error: err.message });
         }
       }, 3000); // 每 3 秒問一次
     } catch (err: any) {
-      console.error("訓練啟動失敗", err);
+      console.error("train Start Backhaul failed", err);
       setLastTrainStartResp({ error: err.message });
-      alert(err.message || "無法開始訓練");
+      alert(err.message || "Unable to start training");
       setIsTraining(false);
     }
   };
@@ -168,10 +168,10 @@ export default function TrainingPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Training Page (除錯模式)</h1>
+      <h1 className="text-3xl font-bold mb-6">Training Page (Debug Mode)</h1>
       <p className="mb-4">Project ID: <code className="bg-gray-200 px-2">{project_id}</code></p>
 
-      {/* 建立資料集區塊 */}
+      {/* Create Dataset Section */}
       <section className="mb-8 p-5 border rounded-lg bg-gray-50">
         <h2 className="text-xl font-semibold mb-3">1. Create Dataset</h2>
         <button
@@ -183,17 +183,17 @@ export default function TrainingPage() {
               : "bg-blue-600 hover:bg-blue-700 text-white"
           }`}
         >
-          {isCreatingDs ? "建立資料集中..." : "Create Dataset"}
+          {isCreatingDs ? "Establish data collection..." : "Create Dataset"}
         </button>
 
         <progress value={createDsProgress} max="100" className="w-full h-6 mt-3" />
         <div className="text-sm mt-1">{createDsProgress.toFixed(1)}%</div>
 
-        <DebugResponse data={lastCreateDsResp} title="API: /create_dataset 啟動回傳" />
-        <DebugResponse data={lastAutoAnnotResp} title="API: /get_auto_annotation_progress 即時進度" />
+        <DebugResponse data={lastCreateDsResp} title="API: /create_dataset Start Backhaul" />
+        <DebugResponse data={lastAutoAnnotResp} title="API: /get_auto_annotation_progress Real-time Progress" />
       </section>
 
-      {/* 訓練模型區塊 */}
+      {/* Training model block */}
       <section className="mb-8 p-5 border rounded-lg bg-gray-50">
         <h2 className="text-xl font-semibold mb-3">2. Train Model</h2>
         <button
@@ -205,17 +205,17 @@ export default function TrainingPage() {
               : "bg-green-600 hover:bg-green-700 text-white"
           }`}
         >
-          {isTraining ? "訓練進行中..." : "Start Training"}
+          {isTraining ? "Training in progress..." : "Start Training"}
         </button>
 
         <progress value={trainProgress} max="100" className="w-full h-6 mt-3" />
         <div className="text-sm mt-1">{trainProgress.toFixed(1)}%</div>
 
-        <DebugResponse data={lastTrainStartResp} title="API: /train 啟動回傳" />
-        <DebugResponse data={lastTrainProgressResp} title="API: /get_training_progress 即時回傳" />
+        <DebugResponse data={lastTrainStartResp} title="API: /train Start Backhaul" />
+        <DebugResponse data={lastTrainProgressResp} title="API: /get_training_progress Real-time Progress" />
       </section>
 
-      {/* 返回按鈕 */}
+      {/* Back button */}
       <div className="mt-8">
         <Link
           href={`/project/${project_id}/upload`}
@@ -225,13 +225,13 @@ export default function TrainingPage() {
         </Link>
       </div>
 
-      {/* 強制清除按鈕（除錯用） */}
+      {/* Force Clear button (for debugging) */}
       <div className="mt-10 text-right">
         <button
           onClick={clearAllPolling}
           className="text-red-600 underline text-sm"
         >
-          [除錯] 強制停止所有輪詢
+          [Debug] Force stop all polling
         </button>
       </div>
     </div>
