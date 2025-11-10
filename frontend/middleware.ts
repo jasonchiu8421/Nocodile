@@ -18,7 +18,11 @@ export function middleware(request: NextRequest) {
   const userId = request.cookies.get("userId");
 
   if (!username || !userId) {
-    return NextResponse.redirect(new URL("/login", request.url)); //no relative urls bruhhhh
+    // Instead of a hard redirect, we rewrite to the login page.
+    // This allows the login page's client-side logic to check for the cookie
+    // and redirect to the dashboard if the user is already logged in.
+    // This prevents a redirect loop.
+    return NextResponse.rewrite(new URL("/login", request.url));
   }
 
   // else continue
