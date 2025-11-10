@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ApiService } from "@/lib/api";
+import { useProcessingContext } from "@/contexts/ProcessingContext";
 
 // 除錯用的 JSON 顯示元件
 const DebugResponse: React.FC<{ data: any; title: string }> = ({ data, title }) => {
@@ -36,7 +37,7 @@ export default function TrainingPage() {
 
   const [createDsProgress, setCreateDsProgress] = useState(0);
   const [trainProgress, setTrainProgress] = useState(0);
-
+  const { isProcessing, setIsProcessing } = useProcessingContext();
   // 儲存後端完整回傳（除錯用）
   const [lastCreateDsResp, setLastCreateDsResp] = useState<any>(null);
   const [lastAutoAnnotResp, setLastAutoAnnotResp] = useState<any>(null);
@@ -59,6 +60,7 @@ export default function TrainingPage() {
   const handleCreateDs = async () => {
     if (isCreatingDs) return;
     setIsCreatingDs(true);
+    setIsProcessing(true);
     setCreateDsProgress(0);
     clearAllPolling();
 
@@ -83,9 +85,7 @@ export default function TrainingPage() {
           if (prog >= 100 || progResp.success === false) {
             clearAllPolling();
             setIsCreatingDs(false);
-            if (prog >= 100) {
-              alert("The dataset is complete!");
-            }
+            setIsProcessing(false);
             return;
           }
 
@@ -93,6 +93,7 @@ export default function TrainingPage() {
           if (pollCount > 1800) {
             clearAllPolling();
             setIsCreatingDs(false);
+            setIsProcessing(false);
             alert("Data set creation timed out. Please check the logs in the backend.");
           }
         } catch (err: any) {
@@ -105,6 +106,7 @@ export default function TrainingPage() {
       setLastCreateDsResp({ error: err.message });
       alert(err.message || "Unable to start data set creation");
       setIsCreatingDs(false);
+      setIsProcessing(false);
     }
   };
 
@@ -112,6 +114,7 @@ export default function TrainingPage() {
   const handleTraining = async () => {
     if (isTraining) return;
     setIsTraining(true);
+    setIsProcessing(true);
     setTrainProgress(0);
     clearAllPolling();
 
@@ -138,6 +141,7 @@ export default function TrainingPage() {
           ) {
             clearAllPolling();
             setIsTraining(false);
+            setIsProcessing(false);
             setTrainProgress(100);
             alert("The model training is complete!");
             return;
@@ -146,6 +150,7 @@ export default function TrainingPage() {
           if (pollCount > maxPolls) {
             clearAllPolling();
             setIsTraining(false);
+            setIsProcessing(false);
             alert("Training timed out. Please check the status manually.");
           }
         } catch (err: any) {
@@ -158,6 +163,7 @@ export default function TrainingPage() {
       setLastTrainStartResp({ error: err.message });
       alert(err.message || "Unable to start training");
       setIsTraining(false);
+      setIsProcessing(false);
     }
   };
 
@@ -176,7 +182,7 @@ export default function TrainingPage() {
         <h2 className="text-xl font-semibold mb-3">1. Create Dataset</h2>
         <button
           onClick={handleCreateDs}
-          disabled={isCreatingDs}
+          disabled={isProcessing}
           className={`px-6 py-3 rounded font-medium ${
             isCreatingDs
               ? "bg-gray-400 cursor-not-allowed"
@@ -198,7 +204,7 @@ export default function TrainingPage() {
         <h2 className="text-xl font-semibold mb-3">2. Train Model</h2>
         <button
           onClick={handleTraining}
-          disabled={isTraining}
+          disabled={isProcessing}
           className={`px-6 py-3 rounded font-medium ${
             isTraining
               ? "bg-gray-400 cursor-not-allowed"
