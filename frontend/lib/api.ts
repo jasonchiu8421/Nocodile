@@ -47,20 +47,80 @@ function validateAndFixImageData(imageData: string): string {
   return imageData;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888';
+// Auto-detect backend URL based on current host
+function getDefaultBackendUrl(): string {
+  // If environment variable is set, use it (highest priority)
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // Check if we're in browser context
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const port = window.location.port;
+    
+    // If running on localhost, use localhost:8888
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8888';
+    }
+    
+    // If running on VPS or any other host, use same host with backend port
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}:8888`;
+  }
+  
+  // Server-side rendering fallback
+  return 'http://localhost:8888';
+}
+
+const API_BASE_URL = getDefaultBackendUrl();
+
+// 🔍 DIAGNOSTIC LOG - Check what URL is being used
+console.log('🔍 [DIAGNOSTIC] API Configuration:', {
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  API_BASE_URL: API_BASE_URL,
+  isBrowser: typeof window !== 'undefined',
+  currentHost: typeof window !== 'undefined' ? window.location.host : 'server-side',
+  detectedHostname: typeof window !== 'undefined' ? window.location.hostname : 'server-side'
+});
 
 // Fallback URLs to try if the primary URL fails
-const FALLBACK_URLS = [
-  'http://localhost:8888',
-  'http://host.docker.internal:8888',
-  'http://backend:8888'
-];
+function getFallbackUrls(): string[] {
+  const fallbacks = [
+    'http://localhost:8888',
+    'http://127.0.0.1:8888',
+  ];
+  
+  // Add VPS URL if we're running on VPS
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      const protocol = window.location.protocol;
+      fallbacks.unshift(`${protocol}//${hostname}:8888`); // Try VPS URL first
+    }
+  }
+  
+  // Docker-specific fallbacks
+  fallbacks.push('http://host.docker.internal:8888', 'http://backend:8888');
+  
+  return fallbacks;
+}
+
+const FALLBACK_URLS = getFallbackUrls();
 
 // Function to find a working backend URL
 export async function findWorkingBackendUrl(): Promise<string> {
+  // 🔍 DIAGNOSTIC LOG - Check what URLs are being tested
+  console.log('🔍 [DIAGNOSTIC] findWorkingBackendUrl called:', {
+    envUrl: process.env.NEXT_PUBLIC_API_URL,
+    fallbackUrls: FALLBACK_URLS,
+    currentHost: typeof window !== 'undefined' ? window.location.host : 'server-side'
+  });
+  
   // First try the environment variable URL
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (envUrl) {
+    console.log('🔍 [DIAGNOSTIC] Testing environment URL:', envUrl);
     log.info('CONNECTION', 'Testing environment variable URL first', { url: envUrl });
     const startTime = Date.now();
     try {
