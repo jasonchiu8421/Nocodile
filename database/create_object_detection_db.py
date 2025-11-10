@@ -45,6 +45,7 @@ class ObjectDetectionDB:
 
         self.config = {
             'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+            'port': int(os.getenv('MYSQL_PORT', 3306)),
             'user': user or os.getenv('MYSQL_USER', 'root'),
             'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
             'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
