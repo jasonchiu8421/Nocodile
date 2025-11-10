@@ -37,10 +37,10 @@ if [ ! -f .env ]; then
 # Database Configuration
 MYSQL_HOST=mysql
 MYSQL_USER=root
-MYSQL_PASSWORD=rootpassword
-MYSQL_DATABASE=object_detection
+MYSQL_PASSWORD=12345678
+MYSQL_DATABASE=Nocodile
 MYSQL_PORT=3306
-MYSQL_ROOT_PASSWORD=rootpassword
+MYSQL_ROOT_PASSWORD=12345678
 
 # Backend Configuration
 BACKEND_PORT=8888

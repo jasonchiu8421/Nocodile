@@ -24,12 +24,12 @@ export async function getUploadedVidsAsync(projectId: number): Promise<uploadedV
   log.info('UPLOAD_API', 'Fetching uploaded videos (async)', { projectId });
   
   try {
-    const backendVideos = await ApiService.getUploadedVideos(projectId.toString());
+    const backendVideos = await ApiService.getUploadedVidsAsync(projectId);
     
     if (backendVideos.length > 0) {
       log.info('UPLOAD_API', 'Successfully fetched videos from backend', { 
         projectId, 
-        count: backendVideos.length 
+        count: backendVideos.length
       });
       
       // Transform backend response to uploadedVid format

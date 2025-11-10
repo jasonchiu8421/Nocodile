@@ -13,7 +13,7 @@ export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as string;
   const { getProject, refreshProject, isLoading, error } = useProjectContext();
-  
+  //before the backend is loaded
   const [project, setProject] = useState(() => {
     const cachedProject = getProject(projectId);
     return cachedProject || {

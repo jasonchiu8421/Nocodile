@@ -14,19 +14,19 @@ def test_connection():
     # 從環境變數或使用預設值
     configs = [
         {
-            'host': os.getenv('MYSQL_HOST', 'mysql'),
+            'host': os.getenv('MYSQL_HOST', 'localhost'),
             'port': int(os.getenv('MYSQL_PORT', '3306')),
             'user': os.getenv('MYSQL_USER', 'root'),
-            'password': os.getenv('MYSQL_PASSWORD', 'rootpassword'),
-            'database': os.getenv('MYSQL_DATABASE', 'object_detection'),
+            'password': os.getenv('MYSQL_PASSWORD', '12345678'),
+            'database': os.getenv('MYSQL_DATABASE', 'Nocodile'),
             'charset': 'utf8mb4'
         },
         {
             'host': 'localhost',
             'port': 3307,
             'user': 'root',
-            'password': 'rootpassword',
-            'database': 'object_detection',
+            'password': '12345678',
+            'database': 'Nocodile',
             'charset': 'utf8mb4'
         }
     ]

@@ -34,7 +34,7 @@ const UploadPage = () => {
         
         // Load project info
         try {
-          const projectDetails = await ApiService.getProjectDetails(Number(project_id));
+          const projectDetails = await ApiService.getProjectVideos(Number(project_id));
           setProjectInfo(projectDetails);
           console.log("Project info loaded:", projectDetails);
         } catch (error) {
@@ -145,6 +145,11 @@ const UploadPage = () => {
           const result = await ApiService.uploadVideo(project_id as string, file);
           console.log(`Backend upload successful for ${file.name}:`, result);
           
+          // 确保后端返回了 video_id
+          if (!result.video_id) {
+            throw new Error(`Upload succeeded but no video_id returned: ${JSON.stringify(result)}`);
+          }
+          
           return {
             url: URL.createObjectURL(file), // Use blob URL for preview
             title: file.name,
@@ -228,7 +233,7 @@ const UploadPage = () => {
         </video>
         <div className="flex flex-row gap-2">
           <Link
-            href={`/project/${project_id}/annotate?video_id=${vid.file_id || vid.video_id || '1'}`}
+            href={`/project/${project_id}/annotate?video_id=${vid.video_id || '1'}`}
             className="btn-secondary w-fit"
           >
             Annotate this video

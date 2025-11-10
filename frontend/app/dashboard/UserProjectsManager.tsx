@@ -12,13 +12,19 @@ interface UserProjectsManagerProps {
   username: string;
   onProjectClick: (projectId: number) => void;
   onCreateProject: () => void;
+  refreshTrigger?: number; // 添加刷新触发器
 }
 
 export default function UserProjectsManager({
   userId,
   username,
   onProjectClick,
+<<<<<<< HEAD
   onCreateProject
+=======
+  onCreateProject,
+  refreshTrigger
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 }: UserProjectsManagerProps) {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,11 +33,12 @@ export default function UserProjectsManager({
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectInfo | null>(null);
 
-  const loadProjects = async () => {
+  const loadProjects = async (forceRefresh = false) => {
     if (userId <= 0) return;
     setIsLoading(true);
     setError(null);
     try {
+<<<<<<< HEAD
       log.info('USER_PROJECTS', 'Loading projects for user', { userId, username });
 
       let userProjects: ProjectInfo[] = [];
@@ -66,6 +73,49 @@ export default function UserProjectsManager({
           }
         }
       }
+=======
+      log.info('USER_PROJECTS', 'Loading projects for user', { userId, username, forceRefresh });
+
+      let userProjects: ProjectInfo[] = [];
+      
+      // 如果强制刷新，清除缓存
+      if (forceRefresh) {
+        await ProjectCache.clearCache();
+        log.info('USER_PROJECTS', 'Cache cleared, fetching fresh data from API');
+      }
+      
+      const cachedProjects = await ProjectCache.getProjects();
+      if (cachedProjects && cachedProjects.length > 0 && !forceRefresh) {
+        userProjects = ProjectCache.convertToProjectInfo(cachedProjects);
+        log.info('USER_PROJECTS', 'Using cached projects', {
+          userId,
+          username,
+          projectCount: userProjects.length
+        });
+      } else {
+        log.info('USER_PROJECTS', 'No cached projects or force refresh, fetching from API');
+        userProjects = await getProjectsInfo(userId);
+
+        // === 修正點：正確映射到 ProjectCache 格式 ===
+        if (userProjects.length > 0) {
+          const projectsToCache = userProjects.map(project => ({
+            project_id: project.id,                    // ← 正確
+            project_name: project.name,                // ← 正確
+            video_count: project.videoCount,   // ← 正確
+            project_type: "object_dectection",    //hard code now JimmyFix
+            status: project.status || 'Active', // ← 防 undefined
+            ownership: project.isOwned ? 'owned' : 'shared' as 'owned' | 'shared'
+          }));
+
+          try {
+            await ProjectCache.setProjects(projectsToCache);
+            log.info('PROJECT_CACHE', 'Projects cached successfully', { count: projectsToCache.length });
+          } catch (cacheError) {
+            log.warn('PROJECT_CACHE', 'Failed to cache projects', { cacheError });
+          }
+        }
+      }
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
       log.info('USER_PROJECTS', 'Projects loaded successfully', {
         userId,
@@ -88,8 +138,15 @@ export default function UserProjectsManager({
   };
 
   useEffect(() => {
+<<<<<<< HEAD
     loadProjects();
   }, [userId]);
+=======
+    // 当 refreshTrigger 变化时，强制刷新（清除缓存）
+    const forceRefresh = refreshTrigger !== undefined && refreshTrigger > 0;
+    loadProjects(forceRefresh);
+  }, [userId, refreshTrigger]); // 当 refreshTrigger 变化时也重新加载
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
   
   const handleShareProject = (project: ProjectInfo) => {
     setSelectedProject(project);

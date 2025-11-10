@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 FROM node:20-alpine
 
 WORKDIR /app
+=======
+FROM node:18-alpine
+
+WORKDIR .
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
 # Copy package files
 COPY package*.json ./
@@ -11,6 +17,7 @@ RUN npm install -g pnpm
 RUN pnpm install
 
 # Copy source code (excluding node_modules)
+<<<<<<< HEAD
 #COPY app/ ./app/
 #COPY components/ ./components/
 #COPY lib/ ./lib/
@@ -30,6 +37,26 @@ RUN pnpm install
 #COPY next-env.d.ts ./
 #COPY webpack.config.* ./
 COPY . .
+=======
+COPY app/ ./app/
+COPY components/ ./components/
+COPY lib/ ./lib/
+COPY public/ ./public/
+COPY css/ ./css/
+COPY contexts/ ./contexts/
+COPY *.json ./
+COPY *.js ./
+COPY *.ts ./
+COPY *.mjs ./
+COPY *.md ./
+COPY next.config.* ./
+COPY postcss.config.* ./
+COPY tailwind.config.* ./
+COPY tsconfig.json ./
+COPY tsconfig.tsbuildinfo ./
+COPY next-env.d.ts ./
+COPY webpack.config.* ./
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
 # Create .next directory for build cache
 RUN mkdir -p .next

@@ -1,10 +1,12 @@
 import logging
 import traceback
+import threading
+from datetime import datetime
 from fastapi import FastAPI, Request, status, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Dict, List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 # from passlib.context import CryptContext
@@ -13,7 +15,7 @@ import uuid
 import cv2
 import pandas as pd
 import os
-from cv_models import KCF, SAM
+from cv_models import InterpolatedObjectTracker # , MobileSAM
 import numpy as np
 import base64
 import aiofiles
@@ -47,6 +49,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def getClientTimestamp():
+    """Get current timestamp in ISO format"""
+    return datetime.now().isoformat()
 
 app = FastAPI()
 
@@ -85,9 +91,16 @@ app.add_middleware(RequestSizeLimitMiddleware, max_header_size=8192)
 async def health_check():
     """健康檢查端點"""
     try:
-        # 檢查資料庫連接
-        if connection and connection.open:
-            return {"status": "healthy", "database": "connected", "config": config}
+        # 檢查資料庫連接（使用线程安全的方法）
+        if is_db_connection_valid():
+            try:
+                # 嘗試執行簡單查詢來驗證連接
+                cursor = connection.cursor()
+                cursor.execute("SELECT 1")
+                cursor.close()
+                return {"status": "healthy", "database": "connected", "config": config}
+            except Exception:
+                return {"status": "unhealthy", "database": "disconnected", "config": config}
         else:
             return {"status": "unhealthy", "database": "disconnected", "config": config}
     except Exception as e:
@@ -201,9 +214,15 @@ def sanitize_filename(filename):
 #             return None
 
 config = {
+<<<<<<< HEAD
     'host': 'database',
     'user': 'root',
     'password': 'rootpassword',
+=======
+    'host': 'localhost',
+    'user': 'root',
+    'password': '12345678',
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     'database': 'Nocodile',
     'charset': 'utf8mb4'
 }
@@ -213,6 +232,88 @@ try:
     print("数据库连接成功！")
 except pymysql.Error as e:
     print(f"数据库连接失败: {e}")
+<<<<<<< HEAD
+=======
+    connection = None
+
+# 数据库连接锁，用于线程安全
+_db_lock = threading.Lock()
+
+# 辅助函数：重新连接数据库
+def reconnect_database():
+    """重新连接数据库（线程安全）"""
+    global connection
+    with _db_lock:
+        try:
+            if connection:
+                try:
+                    connection.close()
+                except:
+                    pass
+            connection = pymysql.connect(**config)
+            logger.info("数据库重新连接成功！")
+            return True
+        except pymysql.Error as e:
+            logger.error(f"数据库重新连接失败: {e}")
+            connection = None
+            return False
+
+# 辅助函数：检查数据库连接是否有效，如果无效则尝试重连
+def is_db_connection_valid():
+    """检查数据库连接是否有效，如果无效则尝试重连（线程安全）"""
+    global connection
+    with _db_lock:
+        if not connection:
+            logger.warning("数据库连接不存在，尝试重新连接...")
+            return reconnect_database()
+        
+        try:
+            # 使用 ping() 方法检查连接，这比执行查询更轻量
+            connection.ping(reconnect=False)
+            return True
+        except (pymysql.err.InterfaceError, pymysql.err.OperationalError, AttributeError) as e:
+            logger.warning(f"数据库连接已断开，尝试重新连接: {e}")
+            return reconnect_database()
+        except Exception as e:
+            logger.error(f"数据库连接检查失败: {e}")
+            # 如果 ping 失败，尝试重连
+            try:
+                return reconnect_database()
+            except:
+                return False
+
+# 辅助函数：安全地获取数据库游标
+def get_db_cursor(cursor_type=pymysql.cursors.DictCursor):
+    """安全地获取数据库游标，确保连接有效（线程安全）"""
+    global connection
+    with _db_lock:
+        # 在锁内检查连接（避免死锁，因为 is_db_connection_valid 也使用锁）
+        if not connection:
+            logger.warning("数据库连接不存在，尝试重新连接...")
+            if not reconnect_database():
+                raise Exception("无法建立数据库连接")
+        
+        # 检查连接是否有效（使用 ping，不获取锁）
+        try:
+            connection.ping(reconnect=False)
+        except (pymysql.err.InterfaceError, pymysql.err.OperationalError, AttributeError, OSError) as e:
+            logger.warning(f"连接检查失败，尝试重连: {e}")
+            if not reconnect_database():
+                raise Exception("无法重新连接数据库")
+        
+        try:
+            return connection.cursor(cursor_type)
+        except (pymysql.err.InterfaceError, pymysql.err.OperationalError, OSError) as e:
+            logger.warning(f"获取游标时连接错误，尝试重连: {e}")
+            if reconnect_database():
+                try:
+                    return connection.cursor(cursor_type)
+                except Exception as e2:
+                    logger.error(f"重连后仍无法获取游标: {e2}")
+                    raise Exception(f"无法获取数据库游标: {e2}")
+            else:
+                raise Exception("无法重新连接数据库")
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
 # # 資料庫連接重連機制 by (ensure the db will not crash when the db is lost)
 # def ensure_database_connection():
@@ -284,7 +385,7 @@ class UserLogin():
             self.login_attempts += 1
             if self.login_attempts >= max_attempts:
                 self.status = False
-                return "Login attempts exceeded. Account locked."
+                return False, "Login attempts exceeded. Account locked."
             return False, "Invalid password."
         
     # Hash a plain-text password with a given salt
@@ -314,16 +415,21 @@ class User():
     
     # Fetch username from database given the userID
     def get_username(self):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query= "SELECT username FROM user WHERE user_id =%s"
-        cursor.execute(query,(self.userID,))
-        username = cursor.fetchone()['username']
-        cursor.close()
-        return username
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query= "SELECT username FROM user WHERE user_id =%s"
+            cursor.execute(query,(self.userID,))
+            result = cursor.fetchone()
+            return result['username'] if result else None
+        finally:
+            cursor.close()
 
     # Fetch all project IDs of projects the user own
     # Output: [projectID, projectID, ...]
     def get_owned_projects(self):
+<<<<<<< HEAD
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
         cursor.execute(query,(self.userID))
@@ -332,10 +438,25 @@ class User():
         owned_projects = [d['project_id'] for d in result if 'project_id' in d]
         self.owned_projects = owned_projects
         return owned_projects
+=======
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query="SELECT DISTINCT project_id FROM project WHERE project_owner_id =%s"
+            cursor.execute(query,(self.userID,))
+            result = cursor.fetchall()
+            owned_projects = [d['project_id'] for d in result if 'project_id' in d]
+            self.owned_projects = owned_projects
+            return owned_projects
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     # Fetch all the project IDs of projects the user has been shared with
     # Output: [projectID, projectID, ...]
     def get_shared_projects(self):
+<<<<<<< HEAD
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
         cursor.execute(query,(self.userID))
@@ -344,6 +465,20 @@ class User():
         shared_projects = [d['project_id'] for d in result if 'project_id' in d]
         self.shared_projects = shared_projects
         return shared_projects
+=======
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query="SELECT DISTINCT project_id FROM project_shared_users WHERE user_id =%s"
+            cursor.execute(query,(self.userID,))
+            result = cursor.fetchall()
+            shared_projects = [d['project_id'] for d in result if 'project_id' in d]
+            self.shared_projects = shared_projects
+            return shared_projects
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
 #=================================== Class to deal with projects ==========================================
 
@@ -406,7 +541,7 @@ class Project():
     def get_project_name(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
+            if not is_db_connection_valid():
                 logger.error("Database connection not available in get_project_name")
                 return None
                 
@@ -436,10 +571,11 @@ class Project():
     def get_videos(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
+            if not is_db_connection_valid():
                 logger.error("Database connection not available in get_videos")
                 return []
                 
+<<<<<<< HEAD
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT DISTINCT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
             cursor.execute(query,(self.project_id,))
@@ -447,6 +583,17 @@ class Project():
             video_ids = [d['video_id'] for d in data if 'video_id' in d]
             cursor.close()
             return video_ids
+=======
+            cursor = get_db_cursor()
+            try:
+                query = "SELECT DISTINCT video_id FROM video WHERE project_id = %s ORDER BY video_id ASC"
+                cursor.execute(query,(self.project_id,))
+                data = cursor.fetchall()
+                video_ids = [d['video_id'] for d in data if 'video_id' in d]
+                return video_ids
+            finally:
+                cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         except Exception as e:
             logger.error(f"Error in get_videos: {str(e)}")
             return []
@@ -456,24 +603,25 @@ class Project():
     def get_video_count(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
-                logger.error("Database connection not available in get_videos")
-                return []
+            if not is_db_connection_valid():
+                logger.error("Database connection not available in get_video_count")
+                return 0
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT COUNT(video_id) as total FROM video WHERE project_id = %s"
             cursor.execute(query,(self.project_id,))
             result = cursor.fetchone()
-            video_count = result['total']
+            video_count = result['total'] if result else 0
             cursor.close()
-            return video_count
+            return int(video_count) if video_count is not None else 0
         except Exception as e:
-            logger.error(f"Error in get_videos: {str(e)}")
-            return []
+            logger.error(f"Error in get_video_count: {str(e)}")
+            return 0
     
     # Fetch the ID of the owner of a project
     # Output: Owner's ID (int)
     def get_owner(self):
+<<<<<<< HEAD
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT project_owner_id FROM project WHERE project_id = %s"
         cursor.execute(query,(self.project_id,))
@@ -483,6 +631,21 @@ class Project():
             return result['project_owner_id']
         else:
             return None
+=======
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query = "SELECT project_owner_id FROM project WHERE project_id = %s"
+            cursor.execute(query,(self.project_id,))
+            result = cursor.fetchone()
+            if result:
+                return result['project_owner_id']
+            else:
+                return None
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     # Fetch all shared users of a project
     # Output: [shared user ID (int), ...]
@@ -497,19 +660,33 @@ class Project():
     # Fetch all the classes that the model would contain in a project
     # Output: {class_name (str): color (str), ...}
     def get_classes(self):
+<<<<<<< HEAD
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT class_name, color FROM class WHERE project_id = %s"
         cursor.execute(query,(self.project_id,))
         rows = cursor.fetchall()
         classes = {item["class_name"]: item["color"] for item in rows}
         return classes
+=======
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            query = "SELECT class_name, color FROM class WHERE project_id = %s"
+            cursor.execute(query, (self.project_id,))
+            rows = cursor.fetchall()
+            classes = {item["class_name"]: item["color"] for item in rows}
+            return classes
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     # Fetch the status of a project
     # Output: Project status(str)
     def get_project_status(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
+            if not is_db_connection_valid():
                 logger.error("Database connection not available in get_project_status")
                 return "Unknown"
                 
@@ -530,9 +707,9 @@ class Project():
     def get_project_progress(self):
         try:
             # 檢查資料庫連接
-            if not connection or not connection.open:
-                logger.error("Database connection not available in get_project_status")
-                return "Unknown"
+            if not is_db_connection_valid():
+                logger.error("Database connection not available in get_project_progress")
+                return 0
                 
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT training_progress FROM project WHERE project_id = %s"
@@ -560,7 +737,8 @@ class Project():
             if not os.path.exists(project_path):
                 os.makedirs(project_path, exist_ok=True)
                 logger.info(f"Created project directory: {project_path}")
-            return project_path + os.sep  # 返回帶分隔符的路徑
+            
+            return project_path  # 返回帶分隔符的路徑
         except Exception as e:
             logger.error(f"Error creating project directory {project_path}: {str(e)}")
             # 如果創建失敗，返回一個安全的默認路徑
@@ -583,15 +761,19 @@ class Project():
     # Add class and save to database
     # Output: True
     def add_class(self, class_name: str, colour: str):
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
         self.classes = self.get_classes()
         self.classes[class_name] = colour
         
         # Add new row in class table
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query="INSERT INTO class (project_id, class_name, color) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE `color` = VALUES(`color`);"
-        cursor.execute(query,(self.project_id, class_name, colour))
-        connection.commit()
-        cursor.close()
+        cursor = get_db_cursor()
+        try:
+            query="INSERT INTO class (project_id, class_name, color) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE `color` = VALUES(`color`);"
+            cursor.execute(query,(self.project_id, class_name, colour))
+            connection.commit()
+        finally:
+            cursor.close()
 
         return True
     
@@ -640,81 +822,215 @@ class Project():
         except Exception as e:
             logger.error(f"Error creating dataset directories: {str(e)}")
             raise
-
         # Create the class_ID, class_name dictionary
         self.classes = self.get_classes()
         class_list = [key for key in self.classes]
         class_list.sort()
-        print("classes sorted in alphabetical order")
         class_id_dict = {}
         id = 0
         for _class in class_list:
             class_id_dict[_class] = id
             id += 1
-        print("Class id defined as: "+str(class_id_dict))
         self.save_class_ids(class_id_dict)
-
         self.videos = self.get_videos()
-        for video_id in self.videos:
-            video = Video(self.project_id, video_id)
-
-            # Write labels in txt files
-            bbox_data = video.get_bbox_data()
-            for result in bbox_data:
-                # bbox_data = [{"frame_num": 0, "class_name": "车", "coordinates": "100 100 50 50"}, ...]
-                frame_num = result['frame_num']
-                class_name = result['class_name']
-                coordinates = result['coordinates']
-
-                if not isinstance(coordinates, str):
-                    raise ValueError(f"Video {video.video_id} has unannotated frames. Please complete annotation before creating dataset.")
+        total_videos = len(self.videos)
+        logger.info(f"📦 [DATASET] Starting dataset creation for {total_videos} video(s)")
+        if not self.videos:
+            logger.warning("⚠️ [DATASET] No videos found in project")
+            raise ValueError("No videos found in project. Please upload videos first.")
+        
+        # 初始化进度为0
+        self.save_auto_annotation_progress(0)
+        
+        for video_idx, video_id in enumerate(self.videos):
+            try:
+                video = Video(self.project_id, video_id)
+                logger.info(f"📹 [DATASET] Processing video {video_id}")
+                # 获取视频路径
+                video_path = video.get_video_path()
+                if not video_path:
+                    logger.error(f"❌ [DATASET] Video path not found for video_id {video_id}")
+                    raise ValueError(f"Video path not found for video_id {video_id}")
                 
-                filename = f"{label_dir}/{video.video_id}_frame_{frame_num}.txt"
+                if not os.path.exists(video_path):
+                    logger.error(f"❌ [DATASET] Video file does not exist: {video_path}")
+                    raise ValueError(f"Video file does not exist: {video_path}")
+                # Write labels in txt files
+                bbox_data = video.get_bbox_data()
+                logger.info(f"📝 [DATASET] Found {len(bbox_data)} bbox annotations for video {video_id}")
+                
+                if not bbox_data:
+                    logger.warning(f"⚠️ [DATASET] No bbox data found for video {video_id}, skipping label creation")
+                else:
+                    # Get video resolution for coordinate normalization
+                    try:
+                        img_width, img_height = video.get_resolution()
+                        logger.info(f"📐 [DATASET] Video {video_id} resolution: {img_width}x{img_height}")
+                    except Exception as e:
+                        logger.error(f"❌ [DATASET] Failed to get video resolution: {e}")
+                        # Try to get from first frame image
+                        first_frame_path = f"{image_dir}/{video.video_id}_frame_0.jpg"
+                        if os.path.exists(first_frame_path):
+                            img = cv2.imread(first_frame_path)
+                            if img is not None:
+                                img_height, img_width = img.shape[:2]
+                                logger.info(f"📐 [DATASET] Got resolution from first frame: {img_width}x{img_height}")
+                            else:
+                                raise ValueError(f"Cannot determine image resolution for video {video_id}")
+                        else:
+                            raise ValueError(f"Cannot determine image resolution for video {video_id}")
+                    
+                    for result in bbox_data:
+                        # bbox_data = [{"frame_num": 0, "class_name": "车", "coordinates": "100 100 50 50"}, ...]
+                        # coordinates format: "x y width height" (absolute pixels)
+                        frame_num = result['frame_num']
+                        class_name = result['class_name']
+                        coordinates = result['coordinates']
 
-                with open(filename, 'a') as file:
-                    file.write(f"{class_id_dict[class_name]} {coordinates}\n")
+                        if not isinstance(coordinates, str):
+                            logger.error(f"❌ [DATASET] Invalid coordinates for video {video_id}, frame {frame_num}")
+                            raise ValueError(f"Video {video.video_id} has unannotated frames. Please complete annotation before creating dataset.")
+                        
+                        if class_name not in class_id_dict:
+                            logger.warning(f"⚠️ [DATASET] Class '{class_name}' not found in class list, skipping")
+                            continue
+                        
+                        # Parse coordinates: "x y width height" (absolute pixels)
+                        try:
+                            coords = list(map(float, coordinates.split()))
+                            if len(coords) != 4:
+                                logger.error(f"❌ [DATASET] Invalid coordinate format for video {video_id}, frame {frame_num}: {coordinates}")
+                                continue
+                            
+                            x, y, w, h = coords
+                            
+                            # Convert to YOLO format: normalized (center_x, center_y, width, height)
+                            # YOLO format: center_x = (x + w/2) / img_width, center_y = (y + h/2) / img_height
+                            #             width = w / img_width, height = h / img_height
+                            center_x = (x + w / 2.0) / img_width
+                            center_y = (y + h / 2.0) / img_height
+                            norm_width = w / img_width
+                            norm_height = h / img_height
+                            
+                            # Validate normalized coordinates (should be between 0 and 1)
+                            if not (0 <= center_x <= 1 and 0 <= center_y <= 1 and 0 <= norm_width <= 1 and 0 <= norm_height <= 1):
+                                logger.warning(f"⚠️ [DATASET] Coordinates out of bounds for video {video_id}, frame {frame_num}: center_x={center_x:.3f}, center_y={center_y:.3f}, w={norm_width:.3f}, h={norm_height:.3f}")
+                                # Clamp to valid range
+                                center_x = max(0, min(1, center_x))
+                                center_y = max(0, min(1, center_y))
+                                norm_width = max(0, min(1, norm_width))
+                                norm_height = max(0, min(1, norm_height))
+                            
+                            # Format YOLO label: class_id center_x center_y width height
+                            yolo_coords = f"{center_x:.6f} {center_y:.6f} {norm_width:.6f} {norm_height:.6f}"
+                            
+                        except Exception as e:
+                            logger.error(f"❌ [DATASET] Error parsing coordinates for video {video_id}, frame {frame_num}: {coordinates}, error: {e}")
+                            continue
+                        
+                        filename = f"{label_dir}/{video.video_id}_frame_{frame_num}.txt"
 
-            # Decompose videos into jpg images
-            cap = cv2.VideoCapture(video.get_video_path())
-            frame_idx = 0
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                image_path = f"{image_dir}/{video.video_id}_frame_"+str(frame_idx)+".jpg"
-                cv2.imwrite(image_path, frame)
-                frame_idx += 1
+                        with open(filename, 'a') as file:
+                            file.write(f"{class_id_dict[class_name]} {yolo_coords}\n")
+                    
+                    logger.info(f"✅ [DATASET] Created {len(bbox_data)} label files for video {video_id}")
+                # Decompose videos into jpg images
+                logger.info(f"🎬 [DATASET] Extracting frames from video {video_id}: {video_path}")
+                cap = cv2.VideoCapture(str(video_path))
+                
+                if not cap.isOpened():
+                    logger.error(f"❌ [DATASET] Could not open video file: {video_path}")
+                    cap.release()
+                    raise ValueError(f"Could not open video file: {video_path}")
+                frame_idx = 0
+                extracted_count = 0
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    image_path = f"{image_dir}/{video.video_id}_frame_{frame_idx}.jpg"
+                    success = cv2.imwrite(image_path, frame)
+                    if success:
+                        extracted_count += 1
+                    else:
+                        logger.warning(f"⚠️ [DATASET] Failed to save frame {frame_idx} for video {video_id}")
+                    frame_idx += 1
+                cap.release()
+                logger.info(f"✅ [DATASET] Extracted {extracted_count} frames from video {video_id}")
+                
+                # 更新进度：每个视频完成后更新进度
+                # 进度 = (已处理的视频数 / 总视频数) * 100
+                progress = int((video_idx + 1) / total_videos * 100)
+                self.save_auto_annotation_progress(progress)
+                logger.info(f"📊 [DATASET] Progress updated: {progress}% ({video_idx + 1}/{total_videos} videos processed)")
+                
+            except Exception as e:
+                logger.error(f"❌ [DATASET] Error processing video {video_id}: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
 
         self.project_status = "Data is ready"
         self.save_project_status()
         
         # 保存数据集路径到数据库
-        dataset_path = f"{self.get_project_path()}/dataset"
+        # Save the dataset path (should be project_path/dataset, not just project_path)
+        dataset_path = os.path.join(self.get_project_path(), "dataset")
         self.save_dataset_path(dataset_path)
 
         return True
     
     # Get auto annotation progress (int) from database
     def get_auto_annotation_progress(self):
-        finished_frames = 0
-        total_frames = 0
-        for video_id in self.videos:
-            video = Video(project_id=self.project_id, video_id=video_id)
-            annotation_status, last_annotated_frame = video.get_annotation_status()
-            frame_count = video.get_frame_count()
-            if annotation_status == "auto annotation in progress":
-                total_frames = last_annotated_frame + 1
-            elif annotation_status == "completed":
-                finished_frames += frame_count
-            total_frames += frame_count
-        overall_progress = finished_frames / total_frames if total_frames > 0 else 0
-
-        return overall_progress
+        try:
+            # 首先检查项目状态，如果数据集已创建完成，直接返回 100%
+            project_status = self.get_project_status()
+            if project_status == "Data is ready":
+                logger.info(f"✅ [PROGRESS] Project {self.project_id} dataset is ready, returning 100%")
+                return 100.0
+            
+            finished_frames = 0
+            total_frames = 0
+            # 确保 videos 列表已初始化
+            if not hasattr(self, 'videos') or self.videos is None:
+                self.videos = self.get_videos()
+            
+            if not self.videos:
+                # 如果没有视频，返回 0 进度
+                return 0.0
+            
+            for video_id in self.videos:
+                try:
+                    video = Video(project_id=self.project_id, video_id=video_id)
+                    annotation_status, last_annotated_frame = video.get_annotation_status()
+                    
+                    # 尝试获取帧数，如果失败则跳过该视频
+                    try:
+                        frame_count = video.get_frame_count()
+                    except Exception as e:
+                        logger.warning(f"Could not get frame count for video {video_id}: {e}")
+                        continue
+                    
+                    if annotation_status == "auto annotation in progress":
+                        total_frames = last_annotated_frame + 1
+                    elif annotation_status == "completed" or annotation_status == "manual annotation completed":
+                        finished_frames += frame_count
+                    total_frames += frame_count
+                except Exception as e:
+                    logger.error(f"Error processing video {video_id} in get_auto_annotation_progress: {e}")
+                    continue
+            
+            overall_progress = finished_frames / total_frames if total_frames > 0 else 0.0
+            return overall_progress
+        except Exception as e:
+            logger.error(f"Error in get_auto_annotation_progress: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return 0.0
     
     # Get basic information of all videos from database
     # Output: [{"name": video_name, "file: video, "path": video_path}, ...]
     def get_uploaded_videos(self):
         videos_info = []
+        self.videos = self.get_videos()
         for video_id in self.videos:
             video = Video(project_id=self.project_id, video_id=video_id)
             video_info = video.get_video_info()
@@ -751,7 +1067,7 @@ class Project():
         return result['dataset_path'] if result else None
     
     # Get model path from database
-    def get_model_path(self):
+    def get_model_path_from_db(self):
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT model_path FROM project WHERE project_id = %s"
         cursor.execute(query,(self.project_id,))
@@ -822,28 +1138,57 @@ class Project():
     # Save class ids as used in the model
     ### Not yet validated
     def save_class_ids(self, class_list):
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
         success = True
         for class_name in class_list:
+<<<<<<< HEAD
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "UPDATE class SET class_num = %s WHERE project_id = %s AND class_name = %s"
             cursor.execute(query, (class_list[class_name], self.project_id, class_name))
             connection.commit()
             success = bool(cursor.rowcount) and success
             cursor.close()  
+=======
+            cursor = get_db_cursor()
+            try:
+                query = "UPDATE class SET class_num = %s WHERE project_id = %s AND class_name = %s"
+                cursor.execute(query, (class_list[class_name], self.project_id, class_name))
+                connection.commit()
+                success = bool(cursor.rowcount) and success
+            finally:
+                cursor.close()
+        return success  
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     # Used during training
     @staticmethod
     def copy_files(image_list, img_dest, lbl_dest, labels_dir):
+        """Copy image files and their corresponding label files to train/val directories"""
+        copied_count = 0
         for img_path in image_list:
             try:
                 base_name = img_path.stem
                 label_path = labels_dir / (base_name + ".txt")
+                
+                # Copy image file
                 copy2(img_path, img_dest)
+                
+                # Copy label file if it exists
                 if label_path.exists():
                     copy2(label_path, lbl_dest)
+                else:
+                    # Create empty label file if it doesn't exist (for images without annotations)
+                    empty_label = lbl_dest / (base_name + ".txt")
+                    empty_label.touch()
+                
+                copied_count += 1
             except Exception as e:
-                print(f"Warning: Failed to copy {img_path}: {e}")
+                logger.warning(f"Failed to copy {img_path}: {e}")
                 continue
+        
+        logger.info(f"Copied {copied_count}/{len(image_list)} files to {img_dest}")
+        return copied_count
     
     def train(self):
         self.project_status = "Training in progress"
@@ -851,21 +1196,31 @@ class Project():
 
         # Get dataset path from database, fallback to default if not found
         dataset_path = self.get_dataset_path()
-        if dataset_path and Path(dataset_path).exists():
+        default_dataset_dir = Path(self.get_project_path()) / "dataset"
+        
+        if dataset_path:
             dataset_dir = Path(dataset_path)
+            # Verify the path is correct - it should point to the dataset directory, not project root
+            # If it points to project root (no "dataset" in path), use default
+            if "dataset" not in str(dataset_dir) or not dataset_dir.exists():
+                logger.warning(f"Database dataset_path '{dataset_path}' is invalid, using default: {default_dataset_dir}")
+                dataset_dir = default_dataset_dir
         else:
             # Fallback to default path
-            dataset_dir = Path(self.get_project_path()) / "dataset"
+            dataset_dir = default_dataset_dir
         
         # Check if dataset exists and has images, if not create it automatically
         images_dir = dataset_dir / "images"
         if not images_dir.exists() or not (any(images_dir.glob("*.jpg")) or any(images_dir.glob("*.png"))):
-            print("Dataset not found or empty, creating dataset automatically...")
+            logger.info("Dataset not found or empty, creating dataset automatically...")
             try:
                 self.create_dataset()
-                print("Dataset created successfully!")
+                # After creating dataset, update dataset_dir to the correct path
+                dataset_dir = Path(self.get_project_path()) / "dataset"
+                images_dir = dataset_dir / "images"
+                logger.info("Dataset created successfully!")
             except Exception as e:
-                print(f"Failed to create dataset: {e}")
+                logger.error(f"Failed to create dataset: {e}")
                 self.project_status = "Dataset creation failed"
                 self.save_project_status()
                 return False
@@ -887,18 +1242,36 @@ class Project():
 
         # Gather all images and shuffle
         all_images = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
+        if not all_images:
+            raise ValueError(f"No images found in dataset/images directory: {images_dir}. Please create dataset first.")
+        
+        logger.info(f"Found {len(all_images)} images in dataset, splitting into train/val...")
         random.shuffle(all_images)
         split_idx = int(0.8 * len(all_images))
 
         train_images = all_images[:split_idx]
         val_images = all_images[split_idx:]
+        
+        logger.info(f"Splitting dataset: {len(train_images)} train, {len(val_images)} val images")
 
-        self.copy_files(train_images, train_img_dir, train_lbl_dir, labels_dir)
-        self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
+        # Copy files and get counts
+        train_copied = self.copy_files(train_images, train_img_dir, train_lbl_dir, labels_dir)
+        val_copied = self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
+        
+        # Verify files were copied
+        train_count = len(list(train_img_dir.glob("*.jpg"))) + len(list(train_img_dir.glob("*.png")))
+        val_count = len(list(val_img_dir.glob("*.jpg"))) + len(list(val_img_dir.glob("*.png")))
+        logger.info(f"Dataset split completed: {train_count} train images ({train_copied} copied), {val_count} val images ({val_copied} copied)")
+        
+        if train_count == 0:
+            logger.error(f"Failed to copy training images. Source: {images_dir}, Destination: {train_img_dir}")
+            # Debug: check if source files exist
+            source_files = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
+            logger.error(f"Source directory has {len(source_files)} files")
+            raise ValueError(f"Failed to copy training images. Copied {train_copied} but found {train_count} in destination.")
 
         # Define class list
-        classes = [key for key in self.get_classes()]
-        classes.sort()
+        classes = sorted(self.get_classes().keys())
 
         # Create result.yaml for dataset with full COCO classes
         data_yaml = {
@@ -922,23 +1295,113 @@ class Project():
         print("Starting model training...")
         try:
             # Train epoch-by-epoch to track progress
+            # Set project directory to save training outputs in the project folder
+            train_project_dir = output_dir / "runs"
+            # Use absolute path to ensure YOLO saves to the correct location
+            train_project_dir_abs = train_project_dir.resolve()
+            train_project_dir_abs.mkdir(parents=True, exist_ok=True)
+            
+            logger.info(f"Training model with project directory: {train_project_dir_abs}")
+            
+            # Auto-detect device: use CUDA if available, otherwise CPU
+            import torch
+            if torch.cuda.is_available():
+                device = 0
+                logger.info("Using CUDA device for training")
+            else:
+                device = 'cpu'
+                logger.info("CUDA not available, using CPU for training")
+            
+            # Verify train/val directories exist (they should have been created above)
+            train_img_dir = dataset_dir / "train" / "images"
+            val_img_dir = dataset_dir / "val" / "images"
+            
+            if not train_img_dir.exists() or not val_img_dir.exists():
+                logger.error(f"Train/val directories not found. Train: {train_img_dir}, Val: {val_img_dir}")
+                raise FileNotFoundError(f"Training/validation directories not found. Train: {train_img_dir}, Val: {val_img_dir}")
+            
+            train_images = list(train_img_dir.glob("*.jpg")) + list(train_img_dir.glob("*.png"))
+            val_images = list(val_img_dir.glob("*.jpg")) + list(val_img_dir.glob("*.png"))
+            logger.info(f"Training dataset: {len(train_images)} images, Validation: {len(val_images)} images")
+            
+            if len(train_images) == 0:
+                logger.error(f"No training images found in {train_img_dir}")
+                # List what files are actually there
+                all_files = list(train_img_dir.glob("*"))
+                logger.error(f"Files in train directory: {[str(f) for f in all_files[:10]]}")
+                raise ValueError(f"No training images found in {train_img_dir}. Please check dataset split.")
+            
             for epoch in range(total_epochs):
-                model.train(
-                    data=str(yaml_path),
-                    epochs=1,
-                    imgsz=640,
-                    batch=4,
-                    #device="cpu",
-                    save=True,
-                    exist_ok=True
-                )
+                logger.info(f"Starting epoch {epoch + 1}/{total_epochs}")
+                try:
+                    # If not the first epoch, load model from checkpoint
+                    if epoch > 0:
+                        last_checkpoint = train_project_dir_abs / "train" / "weights" / "last.pt"
+                        if last_checkpoint.exists():
+                            logger.info(f"Resuming training from checkpoint: {last_checkpoint}")
+                            # Load model from checkpoint - this automatically resumes training
+                            model = YOLO(str(last_checkpoint))
+                    
+                    # Training parameters
+                    train_kwargs = {
+                        "data": str(yaml_path),
+                        "epochs": 1,
+                        "imgsz": 640,
+                        "batch": 4,
+                        "device": device,
+                        "save": True,
+                        "exist_ok": True,
+                        "project": str(train_project_dir_abs),
+                        "name": "train",
+                        "verbose": True
+                    }
+                    
+                    # When loading from checkpoint, YOLO automatically resumes, no need for resume parameter
+                    results = model.train(**train_kwargs)
+                    logger.info(f"Epoch {epoch + 1} completed successfully")
+                    # Check if model was saved
+                    expected_model = train_project_dir_abs / "train" / "weights" / "best.pt"
+                    if expected_model.exists():
+                        logger.info(f"Model saved to: {expected_model}")
+                    else:
+                        logger.warning(f"Model file not found at expected location: {expected_model}")
+                except Exception as epoch_error:
+                    logger.error(f"Error in epoch {epoch + 1}: {epoch_error}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    # Don't raise immediately, check if partial training created any files
+                    check_dir = train_project_dir_abs / "train" / "weights"
+                    if check_dir.exists():
+                        files = list(check_dir.glob("*.pt"))
+                        if files:
+                            logger.info(f"Found partial model files: {files}")
+                    raise
                 progress = round((epoch + 1) / total_epochs * 100) # YOUR TRAINING VARIABLE
                 print(f"Training progress: {progress}%")
                 self.save_training_progress(progress)
-            print("Model training completed successfully!")
+            
+            # Final check: verify model file exists
+            final_model = train_project_dir_abs / "train" / "weights" / "best.pt"
+            if final_model.exists():
+                logger.info(f"✓ Training completed successfully! Model saved to: {final_model}")
+                print("Model training completed successfully!")
+            else:
+                logger.error(f"✗ Training completed but model file not found at: {final_model}")
+                # List all files in the runs directory for debugging
+                if train_project_dir_abs.exists():
+                    all_files = list(train_project_dir_abs.rglob("*"))
+                    logger.error(f"Files in runs directory: {[str(f) for f in all_files]}")
+                raise FileNotFoundError(f"Training completed but model file not found: {final_model}")
 
         except Exception as e:
+            logger.error(f"Training error: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             print(f"Training completed with warnings: {e}")
+            # Check if any model files were created despite the error
+            train_weights_dir = train_project_dir_abs / "train" / "weights"
+            if train_weights_dir.exists():
+                model_files = list(train_weights_dir.glob("*.pt"))
+                if model_files:
+                    logger.info(f"Found {len(model_files)} model files despite error: {model_files}")
             # Continue with post-processing even if there are warnings
         
         # Update progress to 100% after training
@@ -946,14 +1409,99 @@ class Project():
         self.save_training_progress(100)
 
         # Copy best.pt to output folder
-        best_weights_src = Path("runs/detect/train/weights/best.pt")
+        # YOLO saves to project/runs/train/weights/best.pt when project is specified
+        train_project_dir = output_dir / "runs"
+        train_project_dir_abs = train_project_dir.resolve()
+        best_weights_src = train_project_dir_abs / "train" / "weights" / "best.pt"
+        
+        # Get absolute paths for all possible locations
+        # YOLO may save to different locations depending on working directory
+        backend_dir = Path(__file__).parent
+        project_path = Path(self.get_project_path())
+        current_dir = Path.cwd()
+        
+        # Also check other possible locations (use absolute paths)
+        possible_paths = [
+            best_weights_src.resolve(),  # Expected location with project specified (absolute)
+            (train_project_dir / "train" / "weights" / "best.pt").resolve(),  # Absolute path
+            (backend_dir / "runs" / "detect" / "train" / "weights" / "best.pt").resolve(),  # Backend directory
+            (backend_dir / "runs" / "train" / "weights" / "best.pt").resolve(),  # Alternative backend location
+            (current_dir / "runs" / "detect" / "train" / "weights" / "best.pt").resolve(),  # Current working directory
+            (current_dir / "runs" / "train" / "weights" / "best.pt").resolve(),  # Alternative current dir
+            (project_path / "runs" / "train" / "weights" / "best.pt").resolve(),  # Project directory
+            (backend_dir / "best.pt").resolve(),  # Backend root (last resort, may be corrupted)
+        ]
+        
+        # IMPORTANT: Each project should have its own model file
+        # Model files are stored in: projects/{project_id}/output/best.pt
+        # This ensures:
+        # 1. No conflicts between different projects
+        # 2. Easy to manage and backup per-project models
+        # 3. Clear separation of concerns
+        
+        # Note: backend/best.pt is a legacy fallback and should be avoided
+        # It's only checked if no project-specific model is found
+        
+        best_weights_found = None
+        logger.info(f"Searching for model file in {len(possible_paths)} possible locations...")
+        for i, path in enumerate(possible_paths, 1):
+            logger.info(f"Checking location {i}/{len(possible_paths)}: {path}")
+            if path.exists():
+                logger.info(f"Found model file at: {path}")
+                # Verify source file is valid before using it
+                try:
+                    import torch
+                    # Quick check: try to load the file to verify it's not corrupted
+                    # Use weights_only=False for YOLO models (PyTorch 2.6+ default changed)
+                    torch.load(str(path), map_location='cpu', weights_only=False)
+                    best_weights_found = path
+                    logger.info(f"✓ Valid model found at: {best_weights_found}")
+                    break
+                except Exception as verify_error:
+                    logger.warning(f"✗ Model file at {path} is corrupted, skipping: {verify_error}")
+                    continue
+            else:
+                logger.debug(f"  Path does not exist: {path}")
+        
         best_weights_dst = output_dir / "best.pt"
 
-        if best_weights_src.exists():
-            copy2(best_weights_src, best_weights_dst)
-            print(f"Best model weights saved to: {best_weights_dst}")
+        if best_weights_found and best_weights_found.exists():
+            try:
+                # Verify source file is complete before copying
+                src_size = best_weights_found.stat().st_size
+                if src_size < 1024 * 1024:  # Less than 1MB is suspicious
+                    logger.warning(f"Source model file is suspiciously small: {src_size} bytes")
+                    raise ValueError(f"Source model file too small: {src_size} bytes")
+                
+                # Use shutil.copyfile for atomic copy, then verify
+                import shutil
+                shutil.copyfile(best_weights_found, best_weights_dst)
+                
+                # Verify copied file integrity
+                dst_size = best_weights_dst.stat().st_size
+                if dst_size != src_size:
+                    logger.error(f"File copy incomplete! Source: {src_size} bytes, Destination: {dst_size} bytes")
+                    best_weights_dst.unlink()  # Delete incomplete file
+                    raise IOError(f"File copy failed: size mismatch ({src_size} vs {dst_size} bytes)")
+                
+                # Try to verify file is a valid PyTorch file
+                try:
+                    import torch
+                    # Use weights_only=False for YOLO models (PyTorch 2.6+ default changed)
+                    torch.load(str(best_weights_dst), map_location='cpu', weights_only=False)
+                    logger.info(f"Verified model file integrity: {best_weights_dst}")
+                except Exception as verify_error:
+                    logger.error(f"Copied model file is corrupted: {verify_error}")
+                    best_weights_dst.unlink()  # Delete corrupted file
+                    raise IOError(f"Copied model file is corrupted: {verify_error}")
+                
+                print(f"Best model weights saved and verified: {best_weights_dst}")
+            except Exception as e:
+                logger.error(f"Error copying model file: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                print(f"Warning: Failed to copy model file: {e}")
         else:
-            print("Warning: best.pt not found")
+            print("Warning: best.pt not found in any expected location")
 
         print("Training complete.")
 
@@ -987,25 +1535,128 @@ class Project():
     # Get model path
     def get_model_path(self):
         model_path = Path(self.get_project_path()) / "output" / "best.pt"
-        return model_path.resolve()
+        return model_path
 
     # Get model performance
     def get_model_performance(self):
         model_path = self.get_model_path()
         if not model_path.exists():
             raise FileNotFoundError("Model file 'best.pt' not found. Please train the model first.")
-
-        dataset_dir = Path(self.get_project_path()) / "dataset"
-        yaml_path = dataset_dir / "data.yaml"
-        if not yaml_path.exists():
-            raise FileNotFoundError("Dataset configuration file 'data.yaml' not found.")
-
+        
+        # Check if model file is valid and has reasonable size (at least 1MB)
+        file_size = model_path.stat().st_size
+        if file_size < 1024 * 1024:  # Less than 1MB is suspicious
+            logger.warning(f"Model file is suspiciously small: {file_size} bytes")
+        
+        # Try to find model from database path if current path fails
+        db_model_path = self.get_model_path_from_db()
+        if db_model_path and Path(db_model_path).exists() and db_model_path != str(model_path):
+            logger.info(f"Found alternative model path in database: {db_model_path}")
+            # Use database path if it's different and exists
+            alt_path = Path(db_model_path)
+            if alt_path.stat().st_size > file_size:  # Prefer larger file
+                model_path = alt_path
+                logger.info(f"Using model from database path: {model_path}")
+        
         # Load the trained model
-        model = YOLO(model_path)
-
-        # Run validation on the validation set
-        metrics = model.val(result=str(yaml_path.resolve()))
-
+        try:
+            model = YOLO(str(model_path))
+        except RuntimeError as e:
+            if "failed reading zip archive" in str(e) or "corrupted" in str(e).lower():
+                logger.error(f"Model file is corrupted: {model_path}")
+                # Try to use backup from backend directory
+                backend_model = Path(__file__).parent / "best.pt"
+                if backend_model.exists() and backend_model != model_path:
+                    logger.info(f"Trying backup model from backend directory: {backend_model}")
+                    try:
+                        model = YOLO(str(backend_model))
+                        logger.info("Successfully loaded backup model")
+                    except Exception as e2:
+                        logger.error(f"Backup model also failed: {e2}")
+                        raise RuntimeError(f"Model file is corrupted and backup also failed. Please retrain the model. Original error: {str(e)}")
+                else:
+                    raise RuntimeError(f"Model file is corrupted: {model_path}. Error: {str(e)}. Please retrain the model.")
+            else:
+                raise RuntimeError(f"Failed to load model: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error loading model: {e}")
+            raise RuntimeError(f"Failed to load model: {str(e)}")
+        
+        # Get dataset path
+        dataset_path = self.get_dataset_path()
+        if not dataset_path or not Path(dataset_path).exists():
+            # Fallback to default dataset path
+            dataset_dir = Path(self.get_project_path()) / "dataset"
+        else:
+            dataset_dir = Path(dataset_path)
+        
+        # Check if train/val directories exist (created during training)
+        train_img_dir = dataset_dir / "train" / "images"
+        val_img_dir = dataset_dir / "val" / "images"
+        
+        # If train/val directories don't exist, create them from the dataset
+        if not train_img_dir.exists() or not val_img_dir.exists():
+            logger.warning(f"Train/val directories not found, creating them from dataset...")
+            images_dir = dataset_dir / "images"
+            labels_dir = dataset_dir / "labels"
+            
+            if not images_dir.exists():
+                raise FileNotFoundError(f"Dataset images directory not found: {images_dir}. Please create dataset first.")
+            
+            # Create train/val directories
+            train_lbl_dir = dataset_dir / "train" / "labels"
+            val_lbl_dir = dataset_dir / "val" / "labels"
+            
+            for d in [train_img_dir, train_lbl_dir, val_img_dir, val_lbl_dir]:
+                d.mkdir(parents=True, exist_ok=True)
+            
+            # Split dataset into train/val (80/20)
+            import random
+            all_images = list(images_dir.glob("*.jpg")) + list(images_dir.glob("*.png"))
+            if not all_images:
+                raise FileNotFoundError(f"No images found in dataset: {images_dir}")
+            
+            random.shuffle(all_images)
+            split_idx = int(0.8 * len(all_images))
+            
+            train_images = all_images[:split_idx]
+            val_images = all_images[split_idx:]
+            
+            # Copy files to train/val directories
+            self.copy_files(train_images, train_img_dir, train_lbl_dir, labels_dir)
+            self.copy_files(val_images, val_img_dir, val_lbl_dir, labels_dir)
+            
+            logger.info(f"Created train/val split: {len(train_images)} train, {len(val_images)} val images")
+        
+        # Get classes from database
+        classes_dict = self.get_classes()
+        classes = sorted(classes_dict.keys())
+        
+        if not classes:
+            raise ValueError("No classes found for this project. Please add classes first.")
+        
+        # Create data.yaml configuration file
+        data_yaml = {
+            "train": str(train_img_dir.resolve()),
+            "val": str(val_img_dir.resolve()),
+            "nc": len(classes),
+            "names": classes
+        }
+        
+        # Save data.yaml to dataset directory
+        yaml_path = dataset_dir / "data.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(data_yaml, f)
+        logger.info(f"Created data.yaml at: {yaml_path}")
+        
+        # Run validation - YOLO expects a YAML file path, not a dict
+        try:
+            metrics = model.val(data=str(yaml_path), verbose=False)
+        except Exception as e:
+            logger.error(f"Error running validation: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise RuntimeError(f"Failed to validate model: {str(e)}")
+        
         # Extract the key performance metrics from the results object.
         # For object detection, we use mAP as the primary "accuracy" metric.
         # The other metrics are averaged over all classes.
@@ -1013,30 +1664,82 @@ class Project():
         import math
         
         def safe_float(value):
-            if math.isnan(value) or math.isinf(value):
+            """Safely convert value to float, handling NaN and Inf"""
+            try:
+                if value is None:
+                    return 0.0
+                if math.isnan(value) or math.isinf(value):
+                    return 0.0
+                return float(value)
+            except (TypeError, ValueError):
                 return 0.0
-            return float(value)
         
-        performance = {
-            "accuracy": safe_float(metrics.box.map50),  # Using mAP50 as the main accuracy indicator
-            "precision": safe_float(metrics.box.p.mean()), # Mean Precision over all classes
-            "recall": safe_float(metrics.box.r.mean()),    # Mean Recall over all classes
-            "f1-score": safe_float(metrics.box.f1.mean())  # Mean F1-score over all classes
-        }
-        return performance
+        try:
+            # Try to extract metrics from the results object
+            # YOLO validation returns different structures depending on version
+            if hasattr(metrics, 'box'):
+                # YOLOv8/v11 format
+                map50 = safe_float(metrics.box.map50) if hasattr(metrics.box, 'map50') else 0.0
+                precision = safe_float(metrics.box.p.mean()) if hasattr(metrics.box, 'p') else 0.0
+                recall = safe_float(metrics.box.r.mean()) if hasattr(metrics.box, 'r') else 0.0
+                f1 = safe_float(metrics.box.f1.mean()) if hasattr(metrics.box, 'f1') else 0.0
+            elif hasattr(metrics, 'results_dict'):
+                # Alternative format
+                results = metrics.results_dict
+                map50 = safe_float(results.get('metrics/mAP50(B)', 0.0))
+                precision = safe_float(results.get('metrics/precision(B)', 0.0))
+                recall = safe_float(results.get('metrics/recall(B)', 0.0))
+                f1 = safe_float(results.get('metrics/f1(B)', 0.0))
+            else:
+                # Fallback: try to get metrics from attributes
+                map50 = safe_float(getattr(metrics, 'map50', getattr(metrics, 'map', 0.0)))
+                precision = safe_float(getattr(metrics, 'precision', 0.0))
+                recall = safe_float(getattr(metrics, 'recall', 0.0))
+                f1 = safe_float(getattr(metrics, 'f1', 0.0))
+            
+            performance = {
+                "accuracy": map50,
+                "precision": precision,
+                "recall": recall,
+                "f1-score": f1
+            }
+            
+            logger.info(f"Model performance metrics: {performance}")
+            return performance
+            
+        except Exception as e:
+            logger.error(f"Error extracting metrics: {e}")
+            logger.error(f"Metrics object type: {type(metrics)}")
+            logger.error(f"Metrics object attributes: {dir(metrics)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Return default values if extraction fails
+            return {
+                "accuracy": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "error": f"Failed to extract metrics: {str(e)}"
+            }
     
 class Video(Project):
-    def __init__(self, project_id: int, video_id=None, initialize=False):
+    def __init__(self, project_id: int, video_id=-1, initialize=False):
         super().__init__(project_id)
         self.video_id = video_id
         if not initialize:
-            self.video_path = self.get_video_path()
-            self.cap = cv2.VideoCapture(self.video_path)
-            # 从数据库获取标注状态
-            self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+            # 只有在 video_id 有效时才尝试获取视频路径和标注状态
+            if video_id >= 0:
+                self.video_path = self.get_video_path()
+                # self.cap = cv2.VideoCapture(self.video_path)
+                # 从数据库获取标注状态
+                self.annotation_status, self.last_annotated_frame = self.get_annotation_status()
+            else:
+                # 对于新视频（video_id=-1），设置默认值
+                self.video_path = None
+                self.annotation_status = "yet to start"
+                self.last_annotated_frame = -1
             # 获取视频信息
-            self.frame_count = self.get_frame_count()
-            self.fps = self.get_fps()
+            # self.frame_count = self.get_frame_count()
+            # self.fps = self.get_fps()
 
     # Initialize when a video is uploaded, includes inserting data to the database
     # Output: video_id, video_path
@@ -1045,44 +1748,72 @@ class Video(Project):
 
         # 清理文件名，確保安全
         safe_name = sanitize_filename(name)
+        # 移除扩展名中的点（如果存在）
+        if ext and ext.startswith('.'):
+            ext = ext[1:]
+        
+        # 构建初始路径
         self.video_path = Path(self.get_project_path()) / "videos" / f"{safe_name}.{ext}"
-        self.video_name = safe_name
+
+        count = 2
+        # 如果文件已存在，生成新文件名
+        while self.video_path.exists():
+            safe_name_new = f"{safe_name}({count})"
+            self.video_path = Path(self.get_project_path()) / "videos" / f"{safe_name_new}.{ext}"
+            count += 1
+
+        # 最终的文件名（包含扩展名）
+        self.video_name = f"{safe_name}.{ext}" if count == 2 else f"{safe_name}({count-1}).{ext}"
         
         # 确保视频目录存在
         video_dir = Path(self.get_project_path()) / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
         
+        # 获取视频数量
         try:
-            self.video_count = self.get_video_count()
-        except:
+            video_count = self.get_video_count()
+            # 确保 video_count 是数字
+            if isinstance(video_count, list):
+                self.video_count = 0
+            else:
+                self.video_count = int(video_count) if video_count is not None else 0
+        except Exception as e:
+            logger.error(f"Error getting video count: {e}")
             self.video_count = 0
         self.video_count += 1
 
+        # 检查数据库连接
+        if not is_db_connection_valid():
+            logger.error("Database connection not available in Video.initialize")
+            raise Exception("Database connection not available")
+
         # Add row to video
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %s, %s);"
-        cursor.execute(query,(self.project_id, self.video_path, self.video_name, self.annotation_status))
-        self.video_id = cursor.lastrowid
-        connection.commit()  # 提交事务
-        cursor.close()
+        try:
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            query = "INSERT INTO video (project_id, video_path, video_name, annotation_status) VALUES (%s, %s, %s, %s);"
+            cursor.execute(query,(self.project_id, str(self.video_path), self.video_name, self.annotation_status))
+            print("Video ID: "+str(self.video_id))
+            self.video_id = cursor.lastrowid
+            connection.commit()  # 提交事务
+            cursor.close()
+        except Exception as e:
+            logger.error(f"Error inserting video into database: {e}")
+            raise Exception(f"Failed to insert video into database: {e}")
 
         return self.video_id, self.video_path
     
     # Return some video info (used in project.get_videos_info)
     def get_video_info(self):
         video_path = self.get_video_path()
-        # 將絕對路徑轉換為相對URL路徑
-        # 例如: /app/projects/17/videos/IMG_0499..mp4 -> /videos/17/videos/IMG_0499..mp4
-        if video_path.startswith('/app/projects/'):
-            relative_path = video_path.replace('/app/projects/', '/videos/')
-        else:
-            relative_path = video_path
+        # 使用后端端点来提供视频文件，而不是直接使用文件路径
+        # 这样前端可以通过 /serve_video/{video_id} 访问视频
+        video_url = f"/serve_video/{self.video_id}"
 
         info = {
             "name": self.get_video_name(),
             "file": self.video_id,
-            "path": video_path,
-            "url": relative_path  # 添加URL字段供前端使用
+            "path": video_path,  # 保留原始路径用于后端内部使用
+            "url": video_url  # 前端使用的URL，指向后端端点
         }
         return info
     
@@ -1128,29 +1859,62 @@ class Video(Project):
     def get_video_path(self):
         # 首先嘗試將 video_id 轉換為整數（向後兼容）
         try:
+            if not is_db_connection_valid():
+                logger.error("Database connection not available in get_video_path")
+                return None
+                
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             video_id_int = int(self.video_id)
             query = "SELECT video_path FROM video WHERE video_id = %s"
             cursor.execute(query, (video_id_int,))
             result = cursor.fetchone()
+<<<<<<< HEAD
             if result:
                 return result['video_path']
         except (ValueError, TypeError):
             pass
+=======
+            cursor.close()
+            if result and result.get('video_path'):
+                video_path = result['video_path']
+                # 检查文件是否存在
+                if os.path.exists(video_path):
+                    return video_path
+                else:
+                    logger.warning(f"Video file not found at path: {video_path}")
+                    return None
+            return None
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error in get_video_path: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error in get_video_path: {e}")
+            return None
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     # Fetch video name (str) from database
     def get_frame_count(self):
         if not self.video_path:
             self.video_path = self.get_video_path()
+        if not self.video_path:
+            raise ValueError(f"Video path not found for video_id {self.video_id}")
         cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {self.video_path}")
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.release()
         return frame_count
     
     def get_fps(self):
         if not self.video_path:
             self.video_path = self.get_video_path()
+        if not self.video_path:
+            raise ValueError(f"Video path not found for video_id {self.video_id}")
         cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {self.video_path}")
         fps = cap.get(cv2.CAP_PROP_FPS)
+        cap.release()
         return fps
     
     def get_resolution(self):
@@ -1164,6 +1928,7 @@ class Video(Project):
     
     def get_bbox_data(self, frame_num = None):
         # Output format: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
+<<<<<<< HEAD
         if frame_num:
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s AND frame_num = %s"
@@ -1176,50 +1941,92 @@ class Video(Project):
             cursor.execute(query,(self.video_id))
             bbox_data = cursor.fetchall()
         return bbox_data
+=======
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        cursor = get_db_cursor()
+        try:
+            if frame_num:
+                query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s AND frame_num = %s"
+                cursor.execute(query,(self.video_id, frame_num))
+                bbox_data = cursor.fetchall()
+            else:
+                # fetch all if frame_num is not specified
+                query = "SELECT frame_num, class_name, coordinates FROM bbox WHERE video_id = %s"
+                cursor.execute(query,(self.video_id,))
+                bbox_data = cursor.fetchall()
+            return bbox_data
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     def get_annotation_status(self):
         annotation_status='yet to start'
-        last_annotated_frame=None
+        last_annotated_frame=-1
 
         # 首先嘗試將 video_id 轉換為整數（向後兼容）
         try:
             video_id_int = int(self.video_id)
+            # 如果 video_id 是 -1 或无效，返回默认值
+            if video_id_int < 0:
+                return annotation_status, last_annotated_frame
+                
             cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT annotation_status,last_annotated_frame FROM video WHERE video_id = %s"
+<<<<<<< HEAD
             cursor.execute(query,(self.video_id,))
+=======
+            cursor.execute(query,(video_id_int,))
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
             result = cursor.fetchone()
             if result:
-                annotation_status = result['annotation_status']
+                annotation_status = result['annotation_status'] or 'yet to start'
                 last_annotated_frame = result['last_annotated_frame']
+                # 确保 last_annotated_frame 是整数或 None
+                if last_annotated_frame is not None:
+                    try:
+                        last_annotated_frame = int(last_annotated_frame)
+                    except (ValueError, TypeError):
+                        last_annotated_frame = -1
                 return annotation_status, last_annotated_frame
-            else:
-                raise ValueError(f"Video with ID {self.video_id} not found")
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error getting annotation status for video_id {self.video_id}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_annotation_status: {e}")
+        
+        # 返回默认值
+        return annotation_status, last_annotated_frame
 
     ###### Selecting Frame for Manual Annotation ######
     # For testing purpose, annotate every second
     def get_next_frame_to_annotate(self):
         self.frame_count = self.get_frame_count()
         self.fps = self.get_fps()
-        if self.annotation_status == "yet to start":
+        
+        # 如果状态是 "yet to start" 或者 last_annotated_frame 是 -1 或 None，从第0帧开始
+        if self.annotation_status == "yet to start" or self.last_annotated_frame is None or self.last_annotated_frame == -1:
             frame_num = 0
+            logger.info(f"🎬 [FRAME] Starting annotation from frame 0 (status: {self.annotation_status}, last_frame: {self.last_annotated_frame})")
             return self.get_frame(frame_num), frame_num
-        elif self.annotation_status == "completed":
+        elif self.annotation_status == "completed" or self.annotation_status == "manual annotation completed":
+            logger.info(f"✅ [FRAME] Annotation already completed (status: {self.annotation_status})")
             return None, None
-        elif isinstance(self.last_annotated_frame, int):
+        elif isinstance(self.last_annotated_frame, int) and self.last_annotated_frame >= 0:
+            # 计算下一帧：每秒钟取一帧（即 last_annotated_frame + fps）
             next_frame = self.last_annotated_frame + self.fps
             if next_frame < self.frame_count:
+                logger.info(f"📹 [FRAME] Next frame: {next_frame} (last: {self.last_annotated_frame}, fps: {self.fps})")
                 return self.get_frame(next_frame), next_frame
             else:
                 # no more frames to annotate
+                logger.info(f"🏁 [FRAME] All frames annotated (last: {self.last_annotated_frame}, total: {self.frame_count})")
                 self.annotation_status = "manual annotation completed"
                 self.save_annotation_status()
                 
                 # 检查是否所有视频都已完成标注
                 project = Project(project_id=self.project_id)
                 all_videos_completed = True
-                for video_id in project.videos:
+                for video_id in project.get_videos():
                     video = Video(project_id=self.project_id, video_id=video_id)
                     if video.annotation_status not in ["completed", "manual annotation completed"]:
                         all_videos_completed = False
@@ -1232,30 +2039,43 @@ class Video(Project):
                 
                 return None, None
         else:
-            return None, None
+            # 如果 last_annotated_frame 无效，重置并从第0帧开始
+            logger.warning(f"⚠️ [FRAME] Invalid last_annotated_frame: {self.last_annotated_frame}, resetting to frame 0")
+            self.last_annotated_frame = -1
+            self.annotation_status = "yet to start"
+            self.save_annotation_status()
+            frame_num = 0
+            return self.get_frame(frame_num), frame_num
     
     def get_frame(self, frame_num: int):
+        if not self.video_path:
+            self.video_path = self.get_video_path()
+        if not self.video_path:
+            raise ValueError(f"Video path not found for video_id {self.video_id}")
+        self.frame_count = self.get_frame_count()
         if self.frame_count <= 0:
             raise ValueError("Video file is invalid or has no frames")
         if frame_num < 0 or frame_num >= self.frame_count:
-            raise ValueError("Frame number out of range")
-        if not self.video_path:
-            self.video_path = self.get_video_path()
+            raise ValueError(f"Frame number {frame_num} out of range (0-{self.frame_count-1})")
         cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {self.video_path}")
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-        ret, frame = self.cap.read()
+        ret, frame = cap.read()
         if ret:
             _, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
             frame_encoded = base64.b64encode(frame_bytes).decode('utf-8')
+            cap.release()
+            return frame_encoded
         else:
-            raise ValueError("Could not read frame")
-        return frame_encoded
+            cap.release()
+            raise ValueError(f"Could not read frame {frame_num} from video")
     
     def annotate(self, frame_num: int, bbox: list):
         try:
             self.annotation_status = "manual annotation in progress"
-            if frame_num < 0 or frame_num >= self.frame_count:
+            if frame_num < 0 or frame_num >= self.get_frame_count():
                 raise ValueError("Frame number out of range")
             class_name, x, y, w, h = bbox
             # width, height = self.get_resolution()
@@ -1274,96 +2094,23 @@ class Video(Project):
             logger.error(f"Error in annotate: {str(e)}")
             return f"Error in annotate: {str(e)}"
 
-    @staticmethod
-    def _calculate_iou(bbox1, bbox2):
-        # Unpack the boxes
-        x1, y1, w1, h1 = bbox1
-        x2, y2, w2, h2 = bbox2
-
-        # Calculate the coordinates of the corners of the boxes
-        bbox1_x2 = x1 + w1
-        bbox1_y2 = y1 + h1
-        bbox2_x2 = x2 + w2
-        bbox2_y2 = y2 + h2
-
-        # Calculate the coordinates of the intersection rectangle
-        inter_x1 = max(x1, x2)
-        inter_y1 = max(y1, y2)
-        inter_x2 = min(bbox1_x2, bbox2_x2)
-        inter_y2 = min(bbox1_y2, bbox2_y2)
-
-        # Calculate the area of the intersection rectangle
-        inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
-
-        # Calculate the area of both bounding boxes
-        box1_area = w1 * h1
-        box2_area = w2 * h2
-
-        # Calculate the IoU
-        iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
-        return iou
-
     def auto_annotate(self):
+        # Set status to in progress
         self.annotation_status = "auto annotation in progress"
+        self.save_annotation_status()
         
+        # Get all manually annotated bbox data
         bbox_data = self.get_bbox_data()
+        bbox_data = sorted(bbox_data, key=lambda x: x['frame_num'])
 
-        # Find all annotated frames
-        annotated_frames = list({d["frame_num"] for d in bbox_data if "frame_num" in d})
+        # Perform auto-annotation
+        auto_annotator = AutoAnnotator(self.video_path, bbox_data)
+        annotations = auto_annotator.annotate(self.video_id)
 
-        # Loop through each segment between annotated frames
-        for i in range(len(annotated_frames) - 1):
-            starting_frame_num = annotated_frames[i]
-            ending_frame_num = annotated_frames[i + 1]
-            print(f"Auto-annotating frames from {starting_frame_num} to {ending_frame_num}...")
-
-            # Convert the bbox string to a tuple of integers
-            frame_bbox = self.get_bbox_data(starting_frame_num)
-            for bbox in frame_bbox:
-                starting_frame_bbox = tuple(bbox['coordinates'].split())
-
-            # Perform KCF tracking to locate the estimated location of the object
-            if not self.video_path:
-                self.video_path = self.get_video_path()
-            kcf_tracker = KCF(video_path=self.video_path)
-            tracking_results = kcf_tracker.predict_frames(starting_frame_bbox=starting_frame_bbox, starting_frame_num=starting_frame_num, ending_frame_num=ending_frame_num)
-
-            # Find the correct segment for each unbounded frame
-            cap = cv2.VideoCapture(self.video_path)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame_num+1)
-            for index in range(starting_frame_num+1, ending_frame_num):
-                print(f"Processing frame {index+1}...")
-                ret, frame = cap.read()
-                if not ret:
-                    print(f"无法读取第 {index+1} 帧，视频可能结束")
-                    break
-                sam_segmenter = SAM(image=frame)
-                bboxes = sam_segmenter.segment()
-                    
-                # Find the best matching SAM box by comparing IoU of the kcf-predicted box
-                max_iou = -1
-                best_bbox = None
-                target_bbox = tracking_results[index - starting_frame_num]
-
-                for bbox in bboxes:
-                    iou = self._calculate_iou(target_bbox, bbox)
-                    if iou > max_iou:
-                        max_iou = iou
-                        best_bbox = bbox
-
-                x, y, w, h = best_bbox
-                best_bbox = f"{x} {y} {w} {h}"
-                self.bbox_data.append({"frame_num": index, "class_name": starting_frame_bbox['class_name'],"coordinates": best_bbox})
-                print(f"Best matching bbox for frame {index+1}: {best_bbox}")
-
-                # Save bbox result in database
-                self.save_bbox_data(index, starting_frame_bbox['class_name'], best_bbox)
-
-                # Save the number of frame in progress
-                self.last_annotated_frame = index
-                self.save_last_annotated_frame()
-
-        cap.release()
+        # Save all auto-annotations to database
+        for ann in annotations:
+            if ann not in bbox_data:
+                self.save_bbox_data(ann["frame_num"], ann["class_name"], ann["coordinates"])
 
         self.annotation_status = "completed"
         self.save_annotation_status()
@@ -1392,6 +2139,7 @@ class Video(Project):
     
     # Save annotation status to database
     def save_annotation_status(self):
+<<<<<<< HEAD
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "UPDATE video SET annotation_status = %s WHERE video_id = %s"
         cursor.execute(query,(self.annotation_status, self.video_id))
@@ -1409,16 +2157,177 @@ class Video(Project):
         success = bool(cursor.rowcount)
         cursor.close()
         return success
+=======
+        """保存标注状态到数据库"""
+        cursor = get_db_cursor()
+        try:
+            query = "UPDATE video SET annotation_status = %s WHERE video_id = %s"
+            cursor.execute(query,(self.annotation_status, self.video_id))
+            connection.commit()  # 提交事务
+            success = bool(cursor.rowcount)
+            logger.debug(f"💾 [SAVE] Saved annotation_status='{self.annotation_status}' for video_id={self.video_id}, success={success}")
+            return success
+        finally:
+            cursor.close()
+    
+    # Save last annotated frame to database
+    def save_last_annotated_frame(self):
+        """保存最后标注的帧号到数据库"""
+        cursor = get_db_cursor()
+        try:
+            query = "UPDATE video SET last_annotated_frame = %s WHERE video_id = %s"
+            cursor.execute(query,(self.last_annotated_frame, self.video_id))
+            connection.commit()  # 提交事务
+            success = bool(cursor.rowcount)
+            logger.debug(f"💾 [SAVE] Saved last_annotated_frame={self.last_annotated_frame} for video_id={self.video_id}, success={success}")
+            return success
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     
     def save_bbox_data(self, frame_num, class_name, coordinates):
-        cursor = connection.cursor(pymysql.cursors.DictCursor)
-        query = "INSERT INTO bbox (frame_num, class_name, coordinates, video_id) VALUES (%s, %s, %s, %s)"
-        cursor.execute(query,(frame_num, class_name, coordinates, self.video_id))
-        connection.commit()  # 提交事务
-        success = bool(cursor.rowcount)
-        cursor.close()
-        return success
+        """保存边界框数据到数据库"""
+        cursor = get_db_cursor()
+        try:
+            query = "INSERT INTO bbox (frame_num, class_name, coordinates, video_id) VALUES (%s, %s, %s, %s)"
+            cursor.execute(query,(frame_num, class_name, coordinates, self.video_id))
+            connection.commit()  # 提交事务
+            success = bool(cursor.rowcount)
+            logger.debug(f"💾 [SAVE] Saved bbox: video_id={self.video_id}, frame={frame_num}, class={class_name}, coords={coordinates}, success={success}")
+            return success
+        finally:
+            cursor.close()
 
+# @staticmethod
+# def calculate_iou(bbox1, bbox2):
+#         # Unpack the boxes
+#         x1, y1, w1, h1 = bbox1
+#         x2, y2, w2, h2 = bbox2
+
+#         # Calculate the coordinates of the corners of the boxes
+#         bbox1_x2 = x1 + w1
+#         bbox1_y2 = y1 + h1
+#         bbox2_x2 = x2 + w2
+#         bbox2_y2 = y2 + h2
+
+#         # Calculate the coordinates of the intersection rectangle
+#         inter_x1 = max(x1, x2)
+#         inter_y1 = max(y1, y2)
+#         inter_x2 = min(bbox1_x2, bbox2_x2)
+#         inter_y2 = min(bbox1_y2, bbox2_y2)
+
+#         # Calculate the area of the intersection rectangle
+#         inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
+
+#         # Calculate the area of both bounding boxes
+#         box1_area = w1 * h1
+#         box2_area = w2 * h2
+
+#         # Calculate the IoU
+#         iou = inter_area / float(box1_area + box2_area - inter_area) if (box1_area + box2_area - inter_area) > 0 else 0
+#         return iou
+
+#list: [{"frame_num": 0, "class_name": abc, "coordinates": (x, y, w, h)}, ...]
+class AutoAnnotator:
+    def __init__(self, video_path: str, manual_annotations: list):
+        self.video_path = video_path
+        self.manual_annotations = manual_annotations
+        self.translate_annotations()
+        self.classes = self.manual_annotations[0]['class_name'] if self.manual_annotations else 'unnamed_object' # Assume one class only
+
+    def translate_annotations(self):
+        self.translated_annotations = {}
+        # Translate annotations to (center_x, center_y, width, height) format
+        for annotation in self.manual_annotations:
+            bbox = annotation['coordinates']
+            frame_num = annotation['frame_num']
+            x, y, w, h = tuple(map(float, bbox.split()))
+            center_x = x + w / 2
+            center_y = y + h / 2
+            self.translated_annotations[frame_num] = (center_x, center_y, w, h)
+
+    def annotate(self, video_id):
+        # Perform object tracking to locate the object in the video
+        tracker = ObjectTracker(video_path=self.video_path)
+        tracked_annotations = tracker.tracking(manual_annotations=self.translated_annotations)
+
+        # # Identify objects in each frame using distilled SAM
+        # identifier = ObjectIdentifier(image=None)
+        # identified_objects = identifier.segment(tracked_annotations=tracked_annotations, video_id=video_id)
+
+        # # Combine tracking and identification results
+        # combined_annotations = []
+        # for frame_num, tracked_bbox in tracked_annotations.items():
+        #     best_iou = -1
+        #     best_bbox = None
+        #     identified_bboxes = identified_objects[frame_num]
+        #     for identified_bbox in identified_bboxes:
+        #         iou = calculate_iou(tracked_bbox, identified_bbox)
+        #         if iou > best_iou:
+        #             best_iou = iou
+        #             best_bbox = identified_bbox
+        #     if best_bbox:
+        #         x, y, w, h = best_bbox
+        #         best_bbox_str = f"{x} {y} {w} {h}"
+        #         combined_annotations.append({"frame_num": frame_num, "class_name": self.classes,"coordinates": best_bbox_str})
+
+        combined_annotations = []
+        for frame_num, bbox in tracked_annotations.items():
+            # bbox格式: (center_x, center_y, width, height)
+            center_x, center_y, w, h = bbox
+            # 转换回 (x, y, width, height) 格式
+            x = center_x - w / 2
+            y = center_y - h / 2
+            coordinates = f"{int(x)} {int(y)} {int(w)} {int(h)}"
+            combined_annotations.append({"frame_num": frame_num, "class_name": self.classes, "coordinates": coordinates})
+
+        return combined_annotations
+
+
+# Track object in a video given manual annotations
+class ObjectTracker:
+    def __init__(self, video_path):
+        self.video_path = video_path
+
+    def tracking(self, manual_annotations):
+        # Use PCHIP interpolation and linear interpolation for object tracking
+        tracker = InterpolatedObjectTracker(self.video_path)
+        predicted_annotations = tracker.predict_frame(manual_annotations)
+
+        return predicted_annotations
+
+# class ObjectIdentifier():
+#     def __init__(self, image, video_path=None):
+#         self.image = image
+#         self.video_path = video_path
+
+#     # Use Distilled SAM for object identification
+#     def segment(self, tracked_annotations, video_id):
+#         if not self.video_path:
+#             raise ValueError("video_path must be provided to ObjectIdentifier")
+#         cap = cv2.VideoCapture(self.video_path)
+#         identified_objects = {}
+        
+#         for frame_num, bbox in tracked_annotations.items():
+#             print(f"Processing frame {frame_num+1}...")
+#             ret, frame = cap.read()
+#             if not ret:
+#                 print(f"无法读取第 {frame_num} 帧，视频可能结束")
+#                 break
+
+#             # Use Distilled SAM for object identification
+#             segmenter = MobileSAM(image=frame)
+#             bboxes = segmenter.segment()
+#             identified_objects[frame_num] = bboxes
+
+#             # Update last annotated frame in database
+#             video = Video(video_id)
+#             video.last_annotated_frame = frame_num
+#             video.save_last_annotated_frame()
+
+#         cap.release()
+#         return identified_objects
+    
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     body = request._body.decode() if hasattr(request, "_body") else ""
@@ -1584,7 +2493,7 @@ async def get_users_projects(request: UserRequest):
         userID = request.userID
 
         # Check database connection
-        if not connection or not connection.open:
+        if not is_db_connection_valid():
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={"error": "Database connection not available"}
@@ -1600,9 +2509,9 @@ async def get_users_projects(request: UserRequest):
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
-            status = project.get_project_status()
-            isOwned = (user == project.get_owner())
-            owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
+            project_status = project.get_project_status()
+            isOwned = (user.userID == project.get_owner())
+            owned_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": project_status, "isOwned": isOwned, "project name": name, "project id": project_id, "video count": videoCount})
         
         # Get detailed project information for shared projects
         shared_projects = []
@@ -1610,12 +2519,12 @@ async def get_users_projects(request: UserRequest):
             project = Project(project_id)
             name = project.get_name()
             videoCount = project.get_video_count()
-            status = project.get_project_status()
-            isOwned = (user == project.get_owner())
-            shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": status, "isOwned": isOwned})
-        
+            project_status = project.get_project_status()
+            isOwned = (user.userID == project.get_owner())
+            shared_projects.append({"id": project_id, "name": name, "videoCount": videoCount, "status": project_status, "isOwned": isOwned, "project name": name, "project id": project_id, "video count": videoCount})
+        print(owned_projects)
+        print(shared_projects)
         logger.info(f"Retrieved projects for user {userID}: {len(owned_projects)} owned, {len(shared_projects)} shared")
-        
         
         return {
             "owned projects": owned_projects,
@@ -1689,12 +2598,30 @@ async def create_project(request: CreateProjectRequest):
             }
 
         # Check database connection
-        if not connection or not connection.open:
+        if not is_db_connection_valid():
             logger.error("Database connection not available")
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={"error": "Database connection not available"}
             )
+        
+        # Verify user exists before creating project
+        cursor = get_db_cursor()
+        try:
+            user_check_query = "SELECT user_id FROM user WHERE user_id = %s"
+            cursor.execute(user_check_query, (userID,))
+            user_exists = cursor.fetchone()
+            if not user_exists:
+                logger.error(f"User with ID {userID} does not exist")
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "success": False,
+                        "error": f"User with ID {userID} does not exist. Please register or login first."
+                    }
+                )
+        finally:
+            cursor.close()
 
         # Create project instance and initialize
         logger.info("Initializing project...")
@@ -1720,17 +2647,25 @@ async def create_project(request: CreateProjectRequest):
         )
         
 # Change project name
+class ChangeProjectNameRequest(BaseModel):
+    project_id: int
+    new_name: str
+
 @app.post("/change_project_name")
-async def change_project_name(request: ProjectRequest, new_name: str):
+async def change_project_name(request: ChangeProjectNameRequest):
     try:
         project = Project(project_id = request.project_id)
 
+<<<<<<< HEAD
         success = project.change_project_name(new_name)
+=======
+        success = project.change_project_name(request.new_name)
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         
         if success:
             return {
                 "success": True,
-                "message": f"Project name changed to {new_name}"
+                "message": f"Project name changed to {request.new_name}"
             }
         else:
             return {
@@ -1790,7 +2725,11 @@ async def share_project(request: ShareProjectRequest):
             }
 
         # Check if already shared
+<<<<<<< HEAD
         share_query = "SELECT id FROM project_shares WHERE project_id = %s AND shared_with_user_id = %s"
+=======
+        share_query = "SELECT id FROM project_shared_users WHERE project_id = %s AND user_id = %s"
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         cursor.execute(share_query, (project_id, target_user['user_id']))
         existing_share = cursor.fetchone()
         
@@ -1803,7 +2742,11 @@ async def share_project(request: ShareProjectRequest):
 
         # Create share record
         insert_query = """
+<<<<<<< HEAD
             INSERT INTO project_shares (project_id, shared_with_user_id, permissions, shared_at) 
+=======
+            INSERT INTO project_shared_users (project_id, user_id, permissions, shared_at) 
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
             VALUES (%s, %s, %s, NOW())
         """
         cursor.execute(insert_query, (project_id, target_user['user_id'], permissions))
@@ -1849,7 +2792,11 @@ async def unshare_project(request: UnshareProjectRequest):
             }
 
         # Remove share record
+<<<<<<< HEAD
         delete_query = "DELETE FROM project_shares WHERE project_id = %s AND shared_with_user_id = %s"
+=======
+        delete_query = "DELETE FROM project_shared_users WHERE project_id = %s AND user_id = %s"
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         result = cursor.execute(delete_query, (project_id, target_user['user_id']))
         connection.commit()
         cursor.close()
@@ -1880,6 +2827,7 @@ async def get_project_shares(request: ProjectRequest):
     try:
         project_id = request.project_id
 
+<<<<<<< HEAD
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         # Ask Jimmy (database has a table for project_shares?)
         query = """
@@ -1897,10 +2845,46 @@ async def get_project_shares(request: ProjectRequest):
             "success": True,
             "shares": shares
         }
+=======
+        if not is_db_connection_valid():
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        cursor = get_db_cursor()
+        try:
+            # Query project_shared_users table to get all users the project is shared with
+            query = """
+                SELECT psu.id, psu.permissions, psu.shared_at, u.username, u.user_id
+                FROM project_shared_users psu
+                JOIN user u ON psu.user_id = u.user_id
+                WHERE psu.project_id = %s
+                ORDER BY psu.shared_at DESC
+            """
+            cursor.execute(query, (project_id,))
+            shares = cursor.fetchall()
+            
+            # Convert to list of dicts if needed
+            if shares:
+                shares_list = []
+                for share in shares:
+                    shares_list.append({
+                        "id": share.get('id'),
+                        "username": share.get('username'),
+                        "user_id": share.get('user_id'),
+                        "permissions": share.get('permissions'),
+                        "shared_at": share.get('shared_at').isoformat() if share.get('shared_at') else None
+                    })
+                shares = shares_list
+            
+            return {
+                "success": True,
+                "shares": shares or []
+            }
+        finally:
+            cursor.close()
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
     except Exception as e:
         logger.error(f"Error in get_project_shares: {str(e)}")
-        import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1944,6 +2928,7 @@ async def save_upload_file(upload_file: UploadFile, destination: Path):
 @app.post("/upload")
 async def upload(project_id: int, file: UploadFile = File(...)):
     try:
+<<<<<<< HEAD
         project = Project(project_id=project_id)
         project_dir = Path(project.get_project_path())
 
@@ -1968,12 +2953,36 @@ async def upload(project_id: int, file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Invalid filename")
 
         # 2. Validate content type
+=======
+        # Allowed video MIME types
+        ALLOWED_MIME_TYPES = {
+            "video/mp4",
+            "video/avi",
+            "video/mkv",
+            "video/webm",
+            "video/quicktime",  # .mov
+            "video/x-msvideo",  # .avi
+        }
+        print(0)
+        # Validate filename
+        filename = file.filename
+        if not filename:
+            raise HTTPException(status_code=400, detail="No file name")
+
+        # Prevent path traversal
+        safe_filename = Path(filename).name
+        if safe_filename != filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        # Validate content type
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         content_type = file.content_type
         if content_type not in ALLOWED_MIME_TYPES:
             raise HTTPException(
                 status_code=415,
                 detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_MIME_TYPES)}"
             )
+<<<<<<< HEAD
 
         # 3. Define destination
         file_path = project_dir / safe_filename
@@ -1991,12 +3000,35 @@ async def upload(project_id: int, file: UploadFile = File(...)):
                 file_path.unlink()  # cleanup partial
             raise HTTPException(status_code=500, detail="Upload failed")
         
+=======
+        print(1)
+        # Define destination
+        video = Video(project_id=project_id, initialize=False)
+        print(2)
+        name, ext = os.path.splitext(filename)
+        video_id, video_path = video.initialize(name, ext)
+        
+        # Stream to disk
+        try:
+            size = await save_upload_file(file, video_path)
+            logger.info(f"Successfully uploaded: {video_path} ({size / (1024**3):.2f} GB)")
+        except Exception as e:
+            if video_path.exists():
+                video_path.unlink()  # cleanup partial
+            raise HTTPException(status_code=500, detail="Upload failed")
+
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         return JSONResponse({
             "message": "Upload successful",
             "filename": safe_filename,
             "size_bytes": size,
             "size_gb": round(size / (1024**3), 2),
+<<<<<<< HEAD
             "path": str(file_path)
+=======
+            "path": str(video_path),
+            "video_id": video_id
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         })
 
     except Exception as e:
@@ -2014,7 +3046,7 @@ def get_uploaded_videos(request: ProjectRequest):
         project = Project(project_id = request.project_id)
         videos_info = project.get_uploaded_videos()
         return videos_info
-    
+
     except Exception as e:
         logger.error(f"Get uploaded videos error: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -2022,7 +3054,11 @@ def get_uploaded_videos(request: ProjectRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 # ??? (Why need this?)
 # Get project videos by project ID (RESTful endpoint)
 # Output: ?
@@ -2044,6 +3080,68 @@ def get_project_videos(project_id: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
+
+# Serve video file by video_id
+@app.get("/serve_video/{video_id}")
+async def serve_video(video_id: int, project_id: int = None):
+    """通过 video_id 提供视频文件"""
+    try:
+        # 如果提供了 project_id，使用它；否则需要从数据库查询
+        if project_id is None:
+            # 从数据库查询 project_id
+            if not is_db_connection_valid():
+                raise HTTPException(status_code=503, detail="Database connection not available")
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            query = "SELECT project_id FROM video WHERE video_id = %s"
+            cursor.execute(query, (video_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            if not result:
+                raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+            project_id = result['project_id']
+        
+        # 创建 Video 对象并获取视频路径
+        video = Video(project_id=project_id, video_id=video_id)
+        video_path = video.get_video_path()
+        
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail=f"Video file not found for video_id {video_id}")
+        
+        # 确定媒体类型
+        ext = os.path.splitext(video_path)[-1].lower()
+        media_types = {
+            '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+            '.webm': 'video/webm',
+            '.mkv': 'video/x-matroska'
+        }
+        media_type = media_types.get(ext, "application/octet-stream")
+        
+        # 使用 StreamingResponse 来流式传输大文件
+        def iterfile():
+            with open(video_path, "rb") as f:
+                while True:
+                    chunk = f.read(8192)  # 8KB chunks
+                    if not chunk:
+                        break
+                    yield chunk
+        
+        return StreamingResponse(
+            iterfile(),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"inline; filename={os.path.basename(video_path)}",
+                "Accept-Ranges": "bytes"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Serve video error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error serving video: {str(e)}")
     
 #=================================== Page 4 - Annotation ==========================================
 
@@ -2068,14 +3166,19 @@ async def get_classes(request:ProjectRequest):
         )
 
 # Add new class to a project and return new classes list
-# Output: {"class_name": colour, ...} 
+# Output: {"class_name": colour, ...}
+class AddClassRequest(BaseModel):
+    project_id: int
+    class_name: str
+    colour: str
+
 @app.post("/add_class")
-async def add_class(request: ProjectRequest, class_name: str, colour: str):
+async def add_class(request: AddClassRequest):
     try:
         project = Project(project_id = request.project_id)
         
         # check if class_name already exists for this project
-        class_name_exists = project.check_class_exists(class_name)
+        class_name_exists = project.check_class_exists(request.class_name)
         if class_name_exists:
             return {
                 "success": False,
@@ -2083,7 +3186,7 @@ async def add_class(request: ProjectRequest, class_name: str, colour: str):
                 "classes": project.classes
             }
         
-        project.add_class(class_name, colour)
+        project.add_class(request.class_name, request.colour)
         
         return {
             "success": True,
@@ -2099,13 +3202,18 @@ async def add_class(request: ProjectRequest, class_name: str, colour: str):
 
 # Modify class name of a project and return new classes list
 # Output: {"class_name": colour, ...}
+class ModifyClassRequest(BaseModel):
+    project_id: int
+    original_class_name: str
+    new_class_name: str
+
 @app.post("/modify_class")
-async def modify_class(request: ProjectRequest, original_class_name: str, new_class_name: str):
+async def modify_class(request: ModifyClassRequest):
     try:
         project = Project(project_id = request.project_id)
 
         # check if original_class_name exists for this project
-        class_name_exists = project.check_class_exists(original_class_name)
+        class_name_exists = project.check_class_exists(request.original_class_name)
         if not class_name_exists:
             return {
                 "success": False,
@@ -2114,7 +3222,7 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
             }
         
         # check if new_class_name already exists for this project
-        class_name_exists = project.check_class_exists(new_class_name)
+        class_name_exists = project.check_class_exists(request.new_class_name)
         if class_name_exists:
             return {
                 "success": False,
@@ -2122,7 +3230,7 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
                 "classes": project.classes
             }
         
-        project.modify_class(original_class_name, new_class_name)
+        project.modify_class(request.original_class_name, request.new_class_name)
         
         return {
             "success": True,
@@ -2138,13 +3246,17 @@ async def modify_class(request: ProjectRequest, original_class_name: str, new_cl
     
 # Delete class of a project and return new classes list
 # Output: {"class_name": colour, ...}
+class DeleteClassRequest(BaseModel):
+    project_id: int
+    class_name: str
+
 @app.post("/delete_class")
-async def add_class(request: ProjectRequest, class_name: str):
+async def delete_class(request: DeleteClassRequest):
     try:
         project = Project(project_id = request.project_id)
         
         # check if class_name already exists for this project
-        class_name_exists = project.check_class_exists(class_name)
+        class_name_exists = project.check_class_exists(request.class_name)
         if not class_name_exists:
             return {
                 "success": False,
@@ -2152,7 +3264,7 @@ async def add_class(request: ProjectRequest, class_name: str):
                 "classes": project.classes
             }
         
-        project.delete_class(class_name)
+        project.delete_class(request.class_name)
         
         return {
             "success": True,
@@ -2168,7 +3280,16 @@ async def add_class(request: ProjectRequest, class_name: str):
     
 class VideoRequest(BaseModel):
     project_id: int
-    video_id: int
+    video_id: int  # Can be int or string, will be converted
+    
+    @validator('video_id', pre=True)
+    def convert_video_id(cls, v):
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"video_id must be a valid integer, got: {v}")
+        return int(v)
 
 # Get next frame to annotate
 @app.post("/get_next_frame_to_annotate")
@@ -2177,19 +3298,33 @@ async def get_next_frame_to_annotate(request: VideoRequest):
         video = Video(project_id = request.project_id, video_id = request.video_id)
         next_frame, frame_num = video.get_next_frame_to_annotate()
         
+        # 获取视频总帧数（用于前端显示进度）
+        frame_count = video.get_frame_count()
+        fps = video.get_fps()
+        
+        # 计算需要标注的关键帧总数（每秒钟一帧）
+        # 例如：如果视频有900帧，FPS=30，则总共有 900/30 = 30 个关键帧需要标注
+        total_key_frames = int(frame_count / fps) if fps > 0 else 0
+        
         if next_frame is None:
             return {
                 "success": False,
                 "message": "All frames have been annotated.",
                 "image": None,
-                "frame_num": None
+                "frame_num": None,
+                "total_frames": total_key_frames,
+                "frame_count": frame_count,
+                "fps": fps
             }
         
         return {
                 "success": True,
                 "message": "Next frame fetched successfully.",
                 "image": next_frame,
-                "frame_num": frame_num
+                "frame_num": frame_num,
+                "total_frames": total_key_frames,  # 关键帧总数（每秒钟一帧）
+                "frame_count": frame_count,  # 视频总帧数
+                "fps": fps  # 视频帧率
         }
 
     except Exception as e:
@@ -2205,12 +3340,17 @@ async def get_next_frame_to_annotate(request: VideoRequest):
 async def check_annotation_status(request: VideoRequest):  
     try:
         video = Video(project_id = request.project_id, video_id = request.video_id)
+        # 重新从数据库获取最新状态，确保数据是最新的
+        annotation_status, last_annotated_frame = video.get_annotation_status()
+        logger.info(f"📊 [STATUS] Video {request.video_id} status: {annotation_status}, last_frame: {last_annotated_frame}")
         return {
-            "annotation status": video.annotation_status,
-            "last annotated frame": video.last_annotated_frame
+            "annotation status": annotation_status,
+            "last annotated frame": last_annotated_frame if last_annotated_frame is not None else 0
         }
 
     except Exception as e:
+        logger.error(f"Check annotation status error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
@@ -2220,62 +3360,137 @@ async def check_annotation_status(request: VideoRequest):
 @app.post("/annotate")
 async def annotate(request: AnnotationRequest):
     try:
+        logger.info(f"📝 [ANNOTATE] Saving annotation: project_id={request.project_id}, video_id={request.video_id}, frame_num={request.frame_num}, bbox_count={len(request.bboxes)}")
         video = Video(project_id = request.project_id, video_id = request.video_id)
-        for bbox in request.bboxes:
-            success = video.annotate(request.frame_num, bbox)
         
-        if success:
+        # 获取视频信息，用于判断是否完成
+        frame_count = video.get_frame_count()
+        fps = video.get_fps()
+        total_key_frames = int(frame_count / fps) if fps > 0 else 0
+        
+        all_success = True
+        for bbox in request.bboxes:
+            # bbox should be a dict with class_name, x, y, width, height
+            if isinstance(bbox, dict):
+                bbox_list = [bbox.get('class_name', ''), bbox.get('x', 0), bbox.get('y', 0), bbox.get('width', 0), bbox.get('height', 0)]
+            else:
+                # If it's already a list, use it directly
+                bbox_list = bbox
+            
+            success = video.annotate(request.frame_num, bbox_list)
+            if not success:
+                all_success = False
+                logger.warning(f"⚠️ [ANNOTATE] Failed to save bbox: {bbox}")
+        
+        if all_success:
+            # 检查是否已完成所有关键帧的标注
+            # 计算当前帧对应的关键帧索引
+            current_key_frame = int(request.frame_num / fps) + 1 if fps > 0 else 0
+            
+            # 重新获取最新的状态（因为 annotate 方法已经更新了 last_annotated_frame）
+            video.annotation_status, video.last_annotated_frame = video.get_annotation_status()
+            
+            # 如果当前关键帧是最后一个，或者下一帧会超出范围，标记为完成
+            next_frame = video.last_annotated_frame + fps
+            if next_frame >= frame_count or current_key_frame >= total_key_frames:
+                video.annotation_status = "manual annotation completed"
+                video.save_annotation_status()
+                logger.info(f"🎉 [ANNOTATE] Video annotation completed! (frame {request.frame_num}, key frame {current_key_frame}/{total_key_frames})")
+            
+            logger.info(f"✅ [ANNOTATE] All annotations saved successfully for frame {request.frame_num} (last_annotated_frame: {video.last_annotated_frame}, status: {video.annotation_status})")
             return {
                 "success": True,
-                "message": "Annotation saved."
+                "message": "Annotation saved.",
+                "savedAt": getClientTimestamp(),
+                "annotation_status": video.annotation_status,
+                "last_annotated_frame": video.last_annotated_frame,
+                "is_completed": video.annotation_status == "manual annotation completed"
             }
         else:
+            logger.warning(f"⚠️ [ANNOTATE] Some annotations failed to save for frame {request.frame_num}")
             return {
-                    "success": False,
-                    "message": success
+                "success": False,
+                "message": "Some annotations failed to save."
             }
 
     except Exception as e:
+        logger.error(f"❌ [ANNOTATE] Error saving annotation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
 
-# ? No need now?
 # Get next video to annotate
+class NextVideoRequest(BaseModel):
+    project_id: int
+    current_video_id: str  # Can be int or string, will be converted
+    
+    @validator('current_video_id', pre=True)
+    def convert_current_video_id(cls, v):
+        if isinstance(v, (int, float)):
+            return str(int(v))
+        return str(v)
+
 @app.post("/next_video")
-async def next_video(request: ProjectRequest, current_video_id: str):
+async def next_video(request: NextVideoRequest):
     try:
-        project = Project(project_id = request.project_id)
-        if current_video_id not in project.videos:
+        project = Project(project_id=request.project_id)
+        video_ids = project.get_videos()  # Returns list of int video_ids
+        
+        if not video_ids:
             return {
                 "success": False,
-                "message": "Current video not found in project.",
+                "message": "No videos found in project.",
                 "next_video_id": None
             }
         
-        current_index = project.videos.index(current_video_id)
-        if current_index + 1 < len(project.videos):
-            next_video_id = project.videos[current_index + 1]
+        # Convert current_video_id to int for comparison
+        try:
+            current_video_id_int = int(request.current_video_id)
+        except (ValueError, TypeError):
+            # If current_video_id is invalid, return first video
+            return {
+                "success": True,
+                "message": "Invalid current video ID. Returning first video.",
+                "next_video_id": str(video_ids[0])
+            }
+        
+        # Find current video index
+        if current_video_id_int not in video_ids:
+            # Current video not found, return first video
+            return {
+                "success": True,
+                "message": "Current video not found in project. Returning first video.",
+                "next_video_id": str(video_ids[0])
+            }
+        
+        current_index = video_ids.index(current_video_id_int)
+        
+        # Get next video
+        if current_index + 1 < len(video_ids):
+            next_video_id = video_ids[current_index + 1]
             return {
                 "success": True,
                 "message": "Next video fetched successfully.",
-                "next_video_id": next_video_id
+                "next_video_id": str(next_video_id)
             }
         else:
-            next_video_id = project.videos[0]
+            # Reached end, no more videos
             return {
-                "success": True,
-                "message": "Reached end of video list. Looping back to first video.",
-                "next_video_id": next_video_id
+                "success": False,
+                "message": "No more videos available. This is the last video.",
+                "next_video_id": None
             }
 
     except Exception as e:
+        logger.error(f"Next video error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": str(e)}
         )
-    
+
 #=================================== Page 5 - Model Training ==========================================
 
 # Create dataset for training
@@ -2289,36 +3504,141 @@ async def create_dataset(request: ProjectRequest, background_tasks: BackgroundTa
 
 async def _create_dataset(project_id: int):
     try:
+        logger.info(f"🚀 [DATASET] Starting dataset creation for project {project_id}")
         project = Project(project_id = project_id)
-
         # 检查所有视频是否都已完成标注
-        for video_id in project.videos:
+        videos = project.get_videos()
+        logger.info(f"📹 [DATASET] Found {len(videos)} video(s) in project {project_id}")
+        
+        if not videos:
+            error_msg = "No videos found in project. Please upload videos first."
+            logger.error(f"❌ [DATASET] {error_msg}")
+            return {
+                "success": False,
+                "message": error_msg
+            }
+        for video_id in videos:
             video = Video(project_id = project_id, video_id = video_id)
-            if video.annotation_status not in ["completed", "manual annotation completed"]:
+            # 重新从数据库获取最新状态
+            annotation_status, last_annotated_frame = video.get_annotation_status()
+            video.annotation_status = annotation_status
+            video.last_annotated_frame = last_annotated_frame
+            
+            logger.info(f"🔍 [DATASET] Checking video {video_id}, status: {annotation_status}, last_frame: {last_annotated_frame}")
+            # 如果状态是 "manual annotation in progress"，检查是否真的完成了
+            if annotation_status == "manual annotation in progress":
+                # 检查是否所有关键帧都已标注
+                try:
+                    frame_count = video.get_frame_count()
+                    fps = video.get_fps()
+                    total_key_frames = int(frame_count / fps) if fps > 0 else 0
+                    
+                    # 计算最后一帧对应的关键帧索引（从1开始）
+                    if last_annotated_frame is not None and last_annotated_frame >= 0:
+                        # 关键帧索引 = floor(帧号 / fps) + 1
+                        # 例如：帧0对应关键帧1，帧30对应关键帧2，帧420对应关键帧15（420/30+1=15）
+                        last_key_frame = int(last_annotated_frame / fps) + 1 if fps > 0 else 0
+                        next_frame = last_annotated_frame + fps
+                        
+                        logger.info(f"🔍 [DATASET] Video {video_id} completion check: last_frame={last_annotated_frame}, frame_count={frame_count}, fps={fps}, last_key_frame={last_key_frame}, total_key_frames={total_key_frames}, next_frame={next_frame}")
+                        
+                        # 判断是否完成：
+                        # 1. 下一帧超出总帧数，或者
+                        # 2. 最后一个关键帧已经达到或超过总关键帧数（允许1帧的误差，因为可能最后一个关键帧在最后一秒）
+                        if next_frame >= frame_count or last_key_frame >= total_key_frames:
+                            logger.info(f"✅ [DATASET] Video {video_id} appears to be completed (last_frame: {last_annotated_frame}, last_key_frame: {last_key_frame}/{total_key_frames}), updating status...")
+                            video.annotation_status = "manual annotation completed"
+                            video.save_annotation_status()
+                            annotation_status = "manual annotation completed"
+                        else:
+                            # 如果还有关键帧未标注，但差距很小（只差1个关键帧），也认为已完成
+                            remaining_key_frames = total_key_frames - last_key_frame
+                            if remaining_key_frames <= 1:
+                                logger.info(f"✅ [DATASET] Video {video_id} is almost completed (last_key_frame: {last_key_frame}/{total_key_frames}, remaining: {remaining_key_frames}), updating status...")
+                                video.annotation_status = "manual annotation completed"
+                                video.save_annotation_status()
+                                annotation_status = "manual annotation completed"
+                            else:
+                                error_msg = f"Video {video_id} is not completed. Last annotated frame: {last_annotated_frame} (key frame {last_key_frame}/{total_key_frames}), total frames: {frame_count}, fps: {fps}. Please complete annotation first."
+                                logger.error(f"❌ [DATASET] {error_msg}")
+                                
+                                return {
+                                    "success": False,
+                                    "message": error_msg
+                                }
+                    else:
+                        error_msg = f"Video {video_id} has invalid last_annotated_frame: {last_annotated_frame}. Please complete annotation first."
+                        logger.error(f"❌ [DATASET] {error_msg}")
+                        
+                        return {
+                            "success": False,
+                            "message": error_msg
+                        }
+                    
+                except Exception as e:
+                    logger.error(f"❌ [DATASET] Error checking video {video_id} completion: {e}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    error_msg = f"Error checking video {video_id} completion: {str(e)}"
+                    return {
+                        "success": False,
+                        "message": error_msg
+                    }
+            
+            if annotation_status not in ["completed", "manual annotation completed"]:
+                error_msg = f"Video {video_id} is not completed. Current status: {annotation_status}. Please complete annotation first."
+                logger.error(f"❌ [DATASET] {error_msg}")
                 return {
                     "success": False,
-                    "message": f"Video {video_id} is not completed. Current status: {video.annotation_status}. Please complete annotation first.",
+                    "message": error_msg
                 }
+            
+            # 如果视频已完成手动标注，但还没有执行自动标注，先执行 smart annotation
+            # 如果状态是 "completed"，说明已经执行过 smart annotation，跳过
+            if annotation_status == "manual annotation completed":
+                # 检查是否有手动标注的数据
+                bbox_data = video.get_bbox_data()
+                if bbox_data and len(bbox_data) > 0:
+                    logger.info(f"🤖 [DATASET] Video {video_id} has {len(bbox_data)} manual annotations, starting smart annotation to auto-annotate other frames...")
+                    try:
+                        # 执行智能标注：基于手动标注的帧，自动标注其他帧
+                        video.auto_annotate()
+                        logger.info(f"✅ [DATASET] Smart annotation completed for video {video_id}. All frames have been annotated.")
+                    except Exception as e:
+                        logger.error(f"❌ [DATASET] Error during smart annotation for video {video_id}: {e}")
+                        logger.error(f"Traceback: {traceback.format_exc()}")
+                        # 即使自动标注失败，也继续创建数据集（使用已有的手动标注）
+                        logger.warning(f"⚠️ [DATASET] Continuing dataset creation with manual annotations only for video {video_id}")
+                else:
+                    logger.warning(f"⚠️ [DATASET] Video {video_id} has no manual annotations, skipping smart annotation")
+            elif annotation_status == "completed":
+                logger.info(f"✅ [DATASET] Video {video_id} already has smart annotation completed, skipping auto-annotation step")
 
         # 所有视频都已完成标注，创建数据集
+        logger.info(f"✅ [DATASET] All videos completed, starting dataset creation...")
         success = project.create_dataset()
         
         if success:
+            logger.info(f"🎉 [DATASET] Dataset created successfully for project {project_id}")
             return {
                 "success": True,
                 "message": "Dataset created successfully."
             }
         else:
+            error_msg = "Failed to create dataset."
+            logger.error(f"❌ [DATASET] {error_msg}")
             return {
                 "success": False,
-                "message": "Failed to create dataset."
+                "message": error_msg
             }
 
     except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
-        )
+        error_msg = f"Error creating dataset: {str(e)}"
+        logger.error(f"❌ [DATASET] {error_msg}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {
+            "success": False,
+            "message": error_msg
+        }
 
 # Get auto annotation progress of a project
 @app.post("/get_auto_annotation_progress")
@@ -2335,9 +3655,52 @@ async def get_auto_annotation_progress(request: ProjectRequest):
         }
 
     except Exception as e:
+        logger.error(f"Get auto annotation progress error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
+            content={"error": str(e), "progress": 0.0}
+        )
+
+# Trigger smart annotation for a video
+@app.post("/auto_annotate")
+async def auto_annotate(request: VideoRequest, background_tasks: BackgroundTasks):
+    """
+    触发智能标注：基于用户手动标注的帧，自动标注视频中的其他帧
+    这个功能会在后台运行，因为可能需要一些时间
+    """
+    try:
+        logger.info(f"🚀 [SMART-ANNOTATE] Starting smart annotation for video {request.video_id} in project {request.project_id}")
+        video = Video(project_id=request.project_id, video_id=request.video_id)
+        
+        # 检查是否有手动标注的数据
+        bbox_data = video.get_bbox_data()
+        if not bbox_data or len(bbox_data) == 0:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "success": False,
+                    "error": "No manual annotations found. Please annotate at least one frame before using smart annotation."
+                }
+            )
+        
+        logger.info(f"📝 [SMART-ANNOTATE] Found {len(bbox_data)} manual annotations, starting auto-annotation...")
+        
+        # 在后台任务中执行自动标注
+        background_tasks.add_task(video.auto_annotate)
+        
+        return {
+            "success": True,
+            "message": "Smart annotation started in the background. Please check the annotation status to see progress.",
+            "manual_annotations_count": len(bbox_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ [SMART-ANNOTATE] Error starting smart annotation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "error": str(e)}
         )
 
 # Train model for a project
@@ -2397,7 +3760,8 @@ async def get_training_progress(request: ProjectRequest):
 async def get_model_performance(request: ProjectRequest):
     try:
         project = Project(project_id = request.project_id)
-
+        logger.info(f"Getting model performance for project {request.project_id}")
+        
         # Get model performance
         performance = project.get_model_performance()
 
@@ -2407,9 +3771,11 @@ async def get_model_performance(request: ProjectRequest):
         }
 
     except Exception as e:
+        logger.error(f"Error getting model performance: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": str(e)}
+            content={"error": str(e), "traceback": traceback.format_exc()}
         )
 
 @app.post("/get_model")
@@ -2417,6 +3783,7 @@ async def get_model(request: ProjectRequest):
     try:
         project_id = request.project_id
         project = Project(project_id)
+<<<<<<< HEAD
         
         # Define model path based on project ID
         model_path = Path(project.get_model_path())
@@ -2424,6 +3791,15 @@ async def get_model(request: ProjectRequest):
         if not model_path.is_file():
             raise RuntimeError(f"Model file not found: {model_path}")
 
+=======
+
+        # Define model path based on project ID
+        model_path = project.get_model_path()
+
+        if not model_path.exists():
+            raise RuntimeError(f"Model file not found: {model_path}")
+
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         # stream the file in chunks
         def file_iterator(file_path: Path, chunk_size: int = 8192):
             """Yield file chunks – perfect for large models."""
@@ -2433,7 +3809,11 @@ async def get_model(request: ProjectRequest):
                     if not chunk:
                         break
                     yield chunk
+<<<<<<< HEAD
 
+=======
+        print(1)
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         # Build safe headers
         file_name = model_path.name  # "best.pt"
         file_size = model_path.stat().st_size
@@ -2444,6 +3824,12 @@ async def get_model(request: ProjectRequest):
             # Optional: allow resumable downloads
             "Accept-Ranges": "bytes",
         }
+        print(2)
+        return StreamingResponse(
+            file_iterator(model_path),
+            media_type="application/octet-stream",
+            headers=headers,
+        )
 
         return StreamingResponse(
             file_iterator(model_path),

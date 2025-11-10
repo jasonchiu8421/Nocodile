@@ -1,6 +1,8 @@
 // API service for connecting frontend to backend
 import { log, logger } from './logger';
 
+
+
 // Utility function to validate and fix image data
 function validateAndFixImageData(imageData: string): string {
   if (!imageData || typeof imageData !== 'string') {
@@ -144,6 +146,12 @@ export interface VideoRequest {
   project_id: string;
   video_id: string;
 }
+export type uploadedVid = {
+  name: string;
+  video_id: number;
+  url: string;
+  video_path?: string;
+};
 
 export interface AnnotationRequest {
   project_id: string;
@@ -209,75 +217,36 @@ export class ApiService {
     }
   }
 
-  // Upload video file
-  static async uploadVideo(projectId: string, file: File): Promise<{
-    success: boolean;
-    message: string;
-    video_id: string;
-    video_path: string;
-    file_size: number;
-    project_id: string;
-  }> {
-    const startTime = Date.now();
-    const endpoint = '/upload';
-    
-    try {
-      log.apiCall(endpoint, 'POST', { projectId, fileName: file.name, fileSize: file.size });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      
-      // Create URL with project_id as query parameter
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      
-      // Create FormData for file upload (only file, not project_id)
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        body: formData, // Don't set Content-Type header, let browser set it with boundary
-      });
+// 正確的 Fallback 方法（取代現有的兩個錯誤版本）
+private static getFallbackModelPath() {
+  return {
+    success: false,
+    "model path": {
+      onnx_path: undefined,
+      pytorch_path: undefined,
+      config_path: undefined,
+      weights_path: undefined
+    },
+    error: "後端無法取得模型路徑",
+    fallback: true
+  };
+}
 
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
-        throw new Error(`Upload failed: HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, { 
-        videoId: data.video_id,
-        fileSize: data.file_size 
-      });
-      
-      return {
-        success: true,
-        message: data.message || 'Upload successful',
-        video_id: data.video_id,
-        video_path: data.video_path,
-        file_size: data.file_size,
-        project_id: data.project_id
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
-      log.error('API', 'Error uploading video', { 
-        projectId,
-        fileName: file.name,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      throw error;
-    }
-  }
-
-  // Fallback videos when API fails
-  private static getFallbackVideos(): any[] {
-    return [];
-  }
-
+private static getFallbackModelPerformance() {
+  return {
+    success: false,                    // 讓 UI 知道是假資料
+    "model performance": {              // ← 這裡是關鍵！不是 "model path"
+      mAP: 0,                          // 設為 0 而不是假高分，讓使用者知道有問題
+      precision: 0,
+      recall: 0,
+      f1_score: 0,
+      accuracy: 0,
+      status: "後端不可用 (fallback mode)"    // 明確標示
+    },
+    error: "後端無法取得模型性能數據",
+    fallback: true
+  };
+}
   // Get all projects for a user
   static async getProjectsInfo(userId: number): Promise<ProjectInfo[]> {
     const startTime = Date.now();
@@ -295,7 +264,7 @@ export class ApiService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userID: userId.toString() }),
+        body: JSON.stringify({ userID: userId }),
       });
 
       const duration = Date.now() - startTime;
@@ -453,8 +422,126 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       error: error instanceof Error ? error.message : String(error)
     });
     throw error; // 讓上層能 catch
+<<<<<<< HEAD
   }
 }
+=======
+  }
+}
+  // ========== Upload API Methods ==========
+static async uploadVideo(project_id: string, file: File): Promise<any> {
+    const baseUrl = await this.findWorkingBackendUrl();
+    const url = `${baseUrl}/upload?project_id=${project_id}`;
+    const formData = new FormData();
+    formData.append("file", file);
+
+   log.info('API', '開始上傳影片', {
+    project_id,
+    fileName: file.name,
+    fileSize: file.size,
+    url,
+    method: 'POST',
+    timestamp: new Date().toISOString(),
+  });
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Upload failed" }));
+      log.error('API', '上傳失敗', { status: response.status, error });
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    log.info('API', '上傳成功', {
+      filename: data.filename,
+      path: data.path,
+      size_bytes: data.size_bytes
+    });
+    return data;
+  }
+
+  // === 2. 取得專案影片（推薦 GET）===
+  static async getProjectVideos(project_id: number): Promise<uploadedVid[]> {
+    const baseUrl = await this.findWorkingBackendUrl();
+    const url = `${baseUrl}/get_project_videos/${project_id}`;
+
+    log.info('API', '查詢專案影片', { project_id });
+
+    const response = await fetch(url, { method: "GET" });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Failed to load" }));
+      log.error('API', '查詢失敗', { status: response.status, error });
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    const videos: uploadedVid[] = (result.videos || []).map((v: any) => {
+      // 从 get_video_info() 返回的数据结构中提取 video_id
+      // 结构是: {name, file, path, url}，其中 file 是 video_id
+      const videoId = v.file || v.video_id || v.id;
+      if (!videoId) {
+        log.warn('API', 'Video missing ID', { video: v });
+        throw new Error(`Video missing ID: ${JSON.stringify(v)}`);
+      }
+      return {
+        name: v.name,
+        video_id: typeof videoId === 'number' ? videoId : parseInt(videoId.toString()),
+        url: v.url ? `${baseUrl}${v.url}` : `${baseUrl}/serve_video/${videoId}`, // 使用后端返回的 url，如果没有则使用默认端点
+        video_path: v.path,
+      };
+    });
+
+    log.info('API', '查詢成功', { count: videos.length });
+    return videos;
+  }
+
+  // === 3. （備用）用 POST 查詢 ===
+  static async getUploadedVidsAsync(project_id: number): Promise<uploadedVid[]> {
+    const baseUrl = await this.findWorkingBackendUrl();
+    const response = await fetch(`${baseUrl}/get_uploaded_videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id }),
+    });
+
+    if (!response.ok) throw new Error("Failed to load videos");
+    const videos = await response.json();
+    return (videos || []).map((v: any) => {
+      // 从 get_video_info() 返回的数据结构中提取 video_id
+      // 结构是: {name, file, path, url}，其中 file 是 video_id
+      const videoId = v.file || v.video_id || v.id;
+      if (!videoId) {
+        log.warn('API', 'Video missing ID in getUploadedVidsAsync', { video: v });
+        throw new Error(`Video missing ID: ${JSON.stringify(v)}`);
+      }
+      return {
+        name: v.name,
+        video_id: typeof videoId === 'number' ? videoId : parseInt(videoId.toString()),
+        url: v.url ? `${baseUrl}${v.url}` : `${baseUrl}/serve_video/${videoId}`, // 使用后端返回的 url，如果没有则使用默认端点
+        video_path: v.path,
+      };
+    });
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
   // ========== Annotation API Methods ==========
 
   // Get classes for a project
@@ -514,33 +601,31 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   static async addClass(projectId: string, className: string, color: string) {
     const startTime = Date.now();
     const endpoint = '/add_class';
+    let fullUrl = '';
     
     try {
       log.apiCall(endpoint, 'POST', { projectId, className, color });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數 - 注意後端期望 'colour' 而不是 'color'
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('class_name', className);
-      url.searchParams.append('colour', color); // 後端期望 'colour' 參數
+      fullUrl = `${workingUrl}${endpoint}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
+          project_id: parseInt(projectId),
+          class_name: className,
+          colour: color, // 後端期望 'colour' 參數
         }),
       });
 
       const duration = Date.now() - startTime;
 
       if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
+        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
         
         // 嘗試解析錯誤響應
         try {
@@ -561,12 +646,12 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
-      
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
+      console.log(data.message);
+      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
       return data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
+      log.apiError(fullUrl, 'POST', error, duration);
       log.error('API', 'Error adding class', { 
         projectId,
         className,
@@ -592,42 +677,40 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   static async modifyClass(projectId: string, originalName: string, newName: string) {
     const startTime = Date.now();
     const endpoint = '/modify_class';
+    let fullUrl = '';
     
     try {
       log.apiCall(endpoint, 'POST', { projectId, originalName, newName });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數 - 注意後端期望的參數名稱
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('original_class_name', originalName);
-      url.searchParams.append('new_class_name', newName);
+      fullUrl = `${workingUrl}${endpoint}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
+          project_id: parseInt(projectId),
+          original_class_name: originalName,
+          new_class_name: newName,
         }),
       });
 
       const duration = Date.now() - startTime;
 
       if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
+        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
+      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
       return data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
+      log.apiError(fullUrl, 'POST', error, duration);
       log.error('API', 'Error modifying class, using fallback response', { 
         projectId,
         originalName,
@@ -648,25 +731,22 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   static async deleteClass(projectId: string, className: string) {
     const startTime = Date.now();
     const endpoint = '/delete_class';
+    let fullUrl = '';
     
     try {
       log.apiCall(endpoint, 'POST', { projectId, className });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
-      
-      // 使用查詢參數
-      const url = new URL(`${workingUrl}${endpoint}`);
-      url.searchParams.append('project_id', projectId);
-      url.searchParams.append('class_name', className);
+      fullUrl = `${workingUrl}${endpoint}`;
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
+          project_id: parseInt(projectId),
           class_name: className,
         }),
       });
@@ -674,7 +754,7 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       const duration = Date.now() - startTime;
 
       if (!response.ok) {
-        log.apiError(url.toString(), 'POST', new Error(`HTTP ${response.status}`), duration);
+        log.apiError(fullUrl, 'POST', new Error(`HTTP ${response.status}`), duration);
         
         // 嘗試解析錯誤響應
         try {
@@ -695,12 +775,12 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
-      
-      log.apiSuccess(url.toString(), 'POST', response.status, duration, data);
+      console.log(data.message);
+      log.apiSuccess(fullUrl, 'POST', response.status, duration, data);
       return data;
     } catch (error) {
       const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'POST', error, duration);
+      log.apiError(fullUrl, 'POST', error, duration);
       log.error('API', 'Error deleting class', { 
         projectId,
         className,
@@ -732,19 +812,24 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       const cleanProjectId = projectId.toString().replace(/\D/g, '');
       
       // 直接使用傳入的視頻 ID（應該是資料庫中的唯一 ID）
-      const cleanVideoId = videoId.toString();
+      const cleanVideoId = videoId.toString().replace(/\D/g, '');
       
       if (!cleanProjectId || !cleanVideoId || cleanVideoId === "undefined" || cleanVideoId === "") {
         throw new Error(`Invalid parameters: projectId=${projectId}, videoId=${videoId}`);
       }
       
       const projectIdInt = parseInt(cleanProjectId);
+      const videoIdInt = parseInt(cleanVideoId);
       
       if (isNaN(projectIdInt)) {
         throw new Error(`Invalid project ID: ${projectIdInt}`);
       }
       
-      log.apiCall(endpoint, 'POST', { projectId: projectIdInt, videoId: cleanVideoId, currentFrame });
+      if (isNaN(videoIdInt) || videoIdInt <= 0) {
+        throw new Error(`Invalid video ID: ${videoIdInt}`);
+      }
+      
+      log.apiCall(endpoint, 'POST', { projectId: projectIdInt, videoId: videoIdInt, currentFrame });
       
       // Find a working backend URL
       const workingUrl = await findWorkingBackendUrl();
@@ -757,7 +842,7 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
         },
         body: JSON.stringify({
           project_id: projectIdInt,
-          video_id: cleanVideoId,  // 保持為字符串
+          video_id: videoIdInt,  // 發送為整數，validator 會處理字符串轉換
         }),
       });
 
@@ -801,7 +886,7 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       }
 
       const data = await response.json();
-      
+      console.log(data.message);
       // 驗證響應數據結構
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
@@ -1043,6 +1128,9 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
     success: boolean;
     message: string;
     savedAt?: string;
+    annotation_status?: string;
+    last_annotated_frame?: number;
+    is_completed?: boolean;
   }> {
     const startTime = Date.now();
     const endpoint = '/annotate';
@@ -1137,7 +1225,10 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       return {
         success: data.success || true,
         message: data.message || 'Annotation saved successfully',
-        savedAt: new Date().toISOString()
+        savedAt: data.savedAt || new Date().toISOString(),
+        annotation_status: data.annotation_status,
+        last_annotated_frame: data.last_annotated_frame,
+        is_completed: data.is_completed || false
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -1163,7 +1254,10 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
       return {
         success: true,
         message: `Annotation saved successfully (frontend fallback). ${annotationData.bboxes.length} bounding boxes processed.`,
-        savedAt: new Date().toISOString()
+        savedAt: new Date().toISOString(),
+        annotation_status: undefined,
+        last_annotated_frame: undefined,
+        is_completed: false
       };
     }
   }
@@ -1239,7 +1333,11 @@ static async changeProjectName(projectId: number, newName: string): Promise<any>
   // ========== Training API Methods ==========
 // ========== Training API Methods (修正版) ==========
 
+<<<<<<< HEAD
 static async createDataset(projectId: string) {
+=======
+static async createDataset(projectId: number) {
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
   const response = await this.makeApiCall(
     '/create_dataset',
     'POST',
@@ -1368,64 +1466,63 @@ static async getTrainingProgress(projectId: string) {
   }
 
   // Get model file paths
-  static async getModelPath(projectId: string): Promise<{
-    success: boolean;
-    "model path": {
-      onnx_path?: string;
-      pytorch_path?: string;
-      config_path?: string;
-      weights_path?: string;
-    };
-  }> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/get_model_path`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-      });
+static async getModelPath(projectId: string): Promise<{
+  success: boolean;
+  "model path": {
+    onnx_path?: string;
+    pytorch_path?: string;
+    config_path?: string;
+    weights_path?: string;
+  };
+  downloadedFile?: Blob;           // 新增：下載的檔案
+  fileName?: string;               // 新增：檔案名稱
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/get_model`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ project_id: projectId }),
+    });
 
-      if (!response.ok) {
-        console.warn(`API returned ${response.status}, using fallback data`);
-        return this.getFallbackModelPath();
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching model path:', error);
+    // 步驟1：先檢查 HTTP status
+    // 原因：StreamingResponse 若檔案不存在會回 500，必須先判斷
+    if (!response.ok) {
+      console.warn(`API returned ${response.status}, using fallback data`);
       return this.getFallbackModelPath();
     }
-  }
 
-  // Fallback model performance data when API fails
-  private static getFallbackModelPerformance() {
-    return {
-      success: true,
-      "model performance": {
-        mAP: 0.92,
-        precision: 0.94,
-        recall: 0.89,
-        f1_score: 0.91,
-        accuracy: 0.88,
-        status: "Fallback data (backend unavailable)"
-      }
-    };
-  }
+    // 步驟2：從 headers 取得檔案名稱與大小（可選）
+    // 原因：後端有提供 Content-Disposition，讓我們知道檔名
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let fileName = 'best.pt';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match) fileName = match[1];
+    }
 
-  // Fallback model path data when API fails
-  private static getFallbackModelPath() {
+    // 步驟3：使用 response.blob() 取得二進位檔案
+    // 原因：這是檔案流，不能用 .json()，必須轉成 Blob 才能後續載入模型
+    const blob = await response.blob();
+
+    // 步驟4：回傳成功 + Blob（供後續 new URL.createObjectURL 使用）
+    // 原因：前端若要用 ort.InferenceSession 載入 ONNX / PT，就需要 Blob URL
     return {
       success: true,
       "model path": {
-        onnx_path: "/models/project_1/model.onnx",
-        pytorch_path: "/models/project_1/model.pth",
-        config_path: "/models/project_1/config.json",
-        weights_path: "/models/project_1/weights.pt"
-      }
+        // 這裡保留舊格式給舊程式相容，也可直接留空
+        pytorch_path: URL.createObjectURL(blob),   // 直接給 Blob URL
+      },
+      downloadedFile: blob,
+      fileName,
     };
+
+  } catch (error) {
+    console.error('Error downloading model:', error);
+    return this.getFallbackModelPath();
   }
+}
 
   // ========== Debug API Methods ==========
 
@@ -1652,11 +1749,12 @@ static async getTrainingProgress(projectId: string) {
     success: boolean;
     downloadUrl?: string;
     error?: string;
+    suggestedFileName?: string;
   }> {
     try {
       // First get the model paths
       const pathData = await this.getModelPath(projectId);
-      
+      const originalFileName = pathData.fileName
       if (!pathData.success) {
         return {
           success: false,
@@ -1682,7 +1780,8 @@ static async getTrainingProgress(projectId: string) {
 
       return {
         success: true,
-        downloadUrl: downloadPath
+        downloadUrl: downloadPath,
+        suggestedFileName: originalFileName
       };
     } catch (error) {
       console.error('Error downloading model file:', error);
@@ -1749,68 +1848,6 @@ static async getTrainingProgress(projectId: string) {
         message: 'Backend connection test failed',
         timestamp: new Date().toISOString()
       };
-    }
-  }
-
-  // Get uploaded videos for a project
-  static async getUploadedVideos(projectId: string): Promise<any[]> {
-    const startTime = Date.now();
-    const endpoint = `/get_project_videos/${projectId}`;
-    
-    try {
-      // 驗證和清理輸入參數
-      const cleanProjectId = projectId.toString().replace(/\D/g, '');
-      
-      if (!cleanProjectId || cleanProjectId === "undefined" || cleanProjectId === "") {
-        throw new Error(`Invalid project ID: ${projectId}`);
-      }
-      
-      const projectIdInt = parseInt(cleanProjectId);
-      
-      if (isNaN(projectIdInt)) {
-        throw new Error(`Invalid project ID: ${projectIdInt}`);
-      }
-      
-      log.apiCall(endpoint, 'GET', { projectId: projectIdInt });
-      
-      // Find a working backend URL
-      const workingUrl = await findWorkingBackendUrl();
-      const fullUrl = `${workingUrl}${endpoint}`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        log.error('API', `Server error (${response.status}) - possible causes: project not found, database issues`);
-        const errorText = await response.text();
-        log.error('API', `Server error details: ${errorText}`);
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      log.apiSuccess(endpoint, 'GET', response.status, duration);
-      
-      // 返回視頻列表，確保格式正確
-      if (data && data.success && Array.isArray(data.videos)) {
-        return data.videos;
-      } else {
-        log.warn('API', 'API returned unexpected format, using fallback');
-        return [];
-      }
-      
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      log.apiError(endpoint, 'GET', error, duration);
-      
-      // 返回空數組作為fallback
-      log.warn('API', 'Using fallback data for videos');
-      return [];
     }
   }
 

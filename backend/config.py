@@ -14,8 +14,8 @@ class DatabaseConfig:
         self.host = os.getenv('MYSQL_HOST', 'localhost')
         self.port = int(os.getenv('MYSQL_PORT', '3306'))
         self.user = os.getenv('MYSQL_USER', 'root')
-        self.password = os.getenv('MYSQL_PASSWORD', 'rootpassword')
-        self.database = os.getenv('MYSQL_DATABASE', 'object_detection')
+        self.password = os.getenv('MYSQL_PASSWORD', '12345678')
+        self.database = os.getenv('MYSQL_DATABASE', 'Nocodile')
         self.charset = 'utf8mb4'
         self.autocommit = True
     

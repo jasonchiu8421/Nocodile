@@ -116,6 +116,10 @@ export default function Dashboard() {
   const [username, setUsername] = useState<string>("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+<<<<<<< HEAD
+=======
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // 用于触发 UserProjectsManager 刷新
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
   const { projects: contextProjects, updateProject, isLoading: contextLoading, error: contextError } = useProjectContext();
   const lastLoadTimeRef = useRef<number>(0); // 記錄上次成功載入時間
   const isLoadingRef = useRef(false); // 防止重複 loading
@@ -137,7 +141,11 @@ export default function Dashboard() {
     };
     getUserInfo();
   }, []);
+<<<<<<< HEAD
   const now = Date.now(); // 加上這行！
+=======
+  
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
   // === 完整節流載入函數 ===
   const loadProjectsWithThrottle = useCallback(async () => {
     // 步驟1：防止重複 loading
@@ -167,7 +175,11 @@ export default function Dashboard() {
       });
 
     setProjects(apiProjects);
+<<<<<<< HEAD
     lastLoadTimeRef.current = now;
+=======
+    lastLoadTimeRef.current = Date.now();
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     setLastUpdateTime(new Date());
 
   } catch (error) {
@@ -267,6 +279,10 @@ const resetLoading = useCallback(() => {
                 window.location.href = `/project/${projectId}/upload`;
               }}
               onCreateProject={() => setIsNewProjectFormOpen(true)}
+<<<<<<< HEAD
+=======
+              refreshTrigger={refreshTrigger}
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
             />
           </section>
         )}
@@ -279,10 +295,23 @@ const resetLoading = useCallback(() => {
         onClose={() => setIsNewProjectFormOpen(false)}
         userId={userId}
         onProjectCreated={(newProject) => {
+<<<<<<< HEAD
+=======
+          // 更新本地状态
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
           setProjects((prev) => [
             { ...newProject, status: (newProject as any).status ?? "Not started" },
             ...prev,
           ]);
+<<<<<<< HEAD
+=======
+          // 触发 UserProjectsManager 重新加载
+          setRefreshTrigger(prev => prev + 1);
+          // 同时重新从 API 加载最新数据
+          setTimeout(() => {
+            loadProjectsWithThrottle();
+          }, 500);
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         }}
       />
     </div>

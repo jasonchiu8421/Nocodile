@@ -99,6 +99,10 @@ export default function ProjectShareModal({
         await loadShares();
         onShareSuccess?.();
         log.info('PROJECT_SHARE', 'Shared successfully', { projectId, username: username.trim() });
+<<<<<<< HEAD
+=======
+        console.log(data.message);
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
       } else {
         throw new Error(data.message || '分享失敗');
       }
@@ -131,6 +135,10 @@ export default function ProjectShareModal({
         setSuccess(data.message);
         await loadShares();
         log.info('PROJECT_SHARE', 'Unshared', { projectId, username });
+<<<<<<< HEAD
+=======
+        console.log(data.message);
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
       } else {
         throw new Error(data.message || '取消失敗');
       }

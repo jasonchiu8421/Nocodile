@@ -45,7 +45,7 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
-nocodile/.next/
+.next/
 .swc/
 .*.env
 
@@ -115,3 +115,6 @@ Nocodile/out/
 
 # Docker config backup
 .docker/config.json.backup
+
+*storybook.log
+storybook-static

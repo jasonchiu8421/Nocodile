@@ -21,28 +21,47 @@ class ObjectDetectionDB:
     def __init__(self, host=None, user=None, password=None, database=None):
         """
         初始化数据库连接
-        優先使用環境變數或配置模組
+        優先使用環境變數或配置模組，否則使用預設值
         """
         # if USE_CONFIG_MODULE:
+<<<<<<< HEAD
         #     # 使用配置模組
         #     self.config = {
         #         'host': host or config.database.host,
         #         'user': user or config.database.user,
         #         'password': password or config.database.password,
         #         'database': database or config.database.database,
+=======
+        #     # 使用配置模組，但優先使用傳入的參數
+        #     self.config = {
+        #         'host': host or os.getenv('MYSQL_HOST') or config.database.host,
+        #         'user': user or os.getenv('MYSQL_USER') or config.database.user,
+        #         'password': password or os.getenv('MYSQL_PASSWORD') or config.database.password,
+        #         'database': database or os.getenv('MYSQL_DATABASE') or config.database.database,
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         #         'charset': 'utf8mb4'
         #     }
         # else:
         #     # 使用環境變數或預設值
+<<<<<<< HEAD
         #     self.config = {
         #         'host': host or os.getenv('MYSQL_HOST', 'localhost'),
         #         'user': user or os.getenv('MYSQL_USER', 'root'),
         #         'password': password or os.getenv('MYSQL_PASSWORD', 'rootpassword'),
         #         'database': database or os.getenv('MYSQL_DATABASE', 'nocodile_db'),
+=======
+        #     # 預設配置：host='localhost', user='root', password='12345678', database='Nocodile'
+        #     self.config = {
+        #         'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+        #         'user': user or os.getenv('MYSQL_USER', 'root'),
+        #         'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
+        #         'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         #         'charset': 'utf8mb4'
         #     }
 
         self.config = {
+<<<<<<< HEAD
             'host': 'nocodile-database-1',
             'user': 'root',
             'password': 'rootpassword',
@@ -50,53 +69,82 @@ class ObjectDetectionDB:
             'charset': 'utf8mb4'
         }
         
+=======
+            'host': host or os.getenv('MYSQL_HOST', 'localhost'),
+            'user': user or os.getenv('MYSQL_USER', 'root'),
+            'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
+            'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
+            'charset': 'utf8mb4'
+        }
+
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
         self.connection = None
         print(f"資料庫配置: {self.config['host']}:{self.config.get('port', 3306)}")
         print(f"目標資料庫: {self.config['database']}")
     
     def connect(self):
         """连接数据库"""
-        # 嘗試多個連接配置
+        try:
+            self.connection = pymysql.connect(**self.config)
+            print("数据库连接成功")
+            return True
+        except Exception as e:
+            print(f"数据库连接失败: {e}")
+            # 如果默认配置失败，尝试其他常见配置
+            configs_to_try = [
+                # Docker 本地映射端口
+                {**self.config, 'host': 'localhost', 'port': 3307},
+                # 標準本地端口
+                {**self.config, 'host': 'localhost', 'port': 3306}
+            ]
+            
+            for i, config in enumerate(configs_to_try, 1):
+                try:
+                    print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3306)}")
+                    self.connection = pymysql.connect(**config)
+                    print(f"資料庫連接成功！使用配置 {i}")
+                    return True
+                except Exception as e2:
+                    print(f"配置 {i} 連接失敗: {e2}")
+                    continue
+            
+            print("所有資料庫連接配置都失敗")
+            return False
+    
+    def create_database(self):
+        """创建数据库"""
+        # 先连接到MySQL服务器（不指定数据库）
+        temp_config = self.config.copy()
+        del temp_config['database']
+        
+        # 尝试多个配置连接
         configs_to_try = [
-            self.config,
-            # Docker 本地映射端口
-            {**self.config, 'host': 'localhost', 'port': 3307},
-            # 標準本地端口
-            {**self.config, 'host': 'localhost', 'port': 3306}
+            temp_config,
+            {**temp_config, 'host': 'localhost', 'port': 3307},
+            {**temp_config, 'host': 'localhost', 'port': 3306}
         ]
         
         for i, config in enumerate(configs_to_try, 1):
             try:
-                print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3306)}")
-                self.connection = pymysql.connect(**config)
-                print(f"資料庫連接成功！使用配置 {i}")
+                temp_connection = pymysql.connect(**config)
+                cursor = temp_connection.cursor()
+                
+                # 创建数据库
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.config['database']} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                print(f"数据库 {self.config['database']} 创建成功")
+                
+                cursor.close()
+                temp_connection.close()
                 return True
             except Exception as e:
-                print(f"配置 {i} 連接失敗: {e}")
-                continue
+                if i < len(configs_to_try):
+                    print(f"配置 {i} 连接失败，尝试下一个配置: {e}")
+                    continue
+                else:
+                    print(f"创建数据库失败: {e}")
+                    return False
         
-        print("所有資料庫連接配置都失敗")
         return False
-    
-    def create_database(self):
-        """创建数据库"""
-        try:
-            # 先连接到MySQL服务器（不指定数据库）
-            temp_config = self.config.copy()
-            del temp_config['database']
-            temp_connection = pymysql.connect(**temp_config)
-            cursor = temp_connection.cursor()
-            
-            # 创建数据库
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.config['database']} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            print(f"数据库 {self.config['database']} 创建成功")
-            
-            cursor.close()
-            temp_connection.close()
-            return True
-        except Exception as e:
-            print(f"创建数据库失败: {e}")
-            return False
     
     def create_tables(self):
         """创建所有表"""
@@ -107,6 +155,9 @@ class ObjectDetectionDB:
         cursor = self.connection.cursor()
         
         try:
+            # 先禁用外键检查，避免创建表时的顺序问题
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+            print("已禁用外键检查")
 #====================================创建user表====================================
             create_user_table = """
             CREATE TABLE IF NOT EXISTS user (
@@ -148,7 +199,10 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_project_table)
             print("project表创建成功")
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 #====================================创建class表====================================
             create_class_table = """
             CREATE TABLE IF NOT EXISTS class (
@@ -156,6 +210,10 @@ class ObjectDetectionDB:
                 class_id INT AUTO_INCREMENT PRIMARY KEY,
                 class_name VARCHAR(100) NOT NULL,
                 color VARCHAR(10) NOT NULL,
+<<<<<<< HEAD
+=======
+                class_num INT DEFAULT NULL,
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 
                 -- Foreign key
                 FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE,
@@ -168,6 +226,10 @@ class ObjectDetectionDB:
             """
             cursor.execute(create_class_table)
             print("class表创建成功")
+<<<<<<< HEAD
+=======
+            
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
             
 #====================================创建video表====================================
             create_video_table = """
@@ -237,6 +299,15 @@ class ObjectDetectionDB:
             cursor.execute(create_shared_users_table)
             print("project_shared_users表创建成功")
 
+            # 检查并添加 class_num 字段（如果不存在）
+            try:
+                cursor.execute("SELECT class_num FROM class LIMIT 1")
+            except Exception:
+                # 字段不存在，添加它
+                print("检测到 class 表缺少 class_num 字段，正在添加...")
+                cursor.execute("ALTER TABLE class ADD COLUMN class_num INT DEFAULT NULL")
+                print("已添加 class_num 字段到 class 表")
+
             # 重新启用外键检查
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
             print("已重新启用外键检查")
@@ -300,7 +371,13 @@ def main():
     else:
         print("檢測到本地環境")
     
-    db = ObjectDetectionDB()
+    # 使用您的数据库配置（从环境变量或使用默认值）
+    db = ObjectDetectionDB(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        user=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', '12345678'),
+        database=os.getenv('MYSQL_DATABASE', 'Nocodile')
+    )
     
     try:
         # 1. 創建資料庫

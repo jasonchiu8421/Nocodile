@@ -111,6 +111,7 @@ const Login = () => {
     }
   };
 
+<<<<<<< HEAD
   // Prevent hydration mismatch ??????????????
   if (!isClient) {
     return (
@@ -237,6 +238,10 @@ const Login = () => {
   }
 
   return (
+=======
+  // Render login form (extracted to avoid duplication)
+  const renderLoginForm = () => (
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[900px] w-full space-y-8">
         {/* Header */}
@@ -355,6 +360,18 @@ const Login = () => {
       </div>
     </div>
   );
+<<<<<<< HEAD
 };
 
+=======
+
+  // Prevent hydration mismatch by showing loading state on server
+  if (!isClient) {
+    return renderLoginForm();
+  }
+
+  return renderLoginForm();
+};
+
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
 export default Login;

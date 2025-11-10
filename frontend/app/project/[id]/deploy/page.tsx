@@ -176,18 +176,37 @@ export default function DeployPage() {
     return `${Math.round(value * 100)}%`;
   };
 
+<<<<<<< HEAD
   const handleDownloadModel = async (fileType:string
   ) => {
     try {
+=======
+  const handleDownloadModel = async (
+  ) => {
+    try {
+      setIsLoading(true); // 可選：顯示 loading
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
       const result = await ApiService.downloadModelFile(projectId,'pytorch');
 
       if (result.success && result.downloadUrl) {
         const link = document.createElement("a");
         link.href = result.downloadUrl;
+<<<<<<< HEAD
         link.download = `model_${projectId}.${fileType}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+=======
+        link.download = result.suggestedFileName|| `best_model_project_${projectId}.pt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(result.downloadUrl);
+
+        log.info("DEPLOY", "Model downloaded successfully", { projectId });
+        alert("模型下載成功！檔案：best_model_project_" + projectId + ".pt");
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
       } else {
         alert(result.error || "Model file not available for download");
       }
@@ -317,7 +336,11 @@ export default function DeployPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
+<<<<<<< HEAD
                     onClick={() => handleDownloadModel("file")}
+=======
+                    onClick={() => handleDownloadModel()}
+>>>>>>> 4b0b29dd73b0423ffd1b03ad0ac276adbdf0714f
                     className="inline-flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm"
                   >
                     Download the file
