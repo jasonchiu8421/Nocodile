@@ -4,45 +4,96 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import React from "react";
 import { useParams } from "next/navigation";
+import { useProcessingContext, ProcessingProvider } from "@/contexts/ProcessingContext";
 
-const layout = ({ children }: { children: React.ReactNode }) => {
+// 內部組件：使用 context
+const LayoutContent = ({ children }: { children: React.ReactNode }) => {
   const { id: curProjId } = useParams();
+  const { isProcessing } = useProcessingContext();
 
   useEffect(() => {
     //setCurProjId(localStorage.getItem("curProjId"));
   }, []);
-
-  // const saveValue = () => {
-  //   localStorage.setItem("myKey", "Hello World!");
-  //   setValue("Hello World!");
-  //};
 
   return (
     <main style={{ display: "flex", height: "100vh" }}>
       <nav
         style={{ width: "20%", backgroundColor: "#f4f4f4", padding: "1rem" }}
       >
-        <h2>Workflow Steps</h2>
-        <ol className="flex flex-col gap-2 min-h-4">
-          <li>
-            <Link href={`/dashboard`}>Return to dashboard</Link>
+        <div style={{ padding: "16px 24px", background: "#fff", borderRadius: "16px", boxShadow: "0 1px 4px rgba(16, 30, 54, 0.05)" }}>
+        <h2 style={{ fontWeight: 600, marginBottom: "18px", fontSize: "18px", color: "#222" }}>Workflow Steps</h2>
+        <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li style={{ fontWeight: 500, marginBottom: "18px", fontSize: "18px", color: "#222" }}>
+            <Link 
+              href={`/dashboard`}
+              className={isProcessing ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}
+              onClick={(e) => {
+                if (isProcessing) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Return to dashboard
+            </Link>
           </li>
-          <li>
-            <Link href={`/project/${curProjId}/annotate`}>Annotate</Link>
+          <li style={{ fontWeight: 500, marginBottom: "18px", fontSize: "18px", color: "#222" }}>
+            <Link 
+              href={`/project/${curProjId}/annotate`}
+              className={isProcessing ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}
+              onClick={(e) => {
+                if (isProcessing) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Annotate
+            </Link>
           </li>
-          <li>
-            <Link href={`/project/${curProjId}/train`}>Training</Link>
+          <li style={{ fontWeight: 500, marginBottom: "18px", fontSize: "18px", color: "#222" }}>
+            <Link 
+              href={`/project/${curProjId}/train`}
+              className={isProcessing ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}
+              onClick={(e) => {
+                if (isProcessing) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Training
+            </Link>
           </li>
-          <li>
-            <Link href={`/project/${curProjId}/deploy`}>Deploy</Link>
+          <li style={{ fontWeight: 500, marginBottom: "18px", fontSize: "18px", color: "#222" }}>
+            <Link 
+              href={`/project/${curProjId}/deploy`}
+              className={isProcessing ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}
+              onClick={(e) => {
+                if (isProcessing) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Deploy
+            </Link>
           </li>
         </ol>
+        </div>
       </nav>
 
       <section style={{ flex: 1, padding: "2rem", backgroundColor: "#fff" }}>
         {children}
       </section>
     </main>
+  );
+};
+
+// 外層組件：提供 Provider
+const layout = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <ProcessingProvider>
+      <LayoutContent>
+        {children}
+      </LayoutContent>
+    </ProcessingProvider>
   );
 };
 
