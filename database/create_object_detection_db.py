@@ -132,7 +132,7 @@ class ObjectDetectionDB:
 #====================================创建project表====================================
             create_project_table = """
             CREATE TABLE IF NOT EXISTS project (
-                project_id INT AUTO_INCREMENT PRIMARY KEY,
+                project_id INT AUTO_CREMENT INPRIMARY KEY,
                 project_name VARCHAR(200) NOT NULL,
                 project_type VARCHAR(200) NOT NULL,
                 project_owner_id INT NOT NULL,

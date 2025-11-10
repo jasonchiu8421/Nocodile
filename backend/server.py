@@ -608,7 +608,7 @@ class Project():
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = "SELECT class_name, color FROM class WHERE project_id = %d"
         print(type(self.project_id))
-        cursor.execute(query, (self.project_id))
+        cursor.execute(query, (int(self.project_id),))
         rows = cursor.fetchall()
         classes = {item["class_name"]: item["color"] for item in rows}
         return classes
@@ -850,7 +850,7 @@ class Project():
         self.save_project_status()
         
         # 保存数据集路径到数据库
-        dataset_path = f"{self.get_project_path()}/dataset"
+        dataset_path = f"{self.get_project_path()}"
         self.save_dataset_path(dataset_path)
 
         return True

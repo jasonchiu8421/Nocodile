@@ -15,4 +15,5 @@ data_yaml = {
             "nc": len(classes),
             "names": classes
         }
+print(type(data_yaml))
 metrics = model.val(data=data_yaml)
