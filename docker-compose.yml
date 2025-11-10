@@ -69,7 +69,7 @@ services:
       - "${FRONTEND_PORT:-3001}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8888}
+      - NEXT_PUBLIC_API_URL=http://10.64.78.187:8888
       - WATCHPACK_POLLING=true
     volumes:
       - ./frontend:/app
