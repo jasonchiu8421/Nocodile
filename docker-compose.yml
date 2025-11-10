@@ -44,6 +44,8 @@ services:
       - ./backend:/app
       - ./database:/app/database
       - backend-node-modules:/app/node_modules
+      - ./backend/projects:/app/projects
+      - ./backend/safe_projects:/app/safe_projects
     depends_on:
       database:
         condition: service_healthy

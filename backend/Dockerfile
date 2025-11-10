@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     curl \
+    gosu \
     # Essential OpenGL libraries for OpenCV
     libgl1-mesa-glx \
     libgl1-mesa-dri \
@@ -98,6 +99,10 @@ RUN adduser \
 RUN mkdir -p /app/projects /app/safe_projects /app/temp && \
     chown -R appuser:appuser /app
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 COPY requirements.txt .
 
 # Install dependencies using cache.
@@ -110,11 +115,14 @@ COPY . .
 RUN chown -R appuser:appuser /app && \
     chmod -R 755 /app
 
-# Switch to non-privileged user.
-USER appuser
+# Note: We don't switch to appuser here - the entrypoint will do it
+# This allows the entrypoint to run as root to fix permissions first
 
 # Expose port.
 EXPOSE 8888
 
+# Set entrypoint to fix permissions, then switch to appuser
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
 # Run FastAPI application.
-CMD uvicorn 'server:app' --host=0.0.0.0 --port=8888
+CMD ["uvicorn", "server:app", "--host=0.0.0.0", "--port=8888"]
