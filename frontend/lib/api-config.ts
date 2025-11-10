@@ -3,14 +3,14 @@ import { log } from './logger';
 
 // Default API configuration
 const DEFAULT_API_CONFIG = {
-  baseUrl: 'http://localhost:8888',
+  baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888',
   timeout: 10000,
   retries: 3
 };
 
 // Fallback URLs to try if the primary URL fails
 const FALLBACK_URLS = [
-  'http://localhost:8888',
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888',
   'http://127.0.0.1:8888',
   'http://host.docker.internal:8888',
   'http://backend:8888'

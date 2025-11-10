@@ -240,7 +240,8 @@ if (typeof window !== 'undefined') {
     testConnection: async () => {
       const startTime = Date.now();
       try {
-        const response = await fetch('http://localhost:8888/health');
+        const healthUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888'}/health`;
+        const response = await fetch(healthUrl);
         const duration = Date.now() - startTime;
         logger.connectionTest('http://localhost:8888', response.ok, duration);
         return { success: response.ok, duration, status: response.status };
