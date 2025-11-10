@@ -2604,7 +2604,7 @@ async def share_project(request: ShareProjectRequest):
             }
 
         # Check if already shared
-        share_query = "SELECT id FROM project_shares WHERE project_id = %s AND shared_with_user_id = %s"
+        share_query = "SELECT id FROM project_shared_users WHERE project_id = %s AND user_id = %s"
         cursor.execute(share_query, (project_id, target_user['user_id']))
         existing_share = cursor.fetchone()
         
@@ -2617,7 +2617,7 @@ async def share_project(request: ShareProjectRequest):
 
         # Create share record
         insert_query = """
-            INSERT INTO project_shares (project_id, shared_with_user_id, permissions, shared_at) 
+            INSERT INTO project_shared_users (project_id, user_id, permissions, shared_at) 
             VALUES (%s, %s, %s, NOW())
         """
         cursor.execute(insert_query, (project_id, target_user['user_id'], permissions))
@@ -2663,7 +2663,7 @@ async def unshare_project(request: UnshareProjectRequest):
             }
 
         # Remove share record
-        delete_query = "DELETE FROM project_shares WHERE project_id = %s AND shared_with_user_id = %s"
+        delete_query = "DELETE FROM project_shared_users WHERE project_id = %s AND user_id = %s"
         result = cursor.execute(delete_query, (project_id, target_user['user_id']))
         connection.commit()
         cursor.close()
@@ -2688,38 +2688,55 @@ async def unshare_project(request: UnshareProjectRequest):
             content={"error": str(e), "traceback": traceback.format_exc()}
         )
 
-# # Get project shares
-# @app.post("/get_project_shares")
-# async def get_project_shares(request: ProjectRequest):
-#     try:
-#         project_id = request.project_id
+# Get project shares
+@app.post("/get_project_shares")
+async def get_project_shares(request: ProjectRequest):
+    try:
+        project_id = request.project_id
 
-#         cursor = connection.cursor(pymysql.cursors.DictCursor)
-#         # Ask Jimmy (database has a table for project_shares?)
-#         query = """
-#             SELECT ps.id, ps.permissions, ps.shared_at, u.username, u.user_id
-#             FROM project_shares ps
-#             JOIN user u ON ps.shared_with_user_id = u.user_id
-#             WHERE ps.project_id = %s
-#             ORDER BY ps.shared_at DESC
-#         """
-#         cursor.execute(query, (project_id,))
-#         shares = cursor.fetchall()
-#         cursor.close()
+        if not is_db_connection_valid():
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        cursor = get_db_cursor()
+        try:
+            # Query project_shared_users table to get all users the project is shared with
+            query = """
+                SELECT psu.id, psu.permissions, psu.shared_at, u.username, u.user_id
+                FROM project_shared_users psu
+                JOIN user u ON psu.user_id = u.user_id
+                WHERE psu.project_id = %s
+                ORDER BY psu.shared_at DESC
+            """
+            cursor.execute(query, (project_id,))
+            shares = cursor.fetchall()
+            
+            # Convert to list of dicts if needed
+            if shares:
+                shares_list = []
+                for share in shares:
+                    shares_list.append({
+                        "id": share.get('id'),
+                        "username": share.get('username'),
+                        "user_id": share.get('user_id'),
+                        "permissions": share.get('permissions'),
+                        "shared_at": share.get('shared_at').isoformat() if share.get('shared_at') else None
+                    })
+                shares = shares_list
+            
+            return {
+                "success": True,
+                "shares": shares or []
+            }
+        finally:
+            cursor.close()
 
-#         return {
-#             "success": True,
-#             "shares": shares
-#         }
-
-#     except Exception as e:
-#         logger.error(f"Error in get_project_shares: {str(e)}")
-#         import traceback
-#         logger.error(f"Traceback: {traceback.format_exc()}")
-#         return JSONResponse(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             content={"error": str(e), "traceback": traceback.format_exc()}
-#         )
+    except Exception as e:
+        logger.error(f"Error in get_project_shares: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": str(e), "traceback": traceback.format_exc()}
+        )
 
 
 #=================================== Page 3 - Video Upload & Management ==========================================
