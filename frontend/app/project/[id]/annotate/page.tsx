@@ -896,10 +896,10 @@ function AnnotatePageContent() {
         }
         console.log('✅ Class deleted successfully via API');
       } else {
-        alert(`無法刪除類別: ${result?.message || 'Unknown error'}`);
+        alert(`Unable to delete category: ${result?.message || 'Unknown error'}`);
       }
     } catch (error) {
-      alert(`刪除類別時發生錯誤: ${error instanceof Error ? error.message : String(error)}`);
+      alert(`An error occurred while deleting the category.: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -1017,7 +1017,7 @@ function AnnotatePageContent() {
             <div className="flex items-center space-x-4">
               <span className="font-semibold text-gray-700">Tools</span>
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-gray-600">狀態:</span>
+                <span className="text-gray-600">state:</span>
                 <span className={`px-2 py-1 rounded text-xs ${
                   annotationStatus === "not yet started" ? "bg-gray-200 text-gray-700" :
                   annotationStatus === "in progress" ? "bg-yellow-200 text-yellow-700" :
@@ -1026,7 +1026,7 @@ function AnnotatePageContent() {
                 }`}>
                   {annotationStatus}
                 </span>
-                <span className="text-gray-600">最後註釋幀: {lastAnnotatedFrame}</span>
+                <span className="text-gray-600">Last comment frame: {lastAnnotatedFrame}</span>
                 {(annotationStatus === "completed" || annotationStatus === "manual annotation completed") && (
                   <Button
                     onClick={async () => {
@@ -1035,26 +1035,26 @@ function AnnotatePageContent() {
                     size="sm"
                     className="ml-2 bg-green-600 hover:bg-green-700 text-white text-xs"
                   >
-                    🎉 前往训练页面
+                    🎉 Go to training page
                   </Button>
                 )}
                 {saveStatus === 'saving' ? (
                   <span className="text-blue-600 text-xs flex items-center">
                     <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
-                    自動保存中...
+                    Auto-saving...
                   </span>
                 ) : saveStatus === 'saved' ? (
                   <span className="text-green-600 text-xs flex items-center">
                     <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
-                    已保存 {lastSavedTime ? new Date(lastSavedTime).toLocaleTimeString() : ''}
+                    Saved {lastSavedTime ? new Date(lastSavedTime).toLocaleTimeString() : ''}
                   </span>
                 ) : saveStatus === 'error' ? (
                   <span className="text-red-600 text-xs flex items-center">
                     <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
-                    保存失敗 (已備份到本地)
+                    Save failed (backup to local)
                   </span>
                 ) : (
-                  <span className="text-green-600 text-xs">✓ 自動保存已啟用</span>
+                  <span className="text-green-600 text-xs">✓Auto-save is enabled.</span>
                 )}
               </div>
               <div className="flex space-x-2">

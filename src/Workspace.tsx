@@ -220,7 +220,7 @@ export default function Workspace() {
   
   // Handle stage editor close
   const handleEditorClose = () => {
-    if (isTransitioning) return;
+    if (isTransitioning) return;  
     
     // Mark the current stage as configured when it's closed
     if (expandedStage) {

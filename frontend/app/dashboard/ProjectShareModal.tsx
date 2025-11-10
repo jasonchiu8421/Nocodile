@@ -67,7 +67,7 @@ export default function ProjectShareModal({
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       log.error('PROJECT_SHARE', 'Load shares failed', { projectId, error: msg });
-      setError(`載入失敗: ${msg}`);
+      setError(`Loading failed: ${msg}`);
     } finally {
       setIsLoadingShares(false);
     }
@@ -76,7 +76,7 @@ export default function ProjectShareModal({
   // === 分享專案 ===
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) { setError("請輸入使用者名稱"); return; }
+    if (!username.trim()) { setError("Please enter your username."); return; }
 
     setIsSharing(true); setError(null); setSuccess(null);
 
@@ -101,7 +101,7 @@ export default function ProjectShareModal({
         log.info('PROJECT_SHARE', 'Shared successfully', { projectId, username: username.trim() });
         console.log(data.message);
       } else {
-        throw new Error(data.message || '分享失敗');
+        throw new Error(data.message || 'Sharing failed');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -114,7 +114,7 @@ export default function ProjectShareModal({
 
   // === 取消分享 ===
   const handleUnshare = async (username: string) => {
-    if (!confirm(`確定要取消與 ${username} 的分享？`)) return;
+    if (!confirm(`Are you sure you want to cancel sharing with ${username} ?`)) return;
 
     try {
       const response = await apiRequest('/unshare_project', {
@@ -134,7 +134,7 @@ export default function ProjectShareModal({
         log.info('PROJECT_SHARE', 'Unshared', { projectId, username });
         console.log(data.message);
       } else {
-        throw new Error(data.message || '取消失敗');
+        throw new Error(data.message || 'Cancellation failed');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -177,7 +177,7 @@ const saveProjectName = async () => {
     }
 
     const data = await response.json();
-    if (!data.success) throw new Error(data.message || '修改失敗');
+    if (!data.success) throw new Error(data.message || 'Modification failed');
 
     log.info('PROJECT_NAME', 'Renamed successfully', { 
       projectId, 
@@ -186,12 +186,12 @@ const saveProjectName = async () => {
     });
 
     onNameChange?.(trimmedName);
-    setSuccess(`已更名為「${trimmedName}」`);
+    setSuccess(`Renamed to "${trimmedName}"`);
 
   } catch (err) {
-    const msg = err instanceof Error ? err.message : '未知錯誤';
+    const msg = err instanceof Error ? err.message : 'Unknown error';
     log.error('PROJECT_NAME', 'Rename failed', { projectId, error: msg });
-    setError(`更名失敗: ${msg}`);
+    setError(`Name change failed: ${msg}`);
     setEditingName(projectName); // 還原
   } finally {
     setIsSavingName(false);
@@ -250,7 +250,7 @@ const saveProjectName = async () => {
                   setIsEditingName(true);
                   setTimeout(() => nameInputRef.current?.focus(), 0);
                 }}
-                title="點擊編輯專案名稱"
+                title="Click to edit project name"
               >
                 {projectName}
               </h2>
@@ -272,7 +272,7 @@ const saveProjectName = async () => {
               disabled={isSavingName}
               className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
             >
-              {isSavingName ? '儲存中...' : '儲存'}
+              {isSavingName ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={() => {
@@ -282,7 +282,7 @@ const saveProjectName = async () => {
               disabled={isSavingName}
               className="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
             >
-              取消
+              Cancel
             </button>
           </div>
         )}
@@ -296,26 +296,26 @@ const saveProjectName = async () => {
           <form onSubmit={handleShare} className="mb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">使用者名稱</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">username</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="輸入要分享的使用者"
+                  placeholder="Enter the username to share"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   disabled={isSharing}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">權限</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Permissions</label>
                 <select
                   value={permissions}
                   onChange={(e) => setPermissions(e.target.value as "read" | "write")}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   disabled={isSharing}
                 >
-                  <option value="read">唯讀</option>
-                  <option value="write">讀寫</option>
+                  <option value="read">Read only</option>
+                  <option value="write">Read and write</option>
                 </select>
               </div>
             </div>
@@ -325,9 +325,9 @@ const saveProjectName = async () => {
               className="mt-4 w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
             >
               {isSharing ? (
-                <>分享中...</>
+                <>Sharing...</>
               ) : (
-                <><UserPlus className="h-4 w-4" /> 分享專案</>
+                <><UserPlus className="h-4 w-4" /> Share project</>
               )}
             </button>
           </form>
@@ -340,13 +340,13 @@ const saveProjectName = async () => {
           <div>
             <div className="flex items-center space-x-2 mb-4">
               <Users className="h-5 w-5 text-gray-600" />
-              <h3 className="text-lg font-medium text-gray-900">已分享 ({shares.length})</h3>
+              <h3 className="text-lg font-medium text-gray-900">Shared ({shares.length})</h3>
             </div>
 
             {isLoadingShares ? (
-              <div className="flex justify-center py-8">載入中...</div>
+              <div className="flex justify-center py-8">Loading...</div>
             ) : shares.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">尚未分享給任何人</div>
+              <div className="text-center py-8 text-gray-500">Not shared with anyone</div>
             ) : (
               <div className="space-y-3">
                 {shares.map((share) => (
@@ -357,7 +357,7 @@ const saveProjectName = async () => {
                         <span className="font-medium">{share.username}</span>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs ${share.permissions === 'write' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                        {share.permissions === 'write' ? '讀寫' : '唯讀'}
+                        {share.permissions === 'write' ? 'Read and write' : 'Read only'}
                       </span>
                     </div>
                     <div className="flex items-center space-x-3">

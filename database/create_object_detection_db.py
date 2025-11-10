@@ -7,6 +7,12 @@ from pathlib import Path
 import base64
 import hashlib
 
+# 設置 Windows 控制台編碼為 UTF-8
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 # 添加後端路徑到 Python 路徑
 backend_path = Path(__file__).parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
@@ -45,15 +51,15 @@ class ObjectDetectionDB:
 
         self.config = {
             'host': host or os.getenv('MYSQL_HOST', 'localhost'),
-            'port': int(os.getenv('MYSQL_PORT', 3306)),
+            'port': int(os.getenv('MYSQL_PORT', '3307')),  # 預設使用 3307 端口
             'user': user or os.getenv('MYSQL_USER', 'root'),
-            'password': password or os.getenv('MYSQL_PASSWORD', '12345678'),
+            'password': password or os.getenv('MYSQL_PASSWORD', 'A933192abc@.@'),
             'database': database or os.getenv('MYSQL_DATABASE', 'Nocodile'),
             'charset': 'utf8mb4'
         }
 
         self.connection = None
-        print(f"資料庫配置: {self.config['host']}:{self.config.get('port', 3306)}")
+        print(f"資料庫配置: {self.config['host']}:{self.config.get('port', 3307)}")
         print(f"目標資料庫: {self.config['database']}")
     
     def connect(self):
@@ -65,16 +71,24 @@ class ObjectDetectionDB:
         except Exception as e:
             print(f"数据库连接失败: {e}")
             # 如果默认配置失败，尝试其他常见配置
-            configs_to_try = [
-                # Docker 本地映射端口
-                {**self.config, 'host': 'localhost', 'port': 3307},
-                # 標準本地端口
-                {**self.config, 'host': 'localhost', 'port': 3306}
+            # 優先嘗試 3307 端口（Docker 映射端口）
+            passwords_to_try = [
+                self.config.get('password', 'A933192abc@.@'),  # 預設密碼
+                'rootpassword',  # Docker 容器常見密碼
+                '',  # 空密碼（本地開發）
             ]
+            
+            configs_to_try = []
+            # 優先嘗試 3307 端口
+            for pwd in passwords_to_try:
+                configs_to_try.append({**self.config, 'host': 'localhost', 'port': 3307, 'password': pwd})
+            # 然後嘗試 3306 端口
+            for pwd in passwords_to_try:
+                configs_to_try.append({**self.config, 'host': 'localhost', 'port': 3306, 'password': pwd})
             
             for i, config in enumerate(configs_to_try, 1):
                 try:
-                    print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3306)}")
+                    print(f"嘗試連接配置 {i}: {config['host']}:{config.get('port', 3307)}")
                     self.connection = pymysql.connect(**config)
                     print(f"資料庫連接成功！使用配置 {i}")
                     return True
@@ -92,11 +106,20 @@ class ObjectDetectionDB:
         del temp_config['database']
         
         # 尝试多个配置连接
-        configs_to_try = [
-            temp_config,
-            {**temp_config, 'host': 'localhost', 'port': 3307},
-            {**temp_config, 'host': 'localhost', 'port': 3306}
+        # 優先嘗試 3307 端口（Docker 映射端口）
+        passwords_to_try = [
+            temp_config.get('password', 'A933192abc@.@'),  # 預設密碼
+            'rootpassword',  # Docker 容器常見密碼
+            '',  # 空密碼（本地開發）
         ]
+        
+        configs_to_try = []
+        # 優先嘗試 3307 端口
+        for pwd in passwords_to_try:
+            configs_to_try.append({**temp_config, 'host': 'localhost', 'port': 3307, 'password': pwd})
+        # 然後嘗試 3306 端口
+        for pwd in passwords_to_try:
+            configs_to_try.append({**temp_config, 'host': 'localhost', 'port': 3306, 'password': pwd})
         
         for i, config in enumerate(configs_to_try, 1):
             try:
@@ -339,7 +362,7 @@ def main():
     db = ObjectDetectionDB(
         host=os.getenv('MYSQL_HOST', 'localhost'),
         user=os.getenv('MYSQL_USER', 'root'),
-        password=os.getenv('MYSQL_PASSWORD', '12345678'),
+        password=os.getenv('MYSQL_PASSWORD', 'A933192abc@.@'),
         database=os.getenv('MYSQL_DATABASE', 'Nocodile')
     )
     
