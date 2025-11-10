@@ -2231,7 +2231,7 @@ class LoginRequest(BaseModel):
 # Input: username, password
 # Output: success, userID
 @app.post("/login")
-async def login(request: LoginRequest):
+async def login(request: LoginRequest, response: Response):
     try:
         username = request.username
         password = request.password
@@ -2243,6 +2243,24 @@ async def login(request: LoginRequest):
         if success:
             # if status is True, get userID from database, else None
             userID = userlogin.get_userID()
+            
+            # Set HTTP cookies
+            response.set_cookie(
+                key="userId",
+                value=str(userID),
+                httponly=True,
+                secure=False,  # Set to False for HTTP
+                samesite="lax",
+                max_age=86400  # 24 hours
+            )
+            response.set_cookie(
+                key="username",
+                value=username,
+                httponly=False,
+                secure=False,  # Set to False for HTTP
+                samesite="lax",
+                max_age=86400
+            )
 
             return {
                 "success": success,

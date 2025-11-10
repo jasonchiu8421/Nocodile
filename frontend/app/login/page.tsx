@@ -22,12 +22,13 @@ const Login = () => {
   // 檢查是否已登錄
   useEffect(() => {
     setIsClient(true);
-    if (typeof window !== "undefined" && window.cookieStore) {
-      window.cookieStore.get("userId").then((val) => {
-        if (val?.value) {
-          redirect("/dashboard");
+    // Check for cookie on the client-side
+    if (typeof window !== 'undefined' && document.cookie.includes('userId=')) {
+        // A simple check is enough here. The backend will validate the cookie on API requests.
+        const userId = document.cookie.split('; ').find(row => row.startsWith('userId='))?.split('=')[1];
+        if (userId) {
+            router.push("/dashboard");
         }
-      });
     }
   }, [router]);
 
@@ -80,18 +81,14 @@ const Login = () => {
           projectCount: data.projects?.length || 0,
         });
 
-        // 設置用戶 ID 到 cookie
-        if (typeof window !== "undefined" && window.cookieStore) {
-          await window.cookieStore.set("userId", String(data.userID));
-          await window.cookieStore.set("username", formData.username.trim());
+        // Cookies are now set by the server. The frontend just needs to handle the redirect.
 
-          // 存儲項目信息到緩存
-          if (data.projects && data.projects.length > 0) {
-            await ProjectCache.setProjects(data.projects);
-          } else {
-            // 清除舊的項目緩存
-            await ProjectCache.clearCache();
-          }
+        // 存儲項目信息到緩存
+        if (data.projects && data.projects.length > 0) {
+          await ProjectCache.setProjects(data.projects);
+        } else {
+          // 清除舊的項目緩存
+          await ProjectCache.clearCache();
         }
 
         // 重定向到儀表板
