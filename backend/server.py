@@ -1106,6 +1106,23 @@ class Project():
                 cursor.close()
         return success  
     
+    # get class ids as used in the model
+    ### Not yet validated
+    def get_class_ids(self, class_list):
+        if not is_db_connection_valid():
+            raise Exception("数据库连接不可用")
+        success = True
+        for class_name in class_list:
+            cursor = get_db_cursor()
+            try:
+                query = "SELECT FROM class_name, class_num WHERE project_id = %s"
+                cursor.execute(query, (self.project_id,))
+                rows = cursor.fetchall()
+                class_id_list = {item["class_name"]: item["class_num"] for item in rows}
+            finally:
+                cursor.close()
+        return class_id_list
+    
     # Used during training
     @staticmethod
     def copy_files(image_list, img_dest, lbl_dest, labels_dir):
@@ -1574,7 +1591,7 @@ class Project():
             logger.info(f"Created train/val split: {len(train_images)} train, {len(val_images)} val images")
         
         # Get classes from database
-        classes_dict = self.get_classes()
+        classes_dict = self.get_class_ids()
         classes = sorted(classes_dict.keys())
         
         if not classes:
@@ -1597,6 +1614,7 @@ class Project():
         # Run validation - YOLO expects a YAML file path, not a dict
         try:
             metrics = model.val(data=str(yaml_path), verbose=False)
+
         except Exception as e:
             logger.error(f"Error running validation: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
