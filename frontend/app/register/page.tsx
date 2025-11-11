@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,32 +18,37 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // 檢查是否已登錄
+  // 【改動1】加強檢查：只要有 userId cookie 就強制跳 login + 清除 cookie
   useEffect(() => {
-    if (typeof window !== 'undefined' && document.cookie.includes('userId=')) {
-      const userId = document.cookie.split('; ').find(row => row.startsWith('userId='))?.split('=')[1];
-      if (userId) {
-        router.push("/login");
+    if (typeof window !== 'undefined') {
+      const hasUserId = document.cookie.includes('userId=');
+      if (hasUserId) {
+        // 強制清除所有登入相關 cookie
+        document.cookie = "userId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        // 立即跳到 login 頁面
+        router.replace("/login"); // replace 不留歷史紀錄
+        return;
       }
     }
   }, [router]);
 
+  // 【改動2】清除 cookie 的通用函式（註冊成功後也要用）
+  const clearAuthCookies = () => {
+    document.cookie = "userId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    // 清除錯誤信息當用戶開始輸入
-    if (errorMsg) {
-      setErrorMsg("");
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errorMsg) setErrorMsg("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // 基本驗證
+
+    // === 基本驗證（不變）===
     if (!formData.username.trim()) {
       setErrorMsg("Please enter your username.");
       return;
@@ -65,13 +69,13 @@ const Register = () => {
       setErrorMsg("Password confirmation mismatch");
       return;
     }
-    
+
     setIsLoading(true);
     setErrorMsg("");
-    
+
     try {
       log.info('REGISTER', 'Registration attempt started', { username: formData.username });
-      
+
       const response = await apiRequest('/register', {
         method: 'POST',
         body: JSON.stringify({
@@ -80,23 +84,30 @@ const Register = () => {
           confirm_password: formData.confirmPassword
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         log.info('REGISTER', 'Registration successful', {
           userId: data.userID,
           projectCount: data.projects?.length || 0
         });
-        
-        // Set cookies using document.cookie for broader compatibility
-        if (typeof window !== 'undefined') {
-          document.cookie = `userId=${data.userID}; path=/; max-age=604800`; // 7 days
-          document.cookie = `username=${encodeURIComponent(formData.username.trim())}; path=/; max-age=604800`;
-        }
-        
-        // 重定向到儀表板
-        router.push("/login");
+
+        // 【改動3】註冊成功後：強制清除 cookie + 跳 login
+        clearAuthCookies();
+
+        // 可選：顯示成功訊息 1.5 秒後再跳轉
+        setErrorMsg(""); // 清空錯誤
+        // 這裡不設 cookie！讓使用者一定要再登入
+
+        // 延遲跳轉 + 顯示成功訊息
+        const successMsg = "Registration successful! Please log in.";
+        setErrorMsg(successMsg);
+
+        setTimeout(() => {
+          router.replace("/login"); // replace 避免按回上頁又回到註冊
+        }, 1500);
+
       } else {
         const errorMessage = data.message || "Registration failed";
         setErrorMsg(errorMessage);
@@ -126,11 +137,10 @@ const Register = () => {
         {/* Registration Form */}
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-auto border border-gray-100">
           <form onSubmit={handleSubmit} className="space-y-7">
+
             {/* Username Field */}
             <div>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                </div>
                 <input
                   id="username"
                   name="username"
@@ -147,8 +157,6 @@ const Register = () => {
             {/* Password Field */}
             <div>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                </div>
                 <input
                   id="password"
                   name="password"
@@ -165,11 +173,7 @@ const Register = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  )}
+                  {showPassword ? <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" /> : <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />}
                 </button>
               </div>
             </div>
@@ -177,8 +181,6 @@ const Register = () => {
             {/* Confirm Password Field */}
             <div>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                </div>
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -195,19 +197,17 @@ const Register = () => {
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   disabled={isLoading}
                 >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  )}
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" /> : <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />}
                 </button>
               </div>
             </div>
 
-            {/* Error Message */}
+            {/* Success / Error Message */}
             {errorMsg && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm text-red-600">{errorMsg}</p>
+              <div className={`border rounded-lg p-3 ${errorMsg.includes("successful") ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                <p className={`text-sm ${errorMsg.includes("successful") ? "text-green-700" : "text-red-600"}`}>
+                  {errorMsg}
+                </p>
               </div>
             )}
 
@@ -238,10 +238,7 @@ const Register = () => {
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
-                <Link
-                  href="/login"
-                  className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-                >
+                <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
                   Log in now
                 </Link>
               </p>
