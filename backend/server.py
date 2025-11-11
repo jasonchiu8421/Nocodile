@@ -1107,21 +1107,18 @@ class Project():
         return success  
     
     # get class ids as used in the model
-    ### Not yet validated
-    def get_class_ids(self, class_list):
+    def get_class_ids(self):
         if not is_db_connection_valid():
             raise Exception("数据库连接不可用")
-        success = True
-        for class_name in class_list:
-            cursor = get_db_cursor()
-            try:
-                query = "SELECT FROM class_name, class_num WHERE project_id = %s"
-                cursor.execute(query, (self.project_id,))
-                rows = cursor.fetchall()
-                class_id_list = {item["class_name"]: item["class_num"] for item in rows}
-            finally:
-                cursor.close()
-        return class_id_list
+        cursor = get_db_cursor()
+        try:
+            query = "SELECT class_name, class_num FROM class WHERE project_id = %s"
+            cursor.execute(query, (self.project_id,))
+            rows = cursor.fetchall()
+            class_id_list = {item["class_name"]: item["class_num"] for item in rows}
+            return class_id_list
+        finally:
+            cursor.close()
     
     # Used during training
     @staticmethod
